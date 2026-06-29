@@ -1,94 +1,113 @@
-import React from 'react'
-import { Button } from 'antd'
-import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-
+import React from "react";
+import { Button } from "antd";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { TypeAnimation } from "react-type-animation";
+import { MailOutlined, ManOutlined, PhoneOutlined } from "@ant-design/icons";
+import MainLayout from "./Shared/Layouts/MainLayout";
 const Home = () => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-green-50 to-white flex flex-col'>
-
-      {/* Navbar */}
-      <div className='flex justify-between items-center px-8 py-4 bg-white shadow-sm'>
-        <h1 className='text-2xl font-bold text-green-600'>YadgarPay</h1>
-        <div className='space-x-4'>
-          <Button onClick={() => navigate('/login')}>Login</Button>
-          <Button type='primary' onClick={() => navigate('/register')}>
-            Sign Up
-          </Button>
-        </div>
-      </div>
-
+    <MainLayout>
       {/* Hero Section */}
-      <div className='flex flex-1 items-center justify-center px-6'>
-        <div className='max-w-5xl w-full grid md:grid-cols-2 gap-10 items-center'>
 
-          {/* Text */}
-          <motion.div
-            initial={{ opacity: 0, x: -40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className='text-4xl md:text-5xl font-bold mb-4'>
-              Send Money Worldwide 🌍
+      {/* Content */}
+      <div className="relative w-full h-screen">
+        {/* Hero Background */}
+
+        <div
+          className="
+  
+     
+      h-[100vh]
+      w-full
+      bg-[url('../assets/desktop.png')]
+      bg-cover
+      bg-center
+      bg-no-repeat
+    "
+        />
+        {/* Center Content */}
+        <section className="absolute inset-0 z-30 flex items-center justify-center px-5">
+          <div className="max-w-5xl mx-auto flex flex-col items-center text-center text-white">
+            <Button
+              size="large"
+              type="primary"
+              className="
+          !bg-cyan-700
+          !text-white
+          hover:!text-white
+          !font-bold
+          !rounded-full
+          !border-none
+          !px-5
+          !h-10
+          mb-6
+          !text-lg
+          !shadow-sm
+          !shadow-white
+          hover:scale-105
+          hover:!bg-blue-500
+        "
+              onClick={() => (window.location.href = "/login")}
+            >
+              Login Here
+            </Button>
+
+            <h2 className="text-3xl md:text-5xl font-bold ">
+              <TypeAnimation
+                style={{
+                  color: "#f6f4ef",
+                  textShadow: "0 0 10px #e8e88f",
+                }}
+                sequence={[
+                  "Money Services",
+                  3000,
+                  "Fast Transfers",
+                  3000,
+                  "Secure Payments",
+                  3000,
+                  "Trusted Worldwide",
+                  3000,
+                ]}
+                wrapper="span"
+                speed={20}
+                repeat={Infinity}
+              />
             </h2>
-            <p className='text-gray-600 text-lg mb-6'>
-              Fast, secure and simple money transfers. Built for global users and businesses.
-            </p>
-
-            <div className='space-x-4'>
-              <Button
-                type='primary'
-                size='large'
-                className='bg-green-600'
-                onClick={() => navigate('/register')}
-              >
-                Get Started
-              </Button>
-
-              <Button
-                size='large'
-                onClick={() => navigate('/login')}
-              >
-                Login
-              </Button>
-            </div>
-          </motion.div>
-
-          {/* Right UI Card */}
-          <motion.div
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-            className='bg-white rounded-2xl shadow-xl p-6'
-          >
-            <h3 className='text-xl font-semibold mb-4'>Quick Actions</h3>
-
-            <div className='space-y-4'>
-              <Button block size='large' onClick={() => navigate('/send')}>
-                Send Money
-              </Button>
-
-              <Button block size='large' onClick={() => navigate('/receive')}>
-                Receive Money
-              </Button>
-
-              <Button block size='large' onClick={() => navigate('/dashboard')}>
-                Dashboard
-              </Button>
-            </div>
-          </motion.div>
-
-        </div>
+          </div>
+        </section>
       </div>
 
       {/* Footer */}
-      <div className='text-center py-4 text-gray-400 text-sm'>
-        © 2026 YadgarPay — Secure Payments Worldwide
-      </div>
-    </div>
-  )
-}
+      <footer
+        className="
+      bg-black
+      border-t
+      border-yellow-500/40
+      text-yellow-500
+      py-5
+      px-4
+      fixed
+      bottom-0
+      w-full
+    "
+      >
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-center items-center gap-3 md:gap-12 text-sm md:text-base">
+          <div className="flex items-center gap-2">
+            <ManOutlined />
+            hadiagroup2023@gmail.com
+          </div>
 
-export default Home
+          <div className="flex items-center gap-2">
+            <PhoneOutlined />
+            +7 (747) 420-3722
+          </div>
+        </div>
+      </footer>
+    </MainLayout>
+  );
+};
+
+export default Home;

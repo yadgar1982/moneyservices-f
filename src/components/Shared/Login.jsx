@@ -7,6 +7,7 @@ import Cookies from "universal-cookie";
 import { http, trimData, fetcher } from "../Modules/http"
 import "./login.css";
 import useSWR from "swr";
+import MainLayout from "./Layouts/MainLayout";
 const API_URL = import.meta.env.VITE_API_URL
 const { Title, Text } = Typography;
 const cookies = new Cookies();
@@ -89,7 +90,8 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen  flex items-center  w-full justify-center bg-zinc-200 px-4">
+  <MainLayout>
+      <div className="min-h-screen  flex items-center  w-full justify-center bg-[#0b3528] px-4">
       {loader && (
         <div
           style={{
@@ -115,8 +117,8 @@ const Login = () => {
       )}
       <div className=" bg-zinc-100 rounded-lg shadow-xl !border-sm !border-zinc-300 p-2  flex flex-col gap-5 ">
         <div className="w-full px-12 flex gap-4 justify-between  items-center ">
-          <Avatar src={logo ? `${API_URL}${logo}` : ""} size={50} />
-          <h1 className="!text-zinc-500 font-bold text-lg">Login to your account here</h1>
+         
+          <h1 className="!text-zinc-500 font-bold text-lg mt-9">Login to your account here</h1>
         </div>
         <div className="  rounded-lg  px-4 ">
           <Card className="!bg-zinc-100 !rounded-lg !w-full mx-auto " >
@@ -175,6 +177,7 @@ const Login = () => {
       </div>
 
     </div>
+  </MainLayout>
   );
 }
 
