@@ -1,0 +1,32 @@
+/* .group-even {
+  background-color: #4c8ccb;
+} */
+
+.group-odd {
+  background-color: #ffffff;
+}
+
+
+
+.group-even {
+  background-color: #dadbe1;
+  border-left: 4px solid #e0cea2;
+}
+.transaction-type {
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;        /* 🔥 this is critical */
+}
+
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;       /* keeps it nicely cropped */
+  display: block;          /* removes inline spacing issues */
+}

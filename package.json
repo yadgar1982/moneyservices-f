@@ -1,0 +1,53 @@
+{
+  "name": "shafaf-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@reduxjs/toolkit": "^2.11.2",
+    "antd": "^6.2.1",
+    "axios": "^1.13.3",
+    "browser-image-compression": "^2.0.2",
+    "classnames": "^2.5.1",
+    "cookies": "^0.9.1",
+    "dayjs": "^1.11.19",
+    "dotenv": "^17.2.3",
+    "framer-motion": "^12.38.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-icons": "^5.5.0",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.13.0",
+    "react-signature-canvas": "^1.1.0-alpha.2",
+    "react-toastify": "^11.0.5",
+    "react-webcam": "^7.2.0",
+    "recharts": "^3.8.1",
+    "sweetalert": "^2.1.2",
+    "swr": "^2.3.8",
+    "universal": "^0.1.1",
+    "universal-cookie": "^8.0.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.2.4"
+  }
+}
