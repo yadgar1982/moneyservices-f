@@ -50,7 +50,7 @@ const Home = () => {
           hover:scale-105
           hover:!bg-blue-500
         "
-              onClick={() => (window.location.href = "/login")}
+              onClick={()=>navigate("/login")}
             >
               Login Here
             </Button>
