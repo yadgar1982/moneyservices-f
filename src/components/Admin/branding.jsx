@@ -151,8 +151,8 @@ const Branding = () => {
 
   const columns = [
     {
-      name: "Name",
-      dataIndex: "name",
+      name: "Company",
+      dataIndex: "companyName",
       width: 120,
       render: v => v || "—",
     },
@@ -246,8 +246,8 @@ const Branding = () => {
                 <Input />
               </Form.Item>
               <Form.Item
-                name="name"
-                label="Name"
+                name="companyName"
+                label="Company"
                 rules={[{ required: true, message: "Enter Company Name" }]}
                 className="!mb-0 !w-full"
               >

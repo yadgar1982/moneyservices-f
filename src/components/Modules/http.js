@@ -1,14 +1,21 @@
 import axios from "axios";
 
 
-export const http= (isToken = null)=>{
-   axios.defaults.baseURL=import.meta.env.VITE_ENDPOINT;
-  if (isToken){
-    axios.defaults.headers.common["Authorization"]=`Bearer ${isToken}`;
-  }
+// export const http= (isToken = null)=>{
+//    axios.defaults.baseURL=import.meta.env.VITE_ENDPOINT;
+//   if (isToken){
+//     axios.defaults.headers.common["Authorization"]=`Bearer ${isToken}`;
+//   }
+//   return axios;
+// };
+
+
+export const http = () => {
+  axios.defaults.baseURL = import.meta.env.VITE_ENDPOINT;
+  axios.defaults.withCredentials = true;
+
   return axios;
 };
-
 
 export const fetcher=async (api,)=>{
   try{

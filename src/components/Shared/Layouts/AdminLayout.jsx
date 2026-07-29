@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { http } from "../../Modules/http";
 const API_URL = import.meta.env.VITE_API_URL;
+import AppLoader from "../loader";
 import {
   BranchesOutlined,
+  DashboardOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -10,15 +13,23 @@ import {
   SettingOutlined,
   UploadOutlined,
   UserOutlined,
-
-} from '@ant-design/icons';
-import { Avatar, Button, Layout, Menu, theme, Tooltip, Spin } from 'antd';
+} from "@ant-design/icons";
+import {
+  Avatar,
+  Button,
+  Layout,
+  Menu,
+  theme,
+  Tooltip,
+  Spin,
+  Drawer,
+} from "antd";
 const { Header, Sider, Content } = Layout;
 
 const AdminLayout = ({ children }) => {
-  const navigate = useNavigate()
-  const [collapsed, setCollapsed] = useState(false);
-  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -26,9 +37,8 @@ const AdminLayout = ({ children }) => {
   const [myLogo, setmyLogo] = useState([]);
   const [userInf, setUserInf] = useState(false);
   const nav = (e) => {
-    navigate(`/${e.key}`)
-
-  }
+    navigate(`/${e.key}`);
+  };
 
   //parsing the branding and user data from local storage
   useEffect(() => {
@@ -43,129 +53,185 @@ const AdminLayout = ({ children }) => {
     }
   }, []);
 
+  // Logout function
 
-  // Logout function 
+  const logoutFunc = async () => {
+    try {
+      setLoading(true);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
 
-  const logoutFunc = () => {
-    setLoading(true);
+      await http().post("/api/auth/logout");
 
-    setTimeout(() => {
       localStorage.removeItem("userInfo");
       localStorage.removeItem("branding");
 
-      navigate('/login');
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error(error);
+    } finally {
       setLoading(false);
-    }, 800); // small delay so loader is visible
+    }
   };
 
-  const items = [
-
+  const menuItems = [
     {
-      key: 'register',
+      key: "admin-dash",
+      icon: <DashboardOutlined className="!text-[#022c22]"/>,
+      label: <span className="!text-zinc-100 ">Dashboard</span>,
+    },
+    {
+      key: "register",
       icon: <UserOutlined />,
-      label: <span className='!text-zinc-900 '>User Register</span>,
-
+      label: <span className="!text-zinc-100 ">User Register</span>,
+    },
+        {
+          key: "branding",
+          icon: <UploadOutlined />,
+          label:  <span className="!text-zinc-100 ">Branding</span>,
+        },
+        {
+          key: "currency",
+          icon: <MoneyCollectOutlined />,
+          label:  <span className="!text-zinc-100 ">Currency</span>,
+        },
+        {
+          key: "branch",
+          icon: <BranchesOutlined />,
+          label:  <span className="!text-zinc-100 ">Branch</span>,
+        },
+   
+  ];
+  const items = [
+    {
+      key: "admin-dash",
+      icon: <DashboardOutlined className="!text-[#022c22]"/>,
+      label: <span className="!text-zinc-900 ">Dashboard</span>,
+    },
+    {
+      key: "register",
+      icon: <UserOutlined />,
+      label: <span className="!text-zinc-900 ">User Register</span>,
     },
 
     {
-      key: 'setting',
+      key: "setting",
       icon: <SettingOutlined />,
-      label: 'Settings',
+      label: <span className="!text-zinc-900 ">Settings</span>,
       children: [
         {
-          key: 'branding',
+          key: "branding",
           icon: <UploadOutlined />,
-          label: 'Branding',
+          label: <span className="!text-slate-900 ">Branding</span>,
         },
         {
-          key: 'currency',
+          key: "currency",
           icon: <MoneyCollectOutlined />,
-          label: 'Currency',
+          label: <span className="!text-slate-900 ">Currency</span>,
         },
         {
-          key: 'branch',
+          key: "branch",
           icon: <BranchesOutlined />,
-          label: 'Branch',
+          label: <span className="!text-slate-900 ">Branches</span>,
         },
-
-      ]
-
-
-    }
-
-  ]
+      ],
+    },
+  ];
   return (
     <Layout className="!min-h-screen  ">
       {loading && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100vh",
-            background: "rgba(0,0,0,0.3)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 9999
-          }}
-        >
-          <Spin size="large" />
-        </div>
+        <AppLoader
+          title="Signing Out..."
+          // message="Closing your secure session..."
+        />
       )}
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        breakpoint="md"
-        collapsedWidth={55}
-        onBreakpoint={(broken) => setCollapsed(broken)}
-        className="   !bg-white shadow-sm !border-r !border-zinc-300"
+      <Drawer
+        placement="left"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        width={260}
+        closable={false}
+        bodyStyle={{
+          padding: 0,
+          background: "#fff",
+        }}
       >
-        <div className="demo-logo-vertical !bg-white " />
-        <div className='flex flex-col h-screen bg-white  py-9 justify-start items-start'>
-          <div className='w-full bg-zinc-600 flex justify-center items-center text-white text-xl top-0 mb-9 -mt-9 h-16'>M S</div>
-          <br />
+        <div className="flex flex-col h-full bg-white">
+          <div className="w-full h-16 !bg-gradient-to-r !from-[#022c22] !via-[#064e3b] !to-[#022c22] flex items-center justify-between px-4 text-white text-xl font-bold">
+            M S
+            <Button
+              type="text"
+              icon={<MenuFoldOutlined />}
+              onClick={() => setDrawerOpen(false)}
+              className="!text-white hover:!text-emerald-300 md:!text-2xl !text-lg"
+            />
+          </div>
 
           <Menu
-            theme="light"
             mode="inline"
-            defaultSelectedKeys={['1']}
             items={items}
-            onClick={nav}
-            className="!bg-transparent !w-full"
+            onClick={(e) => {
+              nav(e);
+              setDrawerOpen(false);
+            }}
+            className="border-0"
           />
         </div>
-      </Sider>
+      </Drawer>
+
       <Layout>
-        <Header className='!text-zinc-100 !bg-zinc-500 !flex !items-center !justify-between'>
+        <Header className="!bg-gradient-to-r !from-[#022c22] !via-[#064e3b] !to-[#022c22] !px-6 !flex !items-center !justify-between !border-b !border-emerald-700/40 !shadow-lg">
+          {/* Left */}
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            className='!text-zinc-50 md:!text-2xl !text-lg'
+            icon={<MenuUnfoldOutlined />}
+            onClick={() => setDrawerOpen(true)}
+            className="!text-white hover:!text-emerald-300 md:!text-2xl !text-lg"
           />
-          <div className='flex !items-center !justify-center gap-1'>
-            <span className='!text-white !font-bold md:!text-1xl'> {userInf?.fullname
-              ? userInf.fullname.charAt(0).toUpperCase() + userInf.fullname.slice(1)
-              : "User"}</span>
+{!drawerOpen ? (
+              <Menu
+                mode="horizontal "
+                theme="dark"
+                selectedKeys={[location.pathname]}
+                items={menuItems}
+                onClick={nav}
+                className="!bg-transparent !border-0 flex-1 !text-white hidden md:flex"
+                overflowedIndicator={null}
+              />
+            ) : (
+              " "
+            )}
+          {/* Right */}
+          <div className="flex items-center gap-5">
+            <div className="flex flex-col items-end">
+              <span className="text-white font-semibold text-sm">
+                {userInf?.fullname
+                  ? userInf.fullname.charAt(0).toUpperCase() +
+                    userInf.fullname.slice(1)
+                  : "User"}
+              </span>
+
+              <span className="text-emerald-200 text-xs">Administrator</span>
+            </div>
+
             <Tooltip title="Logout">
-              <Button type='text' onClick={logoutFunc}><LogoutOutlined className='!text-white !font-bold md:!text-3xl !text-xl' />
+              <Button
+                type="text"
+                onClick={logoutFunc}
+                className="hover:!bg-white/10 !rounded-xl"
+              >
+                <LogoutOutlined className="!text-white hover:!text-red-300 !text-xl md:!text-2xl" />
               </Button>
             </Tooltip>
-
           </div>
         </Header>
         <Content
           style={{
-            margin: '0px 0px',
-            padding: 24,
+            margin: "0px 0px",
+            padding: 0,
             minHeight: 280,
             background: "white",
-
           }}
-          className='!h-screen !overflow-auto !p-4'
+          className="!h-screen !overflow-auto"
         >
           {children}
         </Content>

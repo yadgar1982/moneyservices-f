@@ -25,3 +25,19 @@
     opacity: 1;
   }
 }
+
+header{
+  background: rgba(2,44,34,.85);
+backdrop-filter: blur(12px);
+}
+input::placeholder {
+  color: #77797d !important; /* Tailwind gray-200 */
+}
+
+ .ant-input-password-icon {
+  color: #b9c0ca !important; /* gray-300 */
+}
+
+ .ant-input-password-icon:hover {
+  color: #22d3ee !important; /* cyan-400 */
+}

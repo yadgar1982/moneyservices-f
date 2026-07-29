@@ -20,10 +20,14 @@ import {
   Image,
   Modal,
   DatePicker,
+  Row,
+  Col,
+  Space,
 } from "antd";
 import HomeLayout from "../Shared/Layouts/HomeLayout";
 import {
   AccountBookFilled,
+  BankOutlined,
   BookOutlined,
   CameraFilled,
   CameraOutlined,
@@ -31,15 +35,25 @@ import {
   CheckOutlined,
   ClearOutlined,
   DeleteOutlined,
+  DollarCircleOutlined,
+  DollarCircleTwoTone,
+  DollarTwoTone,
   EditOutlined,
+  FileDoneOutlined,
+  FileTextOutlined,
   PaperClipOutlined,
+  PayCircleOutlined,
   PrinterOutlined,
   SaveOutlined,
+  SignatureOutlined,
   StopOutlined,
   SwapOutlined,
+  TransactionOutlined,
   UploadOutlined,
+  UserOutlined,
   VideoCameraAddOutlined,
   VideoCameraOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 import SignatureCanvas from "react-signature-canvas";
 import Webcam from "react-webcam";
@@ -47,6 +61,8 @@ import { toast } from "react-toastify";
 import { useMemo } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const myBrand = JSON.parse(localStorage.getItem("branding"));
+const myLogo = `${import.meta.env.VITE_ENDPOINT}${myBrand?.data?.[0]?.logo || ""}`;
 
 import { http, fetcher } from "../Modules/http";
 import { fetchTransaction } from "../../redux/slices/transactionSlice";
@@ -79,6 +95,9 @@ const Transactions = () => {
   const [calc, setCalc] = useState(false);
   const [amount, setAmount] = useState(null);
   const [rate, setRate] = useState(null);
+  const [comission, setComission] = useState(null);
+  const [comissionCurrency, setComissionCurrency] = useState(null);
+  const [searchText, setSearchText] = useState("");
 
   //account statement states
   const [stAcc, setStAcc] = useState(null);
@@ -122,17 +141,17 @@ const Transactions = () => {
 
   // end of redux
 
-  // 1️⃣ Filter by account
+  // Filter by account
   const accountFiltered = (transactions || []).filter(
     (t) => String(t.accountNo) === String(stAcc),
   );
 
-  // 2️⃣ Currency options (for Select)
+  //  Currency options (for Select)
   const filteredCurrencies = [
     ...new Set(accountFiltered.map((t) => t.currency)),
   ];
 
-  // 3️⃣ Final filtered data
+  // Final filtered data
   const finalResult = accountFiltered.filter((t) => {
     if (selectedCurrency && t.currency !== selectedCurrency) {
       return false;
@@ -191,6 +210,7 @@ const Transactions = () => {
     // 🔹 4. Handle empty
     if (result.length === 0) {
       setResultText("No data to display");
+      toast.error("No transactions found for the selected date range.");
       return;
     }
 
@@ -281,12 +301,12 @@ const Transactions = () => {
       margin:auto;
       background:#fff;
       overflow:hidden;
-      box-shadow:0 10px 30px rgba(0,0,0,0.08);
+     
     }
 
     .topbar{
       height:0px;
-      background:#113b8a;
+
     }
 
    .header{
@@ -481,22 +501,26 @@ const Transactions = () => {
 <body>
 
 <div class="container" id="statement-content">
-
   <div class="topbar"></div>
-
   <div class="header">
-
-    <div class="brand">
-
-      <div class="logo">
-        <img
-          src="${API_URL}${myBrand.data[0].logo}"
-          alt="logo"
-        />
-      </div>
+    <div class="brand">     
+      <div style="
+                width:150px;
+                height:105px;
+                border-radius:0;
+                overflow:hidden;
+                margin:0 auto;
+              ">
+                <img
+                  src="${myLogo}"
+                  alt="logo"
+                  style="width:150px ;heigth:100px;object-fit:cover;display:block;"
+                />
+              </div>
+            </div>
 
       <div class="brand-info">
-        <h1>${myBrand.data[0].name}</h1>
+        <h1>${myBrand.data[0].companyName}</h1>
 
         <p>
           ${
@@ -824,20 +848,7 @@ const Transactions = () => {
   };
 
   //Save signature
-  // const saveSignature = () => {
-  //   sigCanvas.current.getCanvas().toBlob((blob) => {
-  //     if (blob.size > MAX_SIZE) {
-  //       message.error("Signature must be 20 KB or less");
-  //       return;
-  //     }
 
-  //     const file = new File([blob], "signature.png", {
-  //       type: "image/png",
-  //     });
-
-  //     setSignatureImage(file);
-  //   });
-  // };
   const saveSignature = () => {
     console.log(sigCanvas.current?.getCanvas()?.width);
     console.log(sigCanvas.current?.getCanvas()?.height);
@@ -866,21 +877,25 @@ const Transactions = () => {
     setSignatureImage(null);
   };
 
+  // Image Upload
   const handleImageUpload = (file) => {
     if (!validateFileSize(file)) return Upload.LIST_IGNORE;
     setCapturedImage(file); // store File object
     return false;
   };
 
+  // Signature Upload
   const handleSignatureUpload = (file) => {
     if (!validateFileSize(file)) return Upload.LIST_IGNORE;
     setSignatureImage(file);
     return false;
   };
+
+  // handle ispass
   const handleIspassed = async (id) => {
     try {
       const httpReq = http();
-      await httpReq.put(`/api/transaction/updateone/${id}`, { isPass: true });
+      await httpReq.put(`/api/transaction/updatemany/${id}`, { isPass: true });
       toast.success("Transaction marked as passed!");
       mutate("/api/transaction/read");
     } catch (err) {
@@ -898,9 +913,42 @@ const Transactions = () => {
     form.setFieldsValue({ finalAmount: Number(computedAmt.toFixed(2)) });
   }, [amount, rate, calc, form]); // dependencies
 
+  // Create Transaction Id
+  const loadTransactionId = async () => {
+    try {
+      const res = await http().get("/api/transaction/next-id");
+
+      form.setFieldsValue({
+        transactionId: res.data.transactionId,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    loadTransactionId();
+  }, []);
+
+  // Trnasaction creattion, update and delete functions
   const onFinish = async (values) => {
     try {
       const { _id, ...rest } = values;
+
+      const commissionData = {
+        fullname: rest.fullname,
+        user: myUser,
+        branch: myBranch,
+        accountNo: Number(rest.accountNo),
+        currency: rest.comission_currency,
+        credit: Number(rest.comission),
+        debit: 0,
+        transactionId: rest.transactionId,
+        transactionNo: rest.transactionNo,
+        transactionType: rest.transaction,
+        transferNo: rest.transferNo,
+        details: `Service fee for ${values.transaction} ${values.transactionId} by ${values.fullname}`,
+      };
 
       // Helper function to build FormData
       const buildFormData = (data) => {
@@ -949,6 +997,8 @@ const Transactions = () => {
         //  Debit (sender → original amount)
         const debitData = buildFormData({
           ...rest,
+          user: myUser,
+          branch: myBranch,
           transactionType: "debit",
           amount: originalAmount,
           finalAmount: convertedAmount,
@@ -958,6 +1008,8 @@ const Transactions = () => {
         // Credit (receiver → converted amount)
         const creditData = buildFormData({
           ...rest,
+          user: myUser,
+          branch: myBranch,
           accountNo: toAccount.accountNo,
           fullname: toAccount?.fullname,
           currency: selectedToCurrency,
@@ -969,11 +1021,17 @@ const Transactions = () => {
         await http().post("/api/transaction/create", debitData);
         await http().post("/api/transaction/create", creditData);
       }
+      if (Number(rest.comission) > 0) {
+        await http().post("/api/comission/create", commissionData);
+      }
 
       mutate("/api/transaction/read");
 
       toast.success("Transaction created successfully!");
       form.resetFields();
+
+      // Get the next transaction ID
+      await loadTransactionId();
       setCapturedImage(null);
       setSignatureImage(null);
     } catch (err) {
@@ -982,9 +1040,10 @@ const Transactions = () => {
     }
   };
 
-  const handleEdit = (record) => {
+  const handleEdit = async (record) => {
     let parent = document.activeElement;
 
+    // Scroll to top
     while (parent) {
       const overflowY = window.getComputedStyle(parent).overflowY;
 
@@ -999,15 +1058,31 @@ const Transactions = () => {
       parent = parent.parentElement;
     }
 
-    setTrId(record?.transactionId);
+    // Get commission
+    let comission = 0;
+    let comissionCurrency = "";
+
+    try {
+      const res = await http().get(
+        `/api/comission/readbyid/${record.transactionId}`,
+      );
+
+      comission = Number(res.data.data.credit || 0);
+      comissionCurrency = res.data.data.currency || "";
+
+      console.log("Commission currency:", comissionCurrency);
+    } catch (err) {
+      console.error(err);
+    }
+
+    setTrId(record.transactionId);
     setEdit(true);
 
-    // IMPORTANT
     setSelectedCurrency(record.currency);
     setRate(record.exchangeRate);
+    setAmount(record.amount);
     setTransactionType(record.transaction);
 
-    // restore receiver account
     setToAccount({
       accountNo: record.to,
       fullname: record.toFullname,
@@ -1024,10 +1099,14 @@ const Transactions = () => {
       transferNo: record.transferNo,
       details: record.details,
       isPass: record.isPass,
+      amount: record.amount,
 
-      // IMPORTANT
       currency: record.currency,
       exchangeRate: record.exchangeRate,
+
+      // Commission
+      comission,
+      comission_currency: comissionCurrency,
     });
 
     setEditTag("Please fill in all empty input fields carefully.");
@@ -1092,7 +1171,28 @@ const Transactions = () => {
 
       const formData = buildFormData(payload);
 
+      const commissionData = {
+        fullname: values.fullname,
+        user: myUser,
+        branch: myBranch,
+        accountNo: Number(values.accountNo),
+        currency: values.comission_currency,
+        credit: Number(values.comission),
+        debit: 0,
+        transactionId: values.transactionId,
+        transactionNo: values.transactionNo,
+        transactionType: values.transaction,
+        transferNo: values.transferNo,
+        details: `Service fee for ${values.transaction} ${values.transactionId} by ${values.fullname}`,
+      };
+
       await http().put(`/api/transaction/update/${trId}`, formData);
+      if (Number(values.comission) > 0) {
+        await http().put(
+          `/api/comission/update/${values.transactionId}`,
+          commissionData,
+        );
+      }
       mutate("/api/transaction/read");
 
       toast.success("Transaction updated successfully!");
@@ -1109,39 +1209,64 @@ const Transactions = () => {
   };
 
   //Delete transaction
-
   const onDelete = async (transactionId) => {
     try {
-      const res = await httpReq.delete(
-        `/api/transaction/delete/${transactionId}`,
-      );
+      // Delete transaction
+      await httpReq.delete(`/api/transaction/delete/${transactionId}`);
+
+      // Delete commission (if it exists)
+      await httpReq.delete(`/api/comission/delete/${transactionId}`);
+
       mutate("/api/transaction/read");
+
       toast.success("Transaction deleted successfully!");
     } catch (err) {
       console.error(err);
+      toast.error("Failed to delete transaction!");
     }
   };
 
   // data sourse
 
+  // search function
+  const filterData = (data) => {
+    if (!searchText) return data;
+
+    const keyword = searchText.toLowerCase().trim();
+
+    return data.filter((row) =>
+      Object.values(row).some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(keyword),
+      ),
+    );
+  };
   const columns = [
+    {
+      title: "S/N",
+      key: "serial",
+      width: 80,
+      align: "center",
+      render: (_, __, index) => index + 1,
+    },
     {
       title: "AccountNo",
       dataIndex: "accountNo",
-      width: 120,
+      width: 90,
       render: (v) => v || "—",
     },
     {
       title: "Date",
       dataIndex: "createdAt",
-      width: 120,
+      width: 90,
       render: (v) => (v ? dayjs(v).format("DD-MM-YYYY") : "—"),
     },
     {
       title: "Name",
       dataIndex: "fullname",
 
-      width: 150,
+      width: 100,
     },
     {
       title: "Details",
@@ -1150,34 +1275,34 @@ const Transactions = () => {
       render: (v) => v || "—",
     },
     {
-      title: "trans Type",
+      title: "Tr-Type",
       dataIndex: "transactionType",
-      width: 150,
+      width: 90,
       render: (v) => v || "—",
     },
     {
-      title: "Exchange",
+      title: "Ex-Rate",
       dataIndex: "exchangeRate",
-      width: 150,
+      width: 70,
       render: (v) => v || "—",
     },
     {
       title: "Currency",
       dataIndex: "currency",
-      width: 150,
+      width: 70,
       render: (v) => v || "—",
     },
 
     {
       title: "Amount",
       dataIndex: "amount",
-      width: 150,
+      width: 90,
       render: (v) => v || "—",
     },
     {
       title: "Photo",
       dataIndex: "image",
-      width: 50,
+      width: 20,
       render: (_, record) => {
         return (
           <Avatar
@@ -1188,10 +1313,9 @@ const Transactions = () => {
             }
             alt="image"
             style={{
-              width: 40,
-              height: 40,
-              objectFit: "cover",
-              borderRadius: 50,
+              width: 20,
+              height: 20,
+              fontSize: 12,
             }}
           >
             {!record.image && record.fullname?.charAt(0)}
@@ -1205,7 +1329,8 @@ const Transactions = () => {
       title: "Print",
       key: "print",
       fixed: "right",
-      width: 60,
+      width: 20,
+      height: 20,
       render: (_, record) => {
         const data = datasourceTransfer?.length
           ? datasourceTransfer
@@ -1215,7 +1340,7 @@ const Transactions = () => {
         return (
           <PrinterOutlined
             onClick={() => printRecord(record)}
-            className={`!text-xl !p-2 rounded ${
+            className={`!text-xl  rounded ${
               disabled
                 ? "!text-gray-300 !cursor-not-allowed"
                 : "!text-purple-600 !cursor-pointer"
@@ -1228,7 +1353,8 @@ const Transactions = () => {
       title: "Edit",
       key: "edit",
       fixed: "right",
-      width: 60,
+      width: 20,
+      height: 20,
       render: (_, record) => {
         const data = datasourceTransfer?.length
           ? datasourceTransfer
@@ -1238,7 +1364,7 @@ const Transactions = () => {
         return (
           <EditOutlined
             onClick={() => !disabled && handleEdit(record)}
-            className={`!text-xl !p-2 rounded ${
+            className={`!text-xl  rounded ${
               disabled
                 ? "!text-gray-300 !cursor-not-allowed"
                 : "!text-blue-600 !cursor-pointer"
@@ -1252,14 +1378,15 @@ const Transactions = () => {
       title: "Pass",
       key: "isPassed",
       fixed: "right",
-      width: 60,
+      width: 20,
+      height: 20,
 
       render: (_, record) => {
         const disabled = shouldDisable(record, datasourceExchange || []);
 
         if (disabled) {
           return (
-            <CheckOutlined className="!text-xl !p-2 rounded !text-gray-300 !cursor-not-allowed" />
+            <CheckOutlined className="!text-xl  rounded !text-gray-300 !cursor-not-allowed" />
           );
         }
 
@@ -1268,7 +1395,7 @@ const Transactions = () => {
             title="Are you sure to Pass this transaction?"
             onConfirm={() => handleIspassed(record.transactionId)}
           >
-            <CheckOutlined className="!text-xl !p-2 rounded !text-green-600 !cursor-pointer" />
+            <CheckOutlined className="!text-xl  rounded !text-green-600 !cursor-pointer" />
           </Popconfirm>
         );
       },
@@ -1277,7 +1404,8 @@ const Transactions = () => {
       title: "Pass",
       key: "isPassed",
       fixed: "right",
-      width: 60,
+      width: 20,
+      height: 20,
 
       render: (_, record) => {
         const data = datasourceTransfer?.length
@@ -1288,7 +1416,7 @@ const Transactions = () => {
 
         if (disabled) {
           return (
-            <DeleteOutlined className="!text-xl !p-2 rounded !text-gray-300 !cursor-not-allowed" />
+            <DeleteOutlined className="!text-xl  rounded !text-gray-300 !cursor-not-allowed" />
           );
         }
 
@@ -1297,7 +1425,7 @@ const Transactions = () => {
             title="Are you sure to Pass this transaction?"
             onConfirm={() => onDelete(record.transactionId)}
           >
-            <DeleteOutlined className="!text-xl !p-2 rounded !text-rose-600 !cursor-pointer" />
+            <DeleteOutlined className="!text-xl  rounded !text-rose-600 !cursor-pointer" />
           </Popconfirm>
         );
       },
@@ -1308,12 +1436,15 @@ const Transactions = () => {
     setCalc((prev) => !prev);
   };
 
+  // Currency for edit
   useEffect(() => {
+    if (edit) return;
+
     form.setFieldValue(
       "exchangeRate",
       selectedCurrency === selectedToCurrency ? 1 : null,
     );
-  }, [selectedCurrency, selectedToCurrency]);
+  }, [selectedCurrency, selectedToCurrency, edit]);
 
   // sameGroup for disabling credit record in transfer table
   const allTransactions = [
@@ -1328,6 +1459,7 @@ const Transactions = () => {
 
     return sameGroup.length === 2 && record.transactionType === "credit";
   };
+
   // for transfer and exchange color management
   const buildGroupMap = (data) => {
     const map = {};
@@ -1448,22 +1580,22 @@ const Transactions = () => {
 
             <div style="text-align:center;">
               <div style="
-                width:80px;
-                height:80px;
-                border-radius:50%;
+                width:150px;
+                height:105px;
+                border-radius:0;
                 overflow:hidden;
                 margin:0 auto;
               ">
-                <img 
-                  src="${API_URL}${myBrand.data[0].logo}" 
+                <img
+                  src="${myLogo}"
                   alt="logo"
-                  style="width:100%;height:100%;object-fit:cover;display:block;"
+                  style="width:150px ;heigth:100px;object-fit:cover;display:block;"
                 />
               </div>
             </div>
 
               <div class="company-info">
-                <h2>${myBrand.data[0].name}</h2>
+                <h2>${myBrand.data[0].companyName}</h2>
                 <div>
                   ${
                     myBrand.data[0].address
@@ -1615,432 +1747,677 @@ const Transactions = () => {
   return (
     <HomeLayout>
       <div className="bg-white p-1 md:p-4">
-        <h1 className="text-xl font-bold text-zinc-600">Transactions</h1>
-        <Divider size="small" className="!border-zinc-300" />
-        <div className="flex md:flex-row flex-col py-4  gap-2">
-          <div>
-            <h1 className="text-sm font-semibold">Select an Account:</h1>
-            <div className="md:!flex gap-2">
-              <Select
-                showSearch
-                options={accountOptions}
-                className="w-full !rounded-none "
-                placeholder="Select Acc"
-                filterOption={(input, option) =>
-                  option?.label?.toLowerCase().includes(input.toLowerCase())
-                }
-                onChange={(value) => setSelectedAccount(value)}
-                label={accountOptions.fullname}
-              />
-              <Tag className="!text-rose-500 !font-bold md:!text-lg !bg-transparent">
-                {editTag}
-              </Tag>
+        {/* Account Selection */}
+        <div className="mb-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+            {/* Left */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-300 shadow">
+                <BankOutlined className="text-white text-lg" />
+              </div>
+
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                  Transaction
+                </p>
+
+                <h2 className="text-lg font-bold leading-none text-slate-800">
+                  Customer Account
+                </h2>
+              </div>
             </div>
-          </div>
-          {/* Customer selection section */}
-          <div className="">
+
+            {/* Search */}
+            <div className="w-full xl:max-w-[360px]">
+              <div className="flex items-center gap-2">
+                <Select
+                  showSearch
+                  placeholder="🔍 Search customer..."
+                  options={accountOptions}
+                  className="w-full"
+                  filterOption={(input, option) =>
+                    option?.label?.toLowerCase().includes(input.toLowerCase())
+                  }
+                  onChange={(value) => setSelectedAccount(value)}
+                />
+
+                {editTag && (
+                  <Tag
+                    color="processing"
+                    className="rounded-full whitespace-nowrap px-3"
+                  >
+                    {editTag}
+                  </Tag>
+                )}
+              </div>
+            </div>
+
+            {/* Customer */}
             {selectedCustomers.map((c) => (
               <div
                 key={c._id || c.accountNo}
-                className="bg-zinc-50 p-2 rounded-sm shadow"
+                className="flex items-center gap-5 xl:ml-auto"
               >
                 {/* Profile */}
-                <div className="flex items-start gap-3 mb-2">
-                  {/* Text Section */}
-                  <div className="flex flex-col w-full ">
-                    <span className="text-sm text-gray-500">Profile</span>
-                  </div>
-                  {/* Profile Image */}
+                <div className="flex items-center gap-3">
                   <Image
                     src={c.profile ? `${API_URL}${c.profile}` : undefined}
-                    width={70}
-                    height={60}
-                    className="rounded-[5%] object-cover border "
+                    width={48}
+                    height={48}
+                    className="rounded-full border-2 border-blue-100 object-cover"
                   />
+
+                  <div>
+                    <h3 className="text-lg font-bold leading-none">
+                      {c.fullname}
+                    </h3>
+
+                    <Tag color="blue" className=" !text-1xl mt-1 rounded-full">
+                      #{c.accountNo}
+                    </Tag>
+                  </div>
                 </div>
 
-                {/* Name */}
-                <p className=" w-full flex justify-between">
-                  Name:
-                  <span className="mx-3 text-cyan-700 font-bold">
-                    {c.fullname}
-                  </span>
-                </p>
-
-                {/* Account */}
-                <p className=" w-full flex justify-between">
-                  Account No:
-                  <span className="mx-3 text-cyan-700 font-bold  ">
-                    {c.accountNo}
-                  </span>
-                </p>
-                <Divider />
-                {/*  MULTI CURRENCY BALANCES */}
-                <div>
-                  <span className="text-sm text-gray-700">Currencies:</span>
-
-                  <div className="flex  gap-2 mt-2 justify-between">
-                    {Object.entries(c.balances || {}).map(
-                      ([currency, balance]) => (
-                        <span
-                          key={currency}
-                          onClick={() => {
-                            setSelectedCurrency(currency);
-                            form.setFieldsValue({ currency });
-                          }}
-                          className={`flex bg-cyan-500 text-white p-1 rounded shadow-lg cursor-pointer hover:bg-cyan-700 gap-2 cursor-pointer px-2 py-1 rounded text-sm
-                          ${
-                            selectedCurrency === currency
-                              ? "bg-cyan-600 text-white"
-                              : "bg-blue-600 text-white"
-                          }`}
-                        >
-                          <div>{currency}: </div>
-                          {Number(balance).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </span>
-                      ),
-                    )}
-                  </div>
+                {/* Balances */}
+                <div className="flex flex-wrap gap-2 !text-2xl">
+                  {Object.entries(c.balances || {}).map(
+                    ([currency, balance]) => (
+                      <Tag
+                        key={currency}
+                        className={`!cursor-pointer !rounded-full !px-3 !py-1 !text-lg
+                        !border transition-all hover:scale-105
+                        ${
+                          selectedCurrency === currency
+                            ? Number(balance) < 0
+                              ? "!bg-red-600 !text-white !border-red-600"
+                              : "!bg-blue-600 !text-white !border-blue-600"
+                            : Number(balance) < 0
+                              ? "!bg-red-100 !text-red-700 !border-red-300 hover:!bg-red-200"
+                              : "!bg-blue-100 !text-blue-700 !border-blue-300 hover:!bg-blue-200"
+                        }`}
+                        onClick={() => {
+                          setSelectedCurrency(currency);
+                          form.setFieldsValue({ currency });
+                        }}
+                      >
+                        <strong>{currency}</strong>{" "}
+                        {Number(balance).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Tag>
+                    ),
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="p-1 !w-full ">
-          <div className="w-full  p-1 flex justify-start px-5 md:px-5 gap-4  bg-zinc-100 !mb-3">
-            <Button
-              onClick={handleCalculate}
-              type="text"
-              className=" shadow hover:!bg-indigo-500 !w-[40px] !rounded-none  "
-            >
-              <SwapOutlined className="!text-2xl !text-zinc-500 hover:!text-white" />
-            </Button>
-            <Button
-              type="text"
-              icon={
-                <PrinterOutlined className="!text-2xl !text-zinc-500 hover:!text-white " />
-              }
-              className=" shadow hover:!bg-indigo-500 !w-[40px] !rounded-none  "
-              onClick={() => setOpen(true)}
-            />
-          </div>
-        </div>
         <div>
+          {/* Form */}
           <Form
             form={form}
             layout="vertical"
             onFinish={edit ? onUpdate : onFinish}
             initialValues={{ finalAmount: 0 }}
-            size="small"
+            size="large"
+            className="space-y-2"
           >
-            <div className="grid grid-cols-2 md:grid-cols-10 gap-0.5 bg-zinc-100 p-2 !rounded-sm">
-              <Form.Item name="_id" hidden>
-                <Input />
-              </Form.Item>
-              {/* Full Name */}
+            <Row gutter={[16, 12]}>
+              {/* Left Column */}
+              <Col xs={24} lg={12}>
+                <Card
+                  bodyStyle={{ padding: 16 }}
+                  headStyle={{
+                    padding: 0,
+                    borderBottom: "1px solid #e2e8f0",
+                    background:
+                      "linear-gradient(to right, #ffffff, #eff6ff, #eef2ff)",
+                  }}
+                  title={
+                    <div className="flex items-center justify-between">
+                      {/* Left Side */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex !px-3 h-11 w-11  ml-2 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-300 shadow-lg">
+                          <UserOutlined className="text-xl text-white " />
+                        </div>
 
-              <Form.Item
-                name="fullname"
-                label="Full Name"
-                rules={[{ required: true, message: "Enter full name" }]}
-                className="!mb-0"
-              >
-                <Input
-                  placeholder="Full Name"
-                  size="small"
-                  className="!rounded-none !py-1 !h-8"
-                />
-              </Form.Item>
+                        <div>
+                          <h2 className="md:text-2xl font-bold text-slate-800">
+                            Customer Information
+                          </h2>
 
-              {/* Account Number */}
-              <Form.Item
-                name="accountNo"
-                label="Acc No"
-                rules={[{ required: true, message: "Enter account number" }]}
-                className="!mb-0"
-              >
-                <InputNumber
-                  placeholder="Acc No"
-                  size="small"
-                  className="!w-full !rounded-none !py-1 !h-8"
-                />
-              </Form.Item>
+                          <p className="text-sm text-slate-500">
+                            Customer &amp; Account Details
+                          </p>
+                        </div>
+                      </div>
 
-              {/* Currency */}
-              <Form.Item
-                name="currency"
-                label="Currency"
-                rules={[{ required: true, message: "Select currency" }]}
-                className="!mb-0"
-              >
-                <Select
-                  placeholder="Currency"
-                  size="small"
-                  value={currencies.currency}
-                  onChange={(val) => setSelectedCurrency(val)}
-                  className="!rounded-none !py-1 !h-8"
+                      {/* Right Side Buttons */}
+                      <div className="flex items-center gap-3 p-2">
+                        <Button
+                          type="text"
+                          onClick={handleCalculate}
+                          className="group !flex !h-11 !w-11 !items-center !justify-center
+                 !rounded-xl !border !border-blue-100 !bg-white
+                 !text-slate-600 !shadow-sm transition-all duration-300
+                 hover:!border-blue-500
+                 hover:!bg-gradient-to-br
+                 hover:!from-blue-500
+                 hover:!to-indigo-600
+                 hover:!text-white"
+                        >
+                          <SwapOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
+                        </Button>
+
+                        <Button
+                          type="text"
+                          onClick={() => setOpen(true)}
+                          className="group !flex !h-11 !w-11 !items-center !justify-center
+                 !rounded-xl !border !border-emerald-100 !bg-white
+                 !text-slate-600 !shadow-sm transition-all duration-300
+                 hover:!border-emerald-500
+                 hover:!bg-gradient-to-br
+                 hover:!from-emerald-500
+                 hover:!to-teal-600
+                 hover:!text-white"
+                        >
+                          <PrinterOutlined className="!text-xl transition-transform duration-300 group-hover:scale-110" />
+                        </Button>
+                      </div>
+                    </div>
+                  }
+                  className="!overflow-hidden !rounded-2xl !border-0 !shadow-lg transition-all duration-300 hover:!shadow-xl"
                 >
-                  {currencies.map((c) => (
-                    <Select.Option
-                      key={c.currency}
-                      value={c.currency}
-                    ></Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-              {/* Transaction  */}
-              <Form.Item
-                name="transaction"
-                label="transaction"
-                rules={[{ required: true }]}
-                className="!mb-0"
-              >
-                <Select
-                  placeholder="transaction type"
-                  size="small"
-                  onChange={(val) => setTransactionType(val)}
-                  className="!rounded-none !py-1 !h-8"
-                >
-                  <Option value="transaction">Transaction</Option>
-                  <Option value="transfer">Transfer</Option>
-                  <Option value="exchange">Exchange</Option>
-                </Select>
-              </Form.Item>
-              {/* Transaction Type */}
-              {transactionType === "transaction" && (
-                <Form.Item
-                  name="transactionType"
-                  label="Trns Type"
-                  rules={[{ required: true }]}
-                  className="!mb-0"
-                >
-                  <Select
-                    placeholder="Trns Type"
-                    size="small"
-                    className="!rounded-none !py-1 !h-8"
+                  <Form.Item name="_id" hidden>
+                    <Input />
+                  </Form.Item>
+
+                  {/* Full Name */}
+                  <Form.Item
+                    name="fullname"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Full Name
+                      </span>
+                    }
+                    rules={[{ required: true, message: "Enter full name" }]}
+                    className="!mb-2"
                   >
-                    <Option value="credit">Credit</Option>
-                    <Option value="debit">Debit</Option>
-                  </Select>
-                </Form.Item>
-              )}
-
-              {/* Conditional Transfer */}
-              {(transactionType === "transfer" ||
-                transactionType === "exchange") && (
-                <>
-                  <Form.Item name="to" label="To" className="!mb-0">
-                    <Select
-                      showSearch
-                      options={accountOptions}
-                      placeholder="Select an Account"
-                      filterOption={(input, option) =>
-                        option?.label
-                          ?.toLowerCase()
-                          .includes(input.toLowerCase())
-                      }
-                      onChange={(accountNo) => {
-                        const customer = users.find(
-                          (c) => c.accountNo === accountNo,
-                        );
-                        setToAccount({
-                          accountNo: customer.accountNo,
-                          fullname: customer.fullname,
-                        });
-                        console.log(
-                          "Selected account:",
-                          customer.accountNo,
-                          customer.fullname,
-                        );
-                      }}
-                      size="small"
-                      className="!w-full !rounded-none !py-1 !h-8"
+                    <Input
+                      placeholder="Full Name"
+                      className="!rounded-xl !border-slate-300 hover:!border-blue-500 focus:!border-blue-500"
                     />
                   </Form.Item>
-                  {/* Currency */}
+
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={16}>
+                      <Form.Item
+                        name="accountNo"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Acc No
+                          </span>
+                        }
+                        rules={[
+                          { required: true, message: "Enter account number" },
+                        ]}
+                        className="!mb-2"
+                      >
+                        <InputNumber
+                          placeholder="Acc No"
+                          className="!w-full !rounded-xl"
+                        />
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={8}>
+                      <Form.Item
+                        name="currency"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Currency
+                          </span>
+                        }
+                        rules={[{ required: true, message: "Select currency" }]}
+                        className="!mb-2"
+                      >
+                        <Select
+                          placeholder="Currency"
+                          value={currencies.currency}
+                          onChange={(val) => setSelectedCurrency(val)}
+                          className="!rounded-xl"
+                        >
+                          {currencies.map((c) => (
+                            <Select.Option key={c.currency} value={c.currency}>
+                              {c.currency}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="transaction"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Transaction
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <Select
+                          placeholder="Transaction"
+                          onChange={(val) => setTransactionType(val)}
+                          className="!rounded-xl"
+                        >
+                          <Option value="transaction">Transaction</Option>
+                          <Option value="transfer">Transfer</Option>
+                          <Option value="exchange">Exchange</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="amount"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Amount
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <InputNumber
+                          placeholder="Amount"
+                          className="!w-full !rounded-xl !font-semibold"
+                          onChange={(value) => setAmount(value)}
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  {transactionType === "transaction" && (
+                    <Form.Item
+                      name="transactionType"
+                      label={
+                        <span className="font-semibold text-slate-700">
+                          Transaction Type
+                        </span>
+                      }
+                      rules={[{ required: true }]}
+                      className="!mb-0"
+                    >
+                      <Select
+                        placeholder="Transaction Type"
+                        className="!rounded-xl"
+                      >
+                        <Option value="credit">Credit</Option>
+                        <Option value="debit">Debit</Option>
+                      </Select>
+                    </Form.Item>
+                  )}
+
+                  {(transactionType === "transfer" ||
+                    transactionType === "exchange") && (
+                    <Row gutter={[16, 8]}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="to"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              To Account
+                            </span>
+                          }
+                          className="!mb-0"
+                        >
+                          <Select
+                            showSearch
+                            options={accountOptions}
+                            placeholder="Select Account"
+                            filterOption={(input, option) =>
+                              option?.label
+                                ?.toLowerCase()
+                                .includes(input.toLowerCase())
+                            }
+                            onChange={(accountNo) => {
+                              const customer = users.find(
+                                (c) => c.accountNo === accountNo,
+                              );
+                              setToAccount({
+                                accountNo: customer.accountNo,
+                                fullname: customer.fullname,
+                              });
+                            }}
+                            className="!rounded-xl"
+                          />
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="tocurrency"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              To Currency
+                            </span>
+                          }
+                          rules={[
+                            { required: true, message: "Select currency" },
+                          ]}
+                          className="!mb-0"
+                        >
+                          <Select
+                            placeholder="Currency"
+                            value={currencies.currency}
+                            onChange={(val) => setSelectedToCurrency(val)}
+                            className="!rounded-xl"
+                          >
+                            {currencies.map((c) => (
+                              <Select.Option
+                                key={c.currency}
+                                value={c.currency}
+                              >
+                                {c.currency}
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
+                </Card>
+              </Col>
+              {/* Right Column */}
+              <Col xs={24} lg={12}>
+                <Card
+                  bodyStyle={{ padding: 16 }}
+                  headStyle={{
+                    padding: 0,
+                    borderBottom: "1px solid #e2e8f0",
+                    background:
+                      "linear-gradient(to right, #ffffff, #ecfdf5, #f0fdfa)",
+                  }}
+                  title={
+                    <div className="flex items-center gap-3 px-5 py-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-300 via-teal-500 to-cyan-600 shadow-lg">
+                        <FileDoneOutlined className="text-lg text-white" />
+                      </div>
+
+                      <div>
+                        <h2 className="text-lg font-bold leading-none text-slate-800">
+                          Transaction Information
+                        </h2>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Amounts, Exchange & References
+                        </p>
+                      </div>
+                    </div>
+                  }
+                  className="!overflow-hidden !rounded-2xl !border-0 !shadow-lg transition-all duration-300 hover:!shadow-xl"
+                >
+                  {/* Amount Section */}
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="exchangeRate"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Exchange Rate
+                          </span>
+                        }
+                        className="!mb-2"
+                        rules={
+                          transactionType === "transfer" ||
+                          transactionType === "exchange"
+                            ? [{ required: true, message: "Rate is required" }]
+                            : []
+                        }
+                      >
+                        <InputNumber
+                          placeholder="Rate"
+                          onChange={(value) => setRate(value)}
+                          className="!w-full !rounded-xl"
+                        />
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={12}>
+                      <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 p-3 shadow-md">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Exchange Amount
+                        </p>
+
+                        <Form.Item name="finalAmount" className="!mb-0">
+                          <InputNumber
+                            disabled
+                            controls={false}
+                            size="large"
+                            formatter={(value) =>
+                              `${Number(value || 0).toFixed(2)}`
+                            }
+                            parser={(value) => parseFloat(value)}
+                            className="!h-14 !w-full !border-0 !bg-transparent !text-center !text-3xl !font-black !text-blue-700"
+                          />
+                        </Form.Item>
+                      </div>
+                    </Col>
+                  </Row>
+
+                  <div className="my-3 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      References
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+
+                  {/* References */}
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="transactionId"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Transaction ID
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <Input
+                          placeholder="Transaction ID"
+                          className="!rounded-xl"
+                          readOnly
+                        />
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="transactionNo"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Daily No
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <Input
+                          placeholder="Transaction Daily No"
+                          className="!rounded-xl"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
 
                   <Form.Item
-                    name="tocurrency"
-                    label="Currency"
-                    rules={[{ required: true, message: "Select currency" }]}
-                    className="!mb-0"
+                    name="transferNo"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Transfer No
+                      </span>
+                    }
+                    className="!mb-3"
                   >
-                    <Select
-                      placeholder="Currency"
-                      size="small"
-                      value={currencies.currency}
-                      onChange={(val) => setSelectedToCurrency(val)}
-                      className="!rounded-none !py-1 !h-8"
-                    >
-                      {currencies.map((c) => (
-                        <Select.Option
-                          key={c.currency}
-                          value={c.currency}
-                        ></Select.Option>
-                      ))}
-                    </Select>
+                    <Input placeholder="Transfer No" className="!rounded-xl" />
                   </Form.Item>
-                </>
-              )}
 
-              {/* Exchange Rate */}
-              <Form.Item
-                name="exchangeRate"
-                label="Exc-Rate"
-                defaultValue={1}
-                className="!mb-0"
-                rules={
-                  transactionType === "transfer" || "exchange"
-                    ? []
-                    : [{ required: true, message: "Rate is required" }]
-                }
-              >
-                <InputNumber
-                  placeholder="Rate"
-                  size="small"
-                  className="!w-full !rounded-none !py-1 !h-8"
-                  onChange={(value) => setRate(value)}
-                />
-              </Form.Item>
+                  {/* Commission */}
+                  <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400">
+                        <WalletOutlined className="text-white" />
+                      </div>
 
-              {/* Amount */}
+                      <div>
+                        <h3 className="font-semibold text-emerald-700">
+                          Commission Details
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Optional transaction fee
+                        </p>
+                      </div>
+                    </div>
 
-              <Form.Item
-                name="amount"
-                label="Amount"
-                rules={[{ required: true }]}
-                className="!mb-0"
-              >
-                <InputNumber
-                  placeholder="Amount"
-                  size="small"
-                  className="!w-full !rounded-none !py-1 !h-8"
-                  onChange={(value) => setAmount(value)}
-                />
-              </Form.Item>
+                    <Row gutter={[16, 8]}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="comission"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              Commission Fee
+                            </span>
+                          }
+                          className="!mb-0"
+                        >
+                          <InputNumber
+                            placeholder="Fee"
+                            className="!w-full !rounded-xl"
+                            onChange={(value) => setComission(value)}
+                          />
+                        </Form.Item>
+                      </Col>
 
-              {/* Exchanged Amt */}
-              <Form.Item
-                name="finalAmount"
-                label="Exch-Amt"
-                className="!mb-0 !text-red-500"
-                rules={[{ required: true }]}
-              >
-                <InputNumber
-                  disabled
-                  size="small"
-                  className="!w-full !rounded-none !text-red-500 !py-1 font-bold !h-8"
-                  formatter={(value) => `${Number(value).toFixed(2)}`} // always show 2 decimals
-                  parser={(value) => parseFloat(value)} // converts string back to number
-                />
-              </Form.Item>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="comission_currency"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              Currency
+                            </span>
+                          }
+                          className="!mb-0"
+                        >
+                          <Select
+                            placeholder="Currency"
+                            onChange={(val) => setComissionCurrency(val)}
+                            className="!rounded-xl"
+                          >
+                            {currencies.map((c) => (
+                              <Select.Option
+                                key={c.currency}
+                                value={c.currency}
+                              >
+                                {c.currency}
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </div>
+                </Card>
+              </Col>
+            </Row>
 
-              {/* Transaction ID */}
-              <Form.Item
-                name="transactionId"
-                label="Trn ID"
-                rules={[{ required: true }]}
-                className="!mb-0"
-              >
-                <Input
-                  placeholder="ID"
-                  size="small"
-                  className="!rounded-none !py-1 !h-8"
-                />
-              </Form.Item>
-
-              {/* Transaction No */}
-              <Form.Item
-                name="transactionNo"
-                label="Trn No"
-                rules={[{ required: true }]}
-                className="!mb-0"
-              >
-                <Input
-                  placeholder="No"
-                  size="small"
-                  className="!rounded-none !py-1 !h-8"
-                />
-              </Form.Item>
-
-              {/* Transfer No */}
-              <Form.Item
-                name="transferNo"
-                label="Transfer-No"
-                className="!mb-0"
-              >
-                <Input
-                  placeholder="Tr-No"
-                  size="small"
-                  className="!rounded-none !w-full !py-1 !h-8"
-                />
-              </Form.Item>
-
-              {/* Details */}
-              <Form.Item
-                name="details"
-                label="Details"
-                className="col-span-2 md:col-span-10 !mb-1"
-              >
+            {/* Details */}
+            <Card
+              size="small"
+              bodyStyle={{ padding: 14 }}
+              className="!mt-3 !overflow-hidden !rounded-2xl !border-0 !shadow-md"
+              title={
+                <div className="flex items-center gap-2 px-4 py-2">
+                  <FileTextOutlined className="text-violet-600" />
+                  <span className="font-semibold text-slate-700">
+                    Transaction Notes
+                  </span>
+                  <span className="text-xs text-slate-400">(Optional)</span>
+                </div>
+              }
+            >
+              <Form.Item name="details" className="!mb-0">
                 <Input.TextArea
-                  placeholder="Details"
                   rows={2}
-                  className="!rounded-none text-sm !py-1"
+                  placeholder="Write additional notes..."
+                  className="!rounded-xl !border-slate-300"
                 />
               </Form.Item>
+            </Card>
+            {/* Attchments */}
 
-              <Form.Item
-                name="document"
-                className="col-span-2 md:col-span-10 !mb-1"
-              >
-                <Upload
-                  accept=".pdf,image/*"
-                  maxCount={1}
-                  fileList={scannedDoc ? [scannedDoc] : []}
-                  beforeUpload={(file) => {
-                    setScannedDoc(file);
-                    return false; // stop auto upload
-                  }}
-                  onRemove={() => setScannedDoc(null)}
-                >
+            <Row
+              justify="space-between"
+              align="middle"
+              gutter={[16, 16]}
+              className="mt-3 mb-2"
+            >
+              <Col>
+                <Space size="middle">
+                  <Form.Item name="document" className="!mb-0">
+                    <Upload
+                      accept=".pdf,image/*"
+                      maxCount={1}
+                      fileList={scannedDoc ? [scannedDoc] : []}
+                      beforeUpload={(file) => {
+                        setScannedDoc(file);
+                        return false;
+                      }}
+                      onRemove={() => setScannedDoc(null)}
+                    >
+                      <Button
+                        size="large"
+                        icon={<PaperClipOutlined />}
+                        className="!h-11 !rounded-xl !border-slate-200 !bg-white !px-5 !font-semibold !text-slate-700 !shadow-sm transition-all duration-300 hover:!-translate-y-0.5 hover:!border-blue-500 hover:!text-blue-600 hover:!shadow-md"
+                      >
+                        Documents
+                      </Button>
+                    </Upload>
+                  </Form.Item>
+
                   <Button
-                    type="text"
-                    size="small"
-                    className="m-2 md:mt-4 !bg-white !p-4 hover:!border-blue-500 hover:!text-blue-500 hover:!shadow-sm hover:!shadow-blue-300"
+                    size="large"
+                    onClick={() => setOpenModal(true)}
+                    className="!flex !h-11 !items-center !justify-center !rounded-xl !border-0 !bg-gradient-to-r !from-orange-400 !to-amber-500 !px-5 !font-semibold !text-white !shadow-md transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl"
                   >
-                    <PaperClipOutlined className="!text-xl px-1 md:px-4" />
-                    Documents
+                    <CameraOutlined className="!text-lg" />
+                    <SignatureOutlined className="!text-lg" />
                   </Button>
-                </Upload>
-              </Form.Item>
+                </Space>
+              </Col>
 
-              <Button
-                onClick={() => setOpenModal(true)}
-                type="text"
-                size="small"
-                className="m-2 md:mt-4 !bg-white !p-4 hover:!border-blue-500 hover:!text-blue-500 hover:!shadow-sm hover:!shadow-blue-300"
-              >
-                <CameraOutlined className="!text-xl px-1 md:px-4" />
-                Signature and Image
-              </Button>
-
-              {/* Attchments */}
-
-              {/* Submit */}
-              <Form.Item className="col-span-2 md:col-span-12 !mt-8 !mb-0">
+              <Col>
                 <Button
-                  type="text"
-                  style={{ backgroundColor: edit ? "#855906" : "#1a890b" }}
                   htmlType="submit"
-                  className=" !p-4 !rounded-none  !shadow-sm !w-full !shadow-black !font-semibold  !text-white hover:!bg-yellow-500 hover:!text-black !h-8"
+                  size="large"
+                  icon={<SaveOutlined />}
+                  className={`!h-11 !rounded-xl !border-0 !px-8 !font-semibold !text-white !shadow-lg transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl ${
+                    edit
+                      ? "!bg-gradient-to-r !from-orange-500 !to-amber-500"
+                      : "!bg-gradient-to-r !from-blue-600 !to-indigo-600"
+                  }`}
                 >
-                  {edit ? "Update Transaction" : "Submit Transaction"}
+                  {edit ? "Update Transaction" : "Save Transaction"}
                 </Button>
-              </Form.Item>
-            </div>
+              </Col>
+            </Row>
           </Form>
         </div>
 
@@ -2051,67 +2428,99 @@ const Transactions = () => {
 
           <Tabs
             defaultActiveKey="1"
+            size="small"
+            animated
+            className="money-tabs mb-9"
             items={[
               {
                 key: "1",
-                label: "Transactions",
-                icon: <BookOutlined />,
+                label: (
+                  <span className="flex items-center gap-2 font-medium">
+                    <BookOutlined />
+                    Transactions
+                  </span>
+                ),
                 children: (
-                  <Table
-                    rowKey="_id"
-                    columns={columns}
-                    dataSource={datasource || []}
-                    bordered
-                    scroll={{ x: "max-content" }}
-                    sticky
-                    size="small"
-                    pagination={{ pageSize: 10 }}
-                    className="!compact-table !text-[10px] !mb-5"
-                  />
+                  <div className="pb-6">
+                    <div className="flex justify-end mb-3">
+                      <Input.Search
+                        placeholder="Search transactions..."
+                        allowClear
+                        size="large"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        className="!w-80"
+                      />
+                    </div>
+                    <Table
+                      rowKey="_id"
+                      columns={columns}
+                      dataSource={filterData(datasource || [])}
+                      bordered
+                      sticky
+                      size="small"
+                      pagination={{
+                        pageSize: 10,
+                        size: "small",
+                        showSizeChanger: false,
+                      }}
+                      scroll={{ x: "max-content" }}
+                    />
+                  </div>
                 ),
               },
               {
                 key: "2",
-                label: "Transfers",
-                icon: <AccountBookFilled />,
+                label: (
+                  <span className="flex items-center gap-2 font-medium">
+                    <AccountBookFilled />
+                    Transfers
+                  </span>
+                ),
                 children: (
-                  <Table
-                    rowKey="_id"
-                    columns={columns}
-                    dataSource={datasourceTransfer || []}
-                    rowClassName={(record) => {
-                      const index =
-                        transferGroupMap[record.transactionId?.toString()];
-                      return index % 2 === 0 ? "group-even" : "group-odd";
-                    }}
-                    bordered
-                    scroll={{ x: "max-content" }}
-                    sticky
-                    size="small"
-                    pagination={{ pageSize: 10 }}
-                  />
+                  <div className="pb-6">
+                    <Table
+                      rowKey="_id"
+                      columns={columns}
+                      dataSource={filterData(datasourceTransfer || [])}
+                      bordered
+                      sticky
+                      size="small"
+                      pagination={{
+                        pageSize: 10,
+                        size: "small",
+                        showSizeChanger: false,
+                      }}
+                      scroll={{ x: "max-content" }}
+                    />
+                  </div>
                 ),
               },
               {
                 key: "3",
-                label: "Exchanges",
-                icon: <AccountBookFilled />,
+                label: (
+                  <span className="flex items-center gap-2 font-medium">
+                    <SwapOutlined />
+                    Exchanges
+                  </span>
+                ),
                 children: (
-                  <Table
-                    rowKey="_id"
-                    columns={columns}
-                    dataSource={datasourceExchange || []}
-                    rowClassName={(record) => {
-                      const index =
-                        exchangeGroupMap[record.transactionId?.toString()];
-                      return index % 2 === 0 ? "group-even" : "group-odd";
-                    }}
-                    bordered
-                    scroll={{ x: "max-content" }}
-                    sticky
-                    size="small"
-                    pagination={{ pageSize: 10 }}
-                  />
+                  <div className="pb-6">
+                    <Table
+                      rowKey="_id"
+                      columns={columns}
+                      dataSource={filterData(datasourceExchange || [])}
+                      bordered
+                      sticky
+                      size="small"
+                      pagination={{
+                        pageSize: 10,
+                        size: "small",
+                        showSizeChanger: false,
+                      }}
+                      scroll={{ x: "max-content" }}
+                    />
+                  </div>
                 ),
               },
             ]}
@@ -2119,6 +2528,7 @@ const Transactions = () => {
         </div>
       </div>
 
+      {/* Account Statement Modal */}
       <Modal
         open={open}
         onCancel={() => setOpen(false)}
@@ -2191,6 +2601,7 @@ const Transactions = () => {
         </Form>
       </Modal>
 
+      {/* Image and Signature Modal */}
       <Modal
         footer={null}
         width={1100}
@@ -2210,7 +2621,7 @@ const Transactions = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Signature Section */}
           <div className="bg-white rounded-2xl border border-zinc-200 shadow-md p-4">
-            <h3 className="font-semibold text-zinc-700 mb-3">Signature</h3>
+            <h3 className="font-semibold text-zinc-700 !mb-2">Signature</h3>
 
             <SignatureCanvas
               ref={sigCanvas}
@@ -2260,7 +2671,7 @@ const Transactions = () => {
 
           {/* Camera Section */}
           <div className="flex flex-col justify-center items-center bg-white rounded-2xl border border-zinc-200 shadow-md p-4">
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex justify-between items-center !mb-2">
               <h3 className="font-semibold text-zinc-700">Photo Capture</h3>
 
               <Button
@@ -2328,19 +2739,18 @@ const Transactions = () => {
           </div>
         </div>
         <div className="p-2 w-full text-right ">
-         {
-           signatureImage || capturedImage ?
-          <Button
-  size="large"
-  icon={<UploadOutlined />}
-  className="!h-14 !px-8 !border-2 !border-dashed !border-blue-400 hover:!border-blue-600 hover:!text-blue-600 transition-all duration-300 rounded-xl"
-  onClick={()=>setOpenModal(false)}
->
-  Add Signature / Image
-</Button>
-           :
-           ""
-         }
+          {signatureImage || capturedImage ? (
+            <Button
+              size="large"
+              icon={<UploadOutlined />}
+              className="!h-14 !px-8 !border-2 !border-dashed !border-blue-400 hover:!border-blue-600 hover:!text-blue-600 transition-all duration-300 rounded-xl"
+              onClick={() => setOpenModal(false)}
+            >
+              Add Signature / Image
+            </Button>
+          ) : (
+            ""
+          )}
         </div>
       </Modal>
     </HomeLayout>

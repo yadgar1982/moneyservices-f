@@ -1,59 +1,72 @@
-import React from 'react'
-import { Route,Routes,BrowserRouter as Router } from 'react-router-dom'
-import {Provider} from "react-redux";
-import { store } from './redux/store';
+import React from "react";
+import { Route, Routes, BrowserRouter as Router } from "react-router-dom";
+import { Provider } from "react-redux";
+import { store } from "./redux/store";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 
-import Home from './components/home'
-import Report from './components/User/Report'
-import Login from './components/Shared/Login'
-import Homedash from './components/User/Home-dash'
-import Transactions from './components/User/transactions'
-import Register from './components/Admin/register'
-import Branding from './components/Admin/branding'
-import Currency from './components/Admin/currency'
-import AdminDash from './components/Admin/Admin-dash'
-import Branches from './components/Admin/branches';
-import Accounts from './components/User/account';
+
+import Home from "./components/home";
+import Report from "./components/Shared/report/index";
+import Homedash from "./components/Shared/dashboard/Home-dash";
+import Transactions from "./components/User/transactions";
+import Register from "./components/Admin/register";
+import Branding from "./components/Admin/branding";
+import Currency from "./components/Admin/currency";
+import AdminDash from "./components/Shared/dashboard/Admin-dash";
+import Branches from "./components/Admin/branches";
+import Accounts from "./components/User/account";
+import ProtectedLayout from "./components/Shared/Layouts/ProtectedLayout"
+import ProtectedAdminLayout from "./components/Shared/Layouts/ProtectedAdminLayout"
+import NotFound from "./components/Shared/NotFound";
+import Commissions from "./components/User/Comission";
 
 const App = () => {
   return (
     <Provider store={store}>
       <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-        />
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
       <Router>
         <Routes>
-        <Route path='/' element={<Home/>}/>
-        <Route path='/login' element={<Login/>}/>
-        <Route path='/user-dash' element={<Homedash/>}/>
-        <Route path='/transaction' element={<Transactions/>}/>
-        <Route path='/report' element={<Report/>}/>
+          {/* Authentication */}
+          <Route path="/" element={<Home />} />
+
+          {/*Protected  User Routes */}
+          <Route element={<ProtectedLayout/>}>
+
+            <Route path="/user-dash" element={<Homedash />} />
+            <Route path="/transaction" element={<Transactions />} />
+            <Route path="/report" element={<Report />} />
+            <Route path="/account" element={<Accounts />} />
+            <Route path="/comissions" element={<Commissions/>}/>
+          </Route>
+
+          {/* Protected Admin Route */}
+          <Route element={<ProtectedAdminLayout/>}>
+
+          <Route path="/admin-dash" element={<AdminDash />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/branding" element={<Branding />} />
+          <Route path="/currency" element={<Currency />} />
+          <Route path="/branch" element={<Branches />} />
+          </Route>
+           <Route path="/404" element={<NotFound />} />
+<          Route path="*" element={<NotFound />} />
+        </Routes>
        
-        <Route path='/account' element={<Accounts/>}/>
-        
-        
-        {/* Admin Routers */}
-        <Route path='/register' element={<Register/>}/>
-        <Route path='/admin-dash' element={<AdminDash/>}/>
-         <Route path='/branding' element={<Branding/>}/>
-        <Route path='/currency' element={<Currency/>}/>
-        <Route path='/branch' element={<Branches/>}/>
-      </Routes>
       </Router>
     </Provider>
-  
-  )
-}
+  );
+};
 
-export default App
+export default App;

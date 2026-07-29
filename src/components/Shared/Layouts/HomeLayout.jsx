@@ -1,31 +1,37 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-const API_URL = import.meta.env.VITE_API_URL;
+import { useNavigate, useLocation } from "react-router-dom";
+import AppLoader from "../loader";
+import { http } from "../../Modules/http";
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   UploadOutlined,
-  UserOutlined,
-  VideoCameraOutlined,
   LogoutOutlined,
   UserAddOutlined,
   HomeOutlined,
+  VideoCameraOutlined,
+  CloseOutlined,
+  DollarCircleFilled,
+  BookOutlined,
+  TransactionOutlined,
 } from "@ant-design/icons";
-import { Avatar, Button, Layout, Menu, theme, Spin, Tooltip } from "antd";
-const { Header, Sider, Content } = Layout;
+
+import { Avatar, Button, Layout, Menu, Tooltip, Drawer } from "antd";
+
+const { Header, Content } = Layout;
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 const HomeLayout = ({ children }) => {
-  const [myLogo, setmyLogo] = useState([]);
+  const [userInf, setUserInf] = useState(null);
+  const location = useLocation();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [openDrawer, setOpenDrawer] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [userInf, setUserInf] = useState(false);
 
   //parsing the branding and user data from local storage
-  useEffect(() => {
-    const parsed = JSON.parse(localStorage.getItem("branding") || "{}");
-    setmyLogo(parsed?.data?.[0]?.logo || "");
-  }, []);
+
+  const myLogo = import.meta.env.VITE_LOGO_URL;
   useEffect(() => {
     const stored = localStorage.getItem("userInfo");
 
@@ -34,143 +40,190 @@ const HomeLayout = ({ children }) => {
     }
   }, []);
 
-
-
-  const {
-    token: { colorBgContainer, borderRadiusLG },
-  } = theme.useToken();
+  const userInfo = JSON.parse(localStorage.getItem("userInfo"));
 
   const nav = (e) => {
     navigate(`/${e.key}`);
   };
 
+  // items
   const items = [
     {
       key: "/user-dash",
-      icon: <HomeOutlined />,
-      label: <span className="!text-zinc-900 ">Dashboard</span>,
-    },
-    {
-      key: "account",
-      icon: <UserAddOutlined />,
-      label: "Account",
+      icon: <HomeOutlined  className="!text-[#022c22] !text-xl" />,
+      label: <span  className="!text-[#022c22] !text-sm !font-semibold">Dashboard</span>,
     },
     {
       key: "transaction",
-      icon: <UploadOutlined />,
-      label: "Transaction",
+      icon: <TransactionOutlined className="!text-[#022c22] !text-xl"/>,
+      label: <span  className="!text-[#022c22] !text-sm !font-semibold">Transaction</span>,
     },
     {
+      key: "account",
+      icon: <UserAddOutlined className="!text-[#022c22] !text-xl"/>,
+      label: <span  className="!text-[#022c22] !text-sm !font-semibold">Account</span>,
+    },
+    {
+      key: "comissions",
+      icon: <DollarCircleFilled className="!text-[#022c22] !text-xl"/>,
+      label:<span  className="!text-[#022c22] !text-sm !font-semibold">Fees / Charges</span>,
+    },
+
+    {
       key: "report",
-      icon: <VideoCameraOutlined />,
-      label: "Report",
+      icon: <BookOutlined className="!text-[#022c22] !text-xl"/>,
+      label: <span  className="!text-[#022c22] !text-sm !font-semibold">Report</span>,
+    },
+  ];
+  const menuItem = [
+    {
+      key: "/user-dash",
+      icon: <HomeOutlined  className="!text-[#022c22] !text-xl" />,
+      label: <span  className="!text-white !text-sm !font-semibold">Dashboard</span>,
+    },
+    {
+      key: "transaction",
+      icon: <TransactionOutlined className="!text-[#022c22] !text-xl"/>,
+      label: <span  className="!text-!text-white !text-sm !font-semibold">Transaction</span>,
+    },
+    {
+      key: "account",
+      icon: <UserAddOutlined className="!text-[#022c22] !text-xl"/>,
+      label: <span  className="!text-!text-white !text-sm !font-semibold">Account</span>,
+    },
+    {
+      key: "comissions",
+      icon: <DollarCircleFilled className="!text-[#022c22] !text-xl"/>,
+      label:<span  className="!text-!text-white !text-sm !font-semibold">Fees / Charges</span>,
+    },
+
+    {
+      key: "report",
+      icon: <BookOutlined className="!text-[#022c22] !text-xl"/>,
+      label: <span  className="!text-!text-white !text-sm !font-semibold">Report</span>,
     },
   ];
 
-  const logoutFunc = () => {
-    setLoading(true);
+  // logout func
+  const logoutFunc = async () => {
+    try {
+      setLoading(true);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
 
-    setTimeout(() => {
+      await http().post("/api/auth/logout");
+
       localStorage.removeItem("userInfo");
       localStorage.removeItem("branding");
 
-      navigate("/login");
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error(error);
+    } finally {
       setLoading(false);
-    }, 800); // small delay so loader is visible
+    }
   };
 
   return (
     <Layout className="!min-h-screen  ">
       {loading && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100vh",
-            background: "rgba(0,0,0,0.3)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 9999,
-          }}
-        >
-          <Spin size="large" />
-        </div>
+        <AppLoader
+          title="Signing Out..."
+          // message="Closing your secure session..."
+        />
       )}
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        breakpoint="md"
-        collapsedWidth={55}
-        onBreakpoint={(broken) => setCollapsed(broken)}
-        className="   !bg-white shadow-sm !border-r !border-zinc-300"
-      >
-        <div className="demo-logo-vertical !bg-white " />
-        <div className="flex flex-col h-screen bg-white  py-9 justify-start items-start">
-          <div className="w-full bg-zinc-600 flex justify-center items-center text-white text-xl top-0 mb-9 -mt-9 h-16">
-            <Avatar
-  src={myLogo ? `${API_URL}${myLogo}` : "/default-logo.png"}
-  alt="logo"
-  size={40}
-/>
-          </div>
-          <br />
 
-          <Menu
-            theme="light"
-            mode="inline"
-            defaultSelectedKeys={["1"]}
-            items={items}
-            onClick={nav}
-            className="!bg-transparent !w-full"
-          />
-        </div>
-      </Sider>
       <Layout>
-        <Header className="!text-zinc-100 !bg-zinc-500 !flex !items-center !justify-between ">
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            className="!text-zinc-50 md:!text-2xl !text-1xl "
-          />
-          <div className="flex !items-center !justify-center gap-1">
-           
-            <span className="!text-white !font-bold md:!text-1xl !text-[10px]">
-              {" "}
-              {userInf?.fullname
-                ? userInf.fullname.charAt(0).toUpperCase() +
-                  userInf.fullname.slice(1)
-                : "User"}
-            </span>
-            |
-            
-             <span className="!text-white !font-bold md:!text-1xl !text-[10px]">
-              {" "}
-              {userInf?.branch
-                ? userInf.branch.charAt(0).toUpperCase() +
-                  userInf.branch.slice(1)
-                : "User"}
-            </span>
-            <p className="!text-white !font-bold !text-[10px] md:!text-1xl">Branch:</p>
+        <Header className="!bg-[#022c22] !px-6 !flex !items-center !justify-between shadow-md">
+          {/* Left Side */}
+          <div className="flex items-center gap-4">
+            <Button
+              type="text"
+              icon={<MenuUnfoldOutlined className="!text-white !text-xl" />}
+              onClick={() => setOpenDrawer(true)}
+            />
+
+            {!openDrawer ? (
+              <Menu
+                mode="horizontal "
+                theme="dark"
+                selectedKeys={[location.pathname]}
+                items={menuItem}
+                onClick={nav}
+                className="!bg-transparent !border-0 flex-1 !text-white hidden md:flex"
+                overflowedIndicator={null}
+              />
+            ) : (
+              " "
+            )}
+          </div>
+
+          {/* Right Side */}
+          <div className="flex items-center gap-4">
+            <div className="flex  gap-5  items-end min-w-0">
+              <span
+                className="text-white font-semibold text-sm truncate max-w-[180px]"
+                title={userInf?.fullname}
+              >
+                {userInf?.fullname || "User"}
+              </span>
+
+              <span
+                className="text-gray-400 text-xs truncate  mb-1 md:mb-0 text-yellow-500  max-w-[180px]"
+                title={userInf?.branch}
+              >
+                {userInf?.branch || "Branch"}
+              </span>
+            </div>
+
             <Tooltip title="Logout">
               <Button type="text" onClick={logoutFunc}>
-                <LogoutOutlined className="!text-white !font-bold md:!text-3xl !text-xl" />
+                <LogoutOutlined className="!text-white !text-xl" />
               </Button>
             </Tooltip>
           </div>
         </Header>
+
+        <Drawer
+                placement="left"
+                open={openDrawer}
+                onClose={() => setOpenDrawer(false)}
+                width={260}
+                closable={false}
+                bodyStyle={{
+                  padding: 0,
+                  background: "#fff",
+                }}
+              >
+          <div className="flex flex-col h-full bg-white">
+                   <div className="w-full h-16 !bg-[#022c22] flex items-center justify-between px-4 text-white text-xl font-bold">
+                     M S
+                     <Button
+                       type="text"
+                       icon={<MenuFoldOutlined size="large"/>}
+                       onClick={() => setOpenDrawer(false)}
+                       className="!text-white hover:!text-emerald-300 md:!text-2xl !text-lg"
+                     />
+                   </div>
+         
+                   <Menu
+                     mode="inline"
+                     items={items}
+                     onClick={(e) => {
+                       nav(e);
+                       setDrawerOpen(false);
+                     }}
+                     className="border-0"
+                   />
+                 </div>
+        </Drawer>
         <Content
           style={{
             margin: "0px 0px",
-            padding: 24,
+            padding: 0,
             minHeight: 280,
             background: "white",
           }}
-          className="!h-screen !overflow-auto !p-4"
+          className="!h-screen !overflow-auto"
         >
           {children}
         </Content>
