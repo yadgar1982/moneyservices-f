@@ -1,0 +1,555 @@
+    <Form
+            form={form}
+            layout="vertical"
+            onFinish={edit ? onUpdate : onFinish}
+            initialValues={{ finalAmount: 0 }}
+            size="large"
+            className="space-y-2"
+          >
+            <Row gutter={[16, 12]}>
+              {/* Left Column */}
+              <Col xs={24} lg={12}>
+                <Card
+                  bodyStyle={{ padding: 16 }}
+                  headStyle={{
+                    padding: 0,
+                    borderBottom: "1px solid #e2e8f0",
+                    background:
+                      "linear-gradient(to right, #ffffff, #eff6ff, #eef2ff)",
+                  }}
+                  title={
+                    <div className="flex items-center justify-between">
+                      {/* Left Side */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex !px-3 h-11 w-11  ml-2 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-300 shadow-lg">
+                          <UserOutlined className="text-xl text-white " />
+                        </div>
+
+                        <div>
+                          <h2 className="md:text-2xl font-bold text-slate-800">
+                            Customer Information
+                          </h2>
+
+                          <p className="text-sm text-slate-500">
+                            Customer &amp; Account Details
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right Side Buttons */}
+                      <div className="flex items-center gap-3 p-2">
+                        <Button
+                          type="text"
+                          onClick={handleCalculate}
+                          className="group !flex !h-11 !w-11 !items-center !justify-center
+                          !rounded-xl !border !border-blue-100 !bg-white
+                          !text-slate-600 !shadow-sm transition-all duration-300
+                          hover:!border-blue-500
+                          hover:!bg-gradient-to-br
+                          hover:!from-blue-500
+                          hover:!to-indigo-600
+                          hover:!text-white"
+                        >
+                          <SwapOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
+                        </Button>
+
+                        <Button
+                          type="text"
+                          onClick={() => setOpen(true)}
+                          className="group !flex !h-11 !w-11 !items-center !justify-center
+                          !rounded-xl !border !border-emerald-100 !bg-white
+                          !text-slate-600 !shadow-sm transition-all duration-300
+                          hover:!border-emerald-500
+                          hover:!bg-gradient-to-br
+                          hover:!from-emerald-500
+                          hover:!to-teal-600
+                          hover:!text-white"
+                        >
+                          <PrinterOutlined className="!text-xl transition-transform duration-300 group-hover:scale-110" />
+                        </Button>
+                      </div>
+                    </div>
+                  }
+                  className="!overflow-hidden !rounded-2xl !border-0 !shadow-lg transition-all duration-300 hover:!shadow-xl"
+                >
+                  <Form.Item name="_id" hidden>
+                    <Input />
+                  </Form.Item>
+
+                  {/* Full Name */}
+                  <Form.Item
+                    name="fullname"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Full Name
+                      </span>
+                    }
+                    rules={[{ required: true, message: "Enter full name" }]}
+                    className="!mb-2"
+                  >
+                    <Input
+                      placeholder="Full Name"
+                      className="!rounded-xl !border-slate-300 hover:!border-blue-500 focus:!border-blue-500"
+                    />
+                  </Form.Item>
+
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={16}>
+                      <Form.Item
+                        name="accountNo"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Acc No
+                          </span>
+                        }
+                        rules={[
+                          { required: true, message: "Enter account number" },
+                        ]}
+                        className="!mb-2"
+                      >
+                        <InputNumber
+                          placeholder="Acc No"
+                          className="!w-full !rounded-xl"
+                        />
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={8}>
+                      <Form.Item
+                        name="currency"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Currency
+                          </span>
+                        }
+                        rules={[{ required: true, message: "Select currency" }]}
+                        className="!mb-2"
+                      >
+                        <Select
+                          placeholder="Currency"
+                          value={currencies.currency}
+                          onChange={(val) => setSelectedCurrency(val)}
+                          className="!rounded-xl"
+                        >
+                          {currencies.map((c) => (
+                            <Select.Option key={c.currency} value={c.currency}>
+                              {c.currency}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="transaction"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Transaction
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <Select
+                          placeholder="Transaction"
+                          onChange={(val) => setTransactionType(val)}
+                          className="!rounded-xl"
+                        >
+                          <Option value="transaction">Transaction</Option>
+                          <Option value="transfer">Transfer</Option>
+                          <Option value="exchange">Exchange</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="amount"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Amount
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <InputNumber
+                          placeholder="Amount"
+                          className="!w-full !rounded-xl !font-semibold"
+                          onChange={(value) => setAmount(value)}
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  {transactionType === "transaction" && (
+                    <Form.Item
+                      name="transactionType"
+                      label={
+                        <span className="font-semibold text-slate-700">
+                          Transaction Type
+                        </span>
+                      }
+                      rules={[{ required: true }]}
+                      className="!mb-0"
+                    >
+                      <Select
+                        placeholder="Transaction Type"
+                        className="!rounded-xl"
+                      >
+                        <Option value="credit">Credit</Option>
+                        <Option value="debit">Debit</Option>
+                      </Select>
+                    </Form.Item>
+                  )}
+
+                  {(transactionType === "transfer" ||
+                    transactionType === "exchange") && (
+                    <Row gutter={[16, 8]}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="to"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              To Account
+                            </span>
+                          }
+                          className="!mb-0"
+                        >
+                          <Select
+                            showSearch
+                            options={accountOptions}
+                            placeholder="Select Account"
+                            filterOption={(input, option) =>
+                              option?.label
+                                ?.toLowerCase()
+                                .includes(input.toLowerCase())
+                            }
+                            onChange={(accountNo) => {
+                              const customer = users.find(
+                                (c) => c.accountNo === accountNo,
+                              );
+                              setToAccount({
+                                accountNo: customer.accountNo,
+                                fullname: customer.fullname,
+                              });
+                            }}
+                            className="!rounded-xl"
+                          />
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="tocurrency"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              To Currency
+                            </span>
+                          }
+                          rules={[
+                            { required: true, message: "Select currency" },
+                          ]}
+                          className="!mb-0"
+                        >
+                          <Select
+                            placeholder="Currency"
+                            value={currencies.currency}
+                            onChange={(val) => setSelectedToCurrency(val)}
+                            className="!rounded-xl"
+                          >
+                            {currencies.map((c) => (
+                              <Select.Option
+                                key={c.currency}
+                                value={c.currency}
+                              >
+                                {c.currency}
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
+                </Card>
+              </Col>
+              {/* Right Column */}
+              <Col xs={24} lg={12}>
+                <Card
+                  bodyStyle={{ padding: 16 }}
+                  headStyle={{
+                    padding: 0,
+                    borderBottom: "1px solid #e2e8f0",
+                    background:
+                      "linear-gradient(to right, #ffffff, #ecfdf5, #f0fdfa)",
+                  }}
+                  title={
+                    <div className="flex items-center gap-3 px-5 py-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-300 via-teal-500 to-cyan-600 shadow-lg">
+                        <FileDoneOutlined className="text-lg text-white" />
+                      </div>
+
+                      <div>
+                        <h2 className="text-lg font-bold leading-none text-slate-800">
+                          Transaction Information
+                        </h2>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Amounts, Exchange & References
+                        </p>
+                      </div>
+                    </div>
+                  }
+                  className="!overflow-hidden !rounded-2xl !border-0 !shadow-lg transition-all duration-300 hover:!shadow-xl"
+                >
+                  {/* Amount Section */}
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="exchangeRate"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Exchange Rate
+                          </span>
+                        }
+                        className="!mb-2"
+                        rules={
+                          transactionType === "transfer" ||
+                          transactionType === "exchange"
+                            ? [{ required: true, message: "Rate is required" }]
+                            : []
+                        }
+                      >
+                        <InputNumber
+                          placeholder="Rate"
+                          onChange={(value) => setRate(value)}
+                          className="!w-full !rounded-xl"
+                        />
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={12}>
+                      <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 p-3 shadow-md">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Exchange Amount
+                        </p>
+
+                        <Form.Item name="finalAmount" className="!mb-0">
+                          <InputNumber
+                            disabled
+                            controls={false}
+                            size="large"
+                            formatter={(value) =>
+                              `${Number(value || 0).toFixed(2)}`
+                            }
+                            parser={(value) => parseFloat(value)}
+                            className="!h-14 !w-full !border-0 !bg-transparent !text-center !text-3xl !font-black !text-blue-700"
+                          />
+                        </Form.Item>
+                      </div>
+                    </Col>
+                  </Row>
+
+                  <div className="my-3 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      References
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+
+                  {/* References */}
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="transactionId"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Transaction ID
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <Input
+                          placeholder="Transaction ID"
+                          className="!rounded-xl"
+                          readOnly
+                        />
+                      </Form.Item>
+                    </Col>
+
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="transactionNo"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Daily No
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                        className="!mb-2"
+                      >
+                        <Input
+                          placeholder="Transaction Daily No"
+                          className="!rounded-xl"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Form.Item
+                    name="transferNo"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Transfer No
+                      </span>
+                    }
+                    className="!mb-3"
+                  >
+                    <Input placeholder="Transfer No" className="!rounded-xl" />
+                  </Form.Item>
+
+                  {/* Commission */}
+                  <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400">
+                        <WalletOutlined className="text-white" />
+                      </div>
+
+                      <div>
+                        <h3 className="font-semibold text-emerald-700">
+                          Commission Details
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Optional transaction fee
+                        </p>
+                      </div>
+                    </div>
+
+                    <Row gutter={[16, 8]}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="comission"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              Commission Fee
+                            </span>
+                          }
+                          className="!mb-0"
+                        >
+                          <InputNumber
+                            placeholder="Fee"
+                            className="!w-full !rounded-xl"
+                            onChange={(value) => setComission(value)}
+                          />
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          name="comission_currency"
+                          label={
+                            <span className="font-semibold text-slate-700">
+                              Currency
+                            </span>
+                          }
+                          className="!mb-0"
+                        >
+                          <Select
+                            placeholder="Currency"
+                            onChange={(val) => setComissionCurrency(val)}
+                            className="!rounded-xl"
+                          >
+                            {currencies.map((c) => (
+                              <Select.Option
+                                key={c.currency}
+                                value={c.currency}
+                              >
+                                {c.currency}
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Details */}
+            <Card
+              size="small"
+              bodyStyle={{ padding: 14 }}
+              className="!mt-3 !overflow-hidden !rounded-2xl !border-0 !shadow-md bg-green-200"
+            >
+              <Form.Item name="details" className="!mb-0">
+                <Input.TextArea
+                  rows={2}
+                  placeholder="Write additional notes..."
+                  className="!rounded-xl !border-slate-300"
+                />
+              </Form.Item>
+            </Card>
+            {/* Attchments */}
+
+            <Row
+              justify="space-between"
+              align="middle"
+              gutter={[16, 16]}
+              className="mt-3 mb-2"
+            >
+              <Col>
+                <Space size="middle">
+                  <Form.Item name="document" className="!mb-0">
+                    <Upload
+                      accept=".pdf,image/*"
+                      maxCount={1}
+                      fileList={scannedDoc ? [scannedDoc] : []}
+                      beforeUpload={(file) => {
+                        setScannedDoc(file);
+                        return false;
+                      }}
+                      onRemove={() => setScannedDoc(null)}
+                    >
+                      <Button
+                        size="large"
+                        icon={<PaperClipOutlined />}
+                        className="!h-11 !rounded-xl !border-slate-200 !bg-white !px-5 !font-semibold !text-slate-700 !shadow-sm transition-all duration-300 hover:!-translate-y-0.5 hover:!border-blue-500 hover:!text-blue-600 hover:!shadow-md"
+                      >
+                        Documents
+                      </Button>
+                    </Upload>
+                  </Form.Item>
+
+                  <Button
+                    size="large"
+                    onClick={() => setOpenModal(true)}
+                    className="!flex !h-11 !items-center !justify-center !rounded-xl !border-0 !bg-gradient-to-r !from-orange-400 !to-amber-500 !px-5 !font-semibold !text-white !shadow-md transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl"
+                  >
+                    <CameraOutlined className="!text-lg" />
+                    <SignatureOutlined className="!text-lg" />
+                  </Button>
+                </Space>
+              </Col>
+
+              <Col>
+                <Button
+                  htmlType="submit"
+                  size="large"
+                  icon={<SaveOutlined />}
+                  className={`!w-[100%] !h-11 !rounded-xl !border-0 !px-8 !font-semibold !text-white !shadow-lg transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl ${
+                    edit
+                      ? "!bg-gradient-to-r !from-orange-500 !to-amber-500"
+                      : "!bg-gradient-to-r !from-blue-600 !to-indigo-600"
+                  }`}
+                >
+                  {edit ? "Update Transaction" : "Save Transaction"}
+                </Button>
+              </Col>
+            </Row>
+          </Form>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./transactions.css";
 import jsPDF from "jspdf";
+
 import html2canvas from "html2canvas";
 import {
   Form,
@@ -23,6 +24,7 @@ import {
   Row,
   Col,
   Space,
+  Empty,
 } from "antd";
 import HomeLayout from "../Shared/Layouts/HomeLayout";
 import {
@@ -32,8 +34,10 @@ import {
   CameraFilled,
   CameraOutlined,
   CameraTwoTone,
+  CheckCircleOutlined,
   CheckOutlined,
   ClearOutlined,
+  ClockCircleOutlined,
   DeleteOutlined,
   DollarCircleOutlined,
   DollarCircleTwoTone,
@@ -45,6 +49,7 @@ import {
   PayCircleOutlined,
   PrinterOutlined,
   SaveOutlined,
+  SearchOutlined,
   SignatureOutlined,
   StopOutlined,
   SwapOutlined,
@@ -72,6 +77,7 @@ import { fetchUsers } from "../../redux/slices/customerSlice";
 import { fetchCurrency } from "../../redux/slices/currencySlice";
 import { fetchBranch } from "../../redux/slices/branchSlice";
 import dayjs from "dayjs";
+import isBetween from "dayjs/plugin/isBetween";
 const shutterSound = new Audio("./camera.mp3");
 shutterSound.volume = 0.2;
 
@@ -98,6 +104,12 @@ const Transactions = () => {
   const [comission, setComission] = useState(null);
   const [comissionCurrency, setComissionCurrency] = useState(null);
   const [searchText, setSearchText] = useState("");
+  const [search, setSearch] = useState("");
+
+  // data search for main table
+  const [showIsPassed, setShowIsPassed] = useState(false);
+  const [tableData, setTableData] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   //account statement states
   const [stAcc, setStAcc] = useState(null);
@@ -265,6 +277,39 @@ const Transactions = () => {
       }
     });
 
+    // total current balance
+
+    const currentTotals = {};
+
+    transactions
+      .filter((t) => {
+        if (String(t.accountNo) !== String(account)) return false;
+        if (currency && t.currency !== currency) return false;
+        return true;
+      })
+      .forEach((t) => {
+        const cur = t.currency;
+        const amount = Number(t.amount) || 0;
+
+        if (!currentTotals[cur]) currentTotals[cur] = 0;
+
+        if (t.transactionType === "credit") {
+          currentTotals[cur] += amount;
+        } else {
+          currentTotals[cur] -= amount;
+        }
+      });
+
+    const currentBalanceHTML = Object.entries(currentTotals)
+      .map(
+        ([cur, bal]) => `
+      <div>
+        <strong>${cur}: ${bal.toFixed(2)}</strong>
+      </div>
+    `,
+      )
+      .join("");
+
     const balanceHTML = Object.entries(totals)
       .map(
         ([cur, bal]) => `
@@ -277,343 +322,349 @@ const Transactions = () => {
 
     //  8. Print window
     const printWindow = window.open("", "", "width=900,height=700");
-
     printWindow.document.write(`
-<html>
-<head>
-  <title>Account Statement</title>
+      <html>
+      <head>
+        <title>Account Statement</title>
 
-  <style>
-    *{
-      box-sizing:border-box;
-    }
+        <style>
+          *{
+            box-sizing:border-box;
+          }
 
-    body{
-      margin:0;
-      padding:30px;
-      background:white;
-      font-family:Arial, sans-serif;
-      color:#1e293b;
-    }
+          body{
+            margin:0;
+            padding:30px;
+            background:white;
+            font-family:Arial, sans-serif;
+            color:#1e293b;
+          }
 
-    .container{
-      max-width:1000px;
-      margin:auto;
-      background:#fff;
-      overflow:hidden;
-     
-    }
+          .container{
+            max-width:1000px;
+            margin:auto;
+            background:#fff;
+            overflow:hidden;
+          
+          }
 
-    .topbar{
-      height:0px;
+          .topbar{
+            height:0px;
 
-    }
+          }
 
-   .header{
-  padding:15px 15px 10px;
-  border-bottom:1px solid #e5e7eb;
-  text-align:center;
-}
-
-.brand{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:10px;
-}
-
-.logo{
-  width:75px;
-  height:75px;
-  border-radius:50%;
-  overflow:hidden;
-  border:3px solid #dbeafe;
-}
-
-.logo img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-}
-
-   .brand-info h1{
-      margin:0;
-      font-size:24px;
-      color:#113b8a;
-    }
-
-  .brand-info p{
-    margin:3px 0;
-    color:#64748b;
-    font-size:13px;
-  }
-
-  .statement-title{
-  margin-top:8px;
-  display:inline-block;
-  background:#113b8a;
-  color:white;
-  padding:6px 16px;
-  border-radius:30px;
-  font-size:12px;
-  font-weight:bold;
-  letter-spacing:1px;
-}
-
-    .info-section{
-      padding:10px 20px;
-      display:flex;
-
-      flex-direction:column;
-      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-      gap:10px;
-      background:white;
-     
-    }
-
-    .info-card{
-      background:white;
-   
-    }
-
-    .info-label{
-      font-size:12px;
-      color:#64748b;
-      margin-bottom:5px;
-      text-transform:uppercase;
-      letter-spacing:1px;
-    }
-
-    .info-value{
-      font-size:16px;
-      font-weight:600;
-      color:#0f172a;
-    }
-
-    .section{
-      padding:30px;
-    }
-
-    .section-title{
-      font-size:20px;
-      margin-bottom:20px;
-      color:#113b8a;
-      padding:2px;
-      border-bottom:3px solid #e5e7eb;
-    }
-
-    .balances{
-      display:flex;
-      flex-wrap:wrap;
-      gap:15px;
-    }
-
-    .balance-card{
-      background:linear-gradient(
-        135deg,
-        #113b8a,
-        #1d4ed8
-      );
-      color:white;
-      padding:2px;
-  
-    }
-
-    .balance-card span{
-      display:block;
-      font-size:13px;
-      opacity:0.1;
-      margin-bottom:8px;
-    }
-
-    .balance-card strong{
-      font-size:18px;
-    }
-
-    table{
-      width:100%;
-      border-collapse:collapse;
-      overflow:hidden;
-      border-radius:12px;
-    }
-
-    thead{
-      background:#66666138;
-      color:#113b8a;
-    }
-
-    th{
-      padding:14px;
-      font-size:13px;
-      text-align:left;
-      letter-spacing:0.5px;
-    }
-
-    td{
-      padding:14px;
-      border-bottom:1px solid #e5e7eb;
-      font-size:14px;
-    }
-
-    tbody tr:nth-child(even){
-      background:#f8fafc;
-    }
-
-    tbody tr:hover{
-      background:#eef4ff;
-    }
-
-    .credit{
-      color:#16a34a;
-      font-weight:600;
-      text-transform:capitalize;
-    }
-
-    .debit{
-      color:#dc2626;
-      font-weight:600;
-      text-transform:capitalize;
-    }
-
-    .footer{
-      padding:20px 30px;
-      text-align:center;
-      font-size:12px;
-      color:#94a3b8;
-      border-top:1px solid #e5e7eb;
-    }
-
-    @media print{
-      body{
-        background:white;
-        padding:0;
+        .header{
+        padding:15px 15px 10px;
+        border-bottom:1px solid #e5e7eb;
+        text-align:center;
       }
 
-      .container{
-        box-shadow:none;
+      .brand{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:10px;
       }
-    }
 
-  </style>
-</head>
+      .logo{
+        width:75px;
+        height:75px;
+        border-radius:50%;
+        overflow:hidden;
+        border:3px solid #dbeafe;
+      }
 
-<body>
+      .logo img{
+        width:100%;
+        height:100%;
+        object-fit:cover;
+      }
 
-<div class="container" id="statement-content">
-  <div class="topbar"></div>
-  <div class="header">
-    <div class="brand">     
-      <div style="
-                width:150px;
-                height:105px;
-                border-radius:0;
-                overflow:hidden;
-                margin:0 auto;
-              ">
-                <img
-                  src="${myLogo}"
-                  alt="logo"
-                  style="width:150px ;heigth:100px;object-fit:cover;display:block;"
-                />
+        .brand-info h1{
+            margin:0;
+            font-size:24px;
+            color:#113b8a;
+          }
+
+        .brand-info p{
+          margin:3px 0;
+          color:#64748b;
+          font-size:13px;
+        }
+
+        .statement-title{
+        margin-top:8px;
+        display:inline-block;
+        background:#113b8a;
+        color:white;
+        padding:6px 16px;
+        border-radius:30px;
+        font-size:12px;
+        font-weight:bold;
+        letter-spacing:1px;
+      }
+
+          .info-section{
+            padding:10px 20px;
+            display:flex;
+
+            flex-direction:column;
+            grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+            gap:10px;
+            background:white;
+          
+          }
+
+          .info-card{
+            background:white;
+        
+          }
+
+          .info-label{
+            font-size:12px;
+            color:#64748b;
+            margin-bottom:5px;
+            text-transform:uppercase;
+            letter-spacing:1px;
+          }
+
+          .info-value{
+            font-size:16px;
+            font-weight:600;
+            color:#0f172a;
+          }
+
+          .section{
+            padding:30px;
+          }
+
+          .section-title{
+            font-size:20px;
+            margin-bottom:20px;
+            color:#113b8a;
+            padding:2px;
+            border-bottom:3px solid #e5e7eb;
+          }
+
+          .balances{
+            display:flex;
+            flex-wrap:wrap;
+            gap:15px;
+          }
+
+          .balance-card{
+            background:linear-gradient(
+              135deg,
+              #113b8a,
+              #1d4ed8
+            );
+            color:white;
+            padding:2px;
+        
+          }
+
+          .balance-card span{
+            display:block;
+            font-size:13px;
+            opacity:0.1;
+            margin-bottom:8px;
+          }
+
+          .balance-card strong{
+            font-size:18px;
+          }
+
+          table{
+            width:100%;
+            border-collapse:collapse;
+            overflow:hidden;
+            border-radius:12px;
+          }
+
+          thead{
+            background:#66666138;
+            color:#113b8a;
+          }
+
+          th{
+            padding:14px;
+            font-size:13px;
+            text-align:left;
+            letter-spacing:0.5px;
+          }
+
+          td{
+            padding:14px;
+            border-bottom:1px solid #e5e7eb;
+            font-size:14px;
+          }
+
+          tbody tr:nth-child(even){
+            background:#f8fafc;
+          }
+
+          tbody tr:hover{
+            background:#eef4ff;
+          }
+
+          .credit{
+            color:#16a34a;
+            font-weight:600;
+            text-transform:capitalize;
+          }
+
+          .debit{
+            color:#dc2626;
+            font-weight:600;
+            text-transform:capitalize;
+          }
+
+          .footer{
+            padding:20px 30px;
+            text-align:center;
+            font-size:12px;
+            color:#94a3b8;
+            border-top:1px solid #e5e7eb;
+          }
+
+          @media print{
+            body{
+              background:white;
+              padding:0;
+            }
+
+            .container{
+              box-shadow:none;
+            }
+          }
+
+        </style>
+      </head>
+
+      <body>
+
+      <div class="container" id="statement-content">
+        <div class="topbar"></div>
+        <div class="header">
+          <div class="brand">     
+            <div style="
+                      width:150px;
+                      height:105px;
+                      border-radius:0;
+                      overflow:hidden;
+                      margin:0 auto;
+                    ">
+                      <img
+                        src="${myLogo}"
+                        alt="logo"
+                        style="width:150px ;heigth:100px;object-fit:cover;display:block;"
+                      />
+                    </div>
+                  </div>
+
+            <div class="brand-info">
+              <h1>${myBrand.data[0].companyName}</h1>
+
+              <p>
+                ${
+                  myBrand.data[0].address
+                    ? myBrand.data[0].address.charAt(0).toUpperCase() +
+                      myBrand.data[0].address.slice(1)
+                    : ""
+                } - ${myBranch} Branch
+              </p>
+
+              <p>
+                ${myBrand.data[0].mobile}
+                |
+                ${myBrand.data[0].email}
+              </p>
+
+              <div class="statement-title">
+                ACCOUNT STATEMENT
               </div>
             </div>
 
-      <div class="brand-info">
-        <h1>${myBrand.data[0].companyName}</h1>
+          </div>
 
-        <p>
-          ${
-            myBrand.data[0].address
-              ? myBrand.data[0].address.charAt(0).toUpperCase() +
-                myBrand.data[0].address.slice(1)
-              : ""
-          } - ${myBranch} Branch
-        </p>
-
-        <p>
-          ${myBrand.data[0].mobile}
-          |
-          ${myBrand.data[0].email}
-        </p>
-
-        <div class="statement-title">
-          ACCOUNT STATEMENT
         </div>
+
+        <div class="info-section">
+          <div class="info-card">
+                <div class="info-label">Date Range</div>
+                <div class="info-value">
+                  ${fromDate ? fromDate.format("DD-MM-YYYY") : "-"}
+                  →
+                  ${toDate ? toDate.format("DD-MM-YYYY") : "-"}
+          </div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Account</div>
+            <div class="info-value">${account}</div>
+            <div class="info-label">Account Holder</div>
+            <div class="info-value">${(stName && stName) || "-"}</div>
+          </div>
+
+          <div class="info-card">
+         
+
+            <div style="height:10px"></div>
+
+            <div class="info-label">Acc Current Balance</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              ${currency || "All"} ${currentBalanceHTML}
+            </div>
+          </div>
+          
+        
+        
+
+        </div>
+
+        
+
+        <div class="section">
+
+          <div class="section-title">
+            Transaction History
+          </div>
+
+          <table>
+
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Date</th>
+                <th>Transaction</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${rowsHTML}
+            </tbody>
+
+          </table>
+
+        </div>
+      <div class="balances" style="display:flex; align-items:center;gap:10px; justify-content:end; padding-right:85px">
+      <p>Current Balance</p>${currency || "All"} ${balanceHTML}
+
+          </div>
+
+        <div class="footer">
+          Generated on 
+          ${dayjs().format("DD-MM-YYYY hh:mm A")}
+        </div>
+
       </div>
 
-    </div>
-
-  </div>
-
-  <div class="info-section">
-    <div class="info-card">
-          <div class="info-label">Date Range</div>
-          <div class="info-value">
-            ${fromDate ? fromDate.format("DD-MM-YYYY") : "-"}
-            →
-            ${toDate ? toDate.format("DD-MM-YYYY") : "-"}
-    </div>
-    </div>
-    <div class="info-card">
-      <div class="info-label">Account</div>
-      <div class="info-value">${account}</div>
-       <div class="info-label">Account Holder</div>
-      <div class="info-value">${(stName && stName) || "-"}</div>
-    </div>
-
-    <div class="info-card">
-      <div class="info-label">Current Balance:</div>
-      <div  style="display:flex; align-items:center;gap:10px; ">${currency || "All"}  ${balanceHTML}</div>
-    </div>
-    
-   
-   
-
-  </div>
-
-  
-
-  <div class="section">
-
-    <div class="section-title">
-      Transaction History
-    </div>
-
-    <table>
-
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Date</th>
-          <th>Transaction</th>
-          <th>Description</th>
-          <th>Amount</th>
-          <th>Balance</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        ${rowsHTML}
-      </tbody>
-
-    </table>
-
-  </div>
- <div class="balances" style="display:flex; align-items:center;gap:10px; justify-content:end; padding-right:30px">
- <p>Balance</p> ${balanceHTML}
-    </div>
-
-  <div class="footer">
-    Generated on 
-    ${dayjs().format("DD-MM-YYYY hh:mm A")}
-  </div>
-
-</div>
-
-</body>
-</html>
-`);
+      </body>
+      </html>
+      `);
 
     // printWindow.document.close();
 
@@ -676,21 +727,28 @@ const Transactions = () => {
 
   //end of statement filter
 
+  //Data source
   const { data, terror } = SWR("/api/transaction/read", fetcher);
+  const handleSearch = () => {
+    setIsSearching(true);
+  };
+  const handleClear = () => {
+    setSearchText("");
+    setFromDate(null);
+    setToDate(null);
+    setIsSearching(false);
+  };
+  const getDatasource = (type) =>
+    (data?.data || []).filter(
+      (t) =>
+        t.transaction === type &&
+        t.isPass === (showIsPassed ? "true" : "false"),
+    );
+  const datasource = getDatasource("transaction");
+  const datasourceTransfer = getDatasource("transfer");
+  const datasourceExchange = getDatasource("exchange");
 
-  const datasource =
-    data?.data.filter(
-      (t) => t.isPass === "false" && t.transaction === "transaction",
-    ) || [];
-
-  const datasourceTransfer =
-    data?.data.filter(
-      (t) => t.isPass === "false" && t.transaction === "transfer",
-    ) || [];
-  const datasourceExchange =
-    data?.data.filter(
-      (t) => t.isPass === "false" && t.transaction === "exchange",
-    ) || [];
+// end of table datasource
 
   useEffect(() => {
     const amt = amount || 0;
@@ -1227,20 +1285,60 @@ const Transactions = () => {
   };
 
   // data sourse
-
-  // search function
   const filterData = (data) => {
-    if (!searchText) return data;
+  let filtered = [...data];
 
+  //filter data
+  if (searchText) {
     const keyword = searchText.toLowerCase().trim();
 
-    return data.filter((row) =>
+    filtered = filtered.filter((row) =>
       Object.values(row).some((value) =>
         String(value ?? "")
           .toLowerCase()
-          .includes(keyword),
-      ),
+          .includes(keyword)
+      )
     );
+  }
+
+  // From Date
+  if (fromDate) {
+    filtered = filtered.filter(
+      (row) => !dayjs(row.createdAt).isBefore(fromDate, "day")
+    );
+  }
+
+  // To Date
+  if (toDate) {
+    filtered = filtered.filter(
+      (row) => !dayjs(row.createdAt).isAfter(toDate, "day")
+    );
+  }
+
+  return filtered;
+};
+  // color for currencies
+  const getCurrencyColor = (currency) => {
+    const colors = [
+      "#2563eb",
+      "#16a34a",
+      "#dc2626",
+      "#7c3aed",
+      "#ea580c",
+      "#0891b2",
+      "#db2777",
+      "#ca8a04",
+      "#4f46e5",
+      "#0f766e",
+    ];
+
+    let hash = 0;
+
+    for (let i = 0; i < currency.length; i++) {
+      hash = currency.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    return colors[Math.abs(hash) % colors.length];
   };
   const columns = [
     {
@@ -1253,7 +1351,7 @@ const Transactions = () => {
     {
       title: "AccountNo",
       dataIndex: "accountNo",
-      width: 90,
+      width: 150,
       render: (v) => v || "—",
     },
     {
@@ -1266,7 +1364,7 @@ const Transactions = () => {
       title: "Name",
       dataIndex: "fullname",
 
-      width: 100,
+      width: 250,
     },
     {
       title: "Details",
@@ -1296,8 +1394,28 @@ const Transactions = () => {
     {
       title: "Amount",
       dataIndex: "amount",
-      width: 90,
-      render: (v) => v || "—",
+      width: 180,
+      align: "right",
+      render: (value, record) => (
+        <Space size={6}>
+          <Tag
+            color={getCurrencyColor(record.currency)}
+            style={{
+              margin: 0,
+              fontWeight: 600,
+            }}
+          >
+            {record.currency}
+          </Tag>
+
+          <span className="font-medium">
+            {Number(value || 0).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+        </Space>
+      ),
     },
     {
       title: "Photo",
@@ -1378,30 +1496,31 @@ const Transactions = () => {
       title: "Pass",
       key: "isPassed",
       fixed: "right",
-      width: 20,
-      height: 20,
+      width: 50,
 
       render: (_, record) => {
-        const disabled = shouldDisable(record, datasourceExchange || []);
+        const disabled =
+          record.isPass === "true" ||
+          shouldDisable(record, datasourceExchange || []);
 
         if (disabled) {
           return (
-            <CheckOutlined className="!text-xl  rounded !text-gray-300 !cursor-not-allowed" />
+            <CheckOutlined className="!text-xl !text-gray-300 !cursor-not-allowed" />
           );
         }
 
         return (
           <Popconfirm
-            title="Are you sure to Pass this transaction?"
+            title="Are you sure to pass this transaction?"
             onConfirm={() => handleIspassed(record.transactionId)}
           >
-            <CheckOutlined className="!text-xl  rounded !text-green-600 !cursor-pointer" />
+            <CheckOutlined className="!text-xl !text-green-600 hover:!text-green-700 !cursor-pointer" />
           </Popconfirm>
         );
       },
     },
     {
-      title: "Pass",
+      title: "Delete",
       key: "isPassed",
       fixed: "right",
       width: 20,
@@ -1744,24 +1863,35 @@ const Transactions = () => {
     }
   };
 
+  // customer search system
+  const [customerSearch, setCustomerSearch] = useState("");
+  const filteredOptions = accountOptions.filter((option) =>
+    option.label.toLowerCase().includes(customerSearch.toLowerCase()),
+  );
+
+  const fieldStyle = {
+    flex: "1 1 180px",
+    minWidth: 180,
+    maxWidth: "100%",
+  };
   return (
     <HomeLayout>
       <div className="bg-white p-1 md:p-4">
         {/* Account Selection */}
-        <div className="mb-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mb-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
             {/* Left */}
             <div className="flex items-center gap-3 shrink-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-300 shadow">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-300 shadow">
                 <BankOutlined className="text-white text-lg" />
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                <p className="text-[10px] !font-semibold !uppercase !tracking-[0.3em] !text-slate-500">
                   Transaction
                 </p>
 
-                <h2 className="text-lg font-bold leading-none text-slate-800">
+                <h2 className="text-lg !font-bold !leading-none !text-slate-800">
                   Customer Account
                 </h2>
               </div>
@@ -1769,25 +1899,27 @@ const Transactions = () => {
 
             {/* Search */}
             <div className="w-full xl:max-w-[360px]">
-              <div className="flex items-center gap-2">
-                <Select
-                  showSearch
-                  placeholder="🔍 Search customer..."
-                  options={accountOptions}
-                  className="w-full"
-                  filterOption={(input, option) =>
-                    option?.label?.toLowerCase().includes(input.toLowerCase())
-                  }
-                  onChange={(value) => setSelectedAccount(value)}
-                />
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <Select
+                    showSearch
+                    placeholder="🔍 Search customer..."
+                    options={filteredOptions}
+                    className="w-full"
+                    searchValue={customerSearch}
+                    onSearch={setCustomerSearch}
+                    filterOption={false}
+                    onChange={(value) => setSelectedAccount(value)}
+                  />
+                </div>
 
-                {editTag && (
-                  <Tag
-                    color="processing"
-                    className="rounded-full whitespace-nowrap px-3"
-                  >
-                    {editTag}
-                  </Tag>
+                {customerSearch && filteredOptions.length === 0 && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 whitespace-nowrap">
+                    <span className="text-sm font-medium text-red-700">
+                      ❌ No customer found for "
+                      <strong>{customerSearch}</strong>"
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -1799,20 +1931,27 @@ const Transactions = () => {
                 className="flex items-center gap-5 xl:ml-auto"
               >
                 {/* Profile */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <Image
                     src={c.profile ? `${API_URL}${c.profile}` : undefined}
                     width={48}
                     height={48}
-                    className="rounded-full border-2 border-blue-100 object-cover"
+                    preview={false}
+                    className="!h-12 !w-12 flex-shrink-0 rounded-full border-2 border-blue-100 object-cover"
                   />
 
-                  <div>
-                    <h3 className="text-lg font-bold leading-none">
+                  <div className="flex-1 min-w-0">
+                    <h3
+                      className="truncate text-base md:text-lg font-bold text-slate-800"
+                      title={c.fullname}
+                    >
                       {c.fullname}
                     </h3>
 
-                    <Tag color="blue" className=" !text-1xl mt-1 rounded-full">
+                    <Tag
+                      color="blue"
+                      className="!mt-1 !rounded-full !px-2 !py-0 !text-xs !font-medium"
+                    >
                       #{c.accountNo}
                     </Tag>
                   </div>
@@ -1824,27 +1963,38 @@ const Transactions = () => {
                     ([currency, balance]) => (
                       <Tag
                         key={currency}
-                        className={`!cursor-pointer !rounded-full !px-3 !py-1 !text-lg
-                        !border transition-all hover:scale-105
-                        ${
-                          selectedCurrency === currency
-                            ? Number(balance) < 0
-                              ? "!bg-red-600 !text-white !border-red-600"
-                              : "!bg-blue-600 !text-white !border-blue-600"
-                            : Number(balance) < 0
-                              ? "!bg-red-100 !text-red-700 !border-red-300 hover:!bg-red-200"
-                              : "!bg-blue-100 !text-blue-700 !border-blue-300 hover:!bg-blue-200"
-                        }`}
+                        className={`!flex !items-center !justify-between
+                                        !w-full
+                                        !min-w-0
+                                        !rounded-lg
+                                        !px-2 md:!px-3
+                                        !py-1
+                                        !text-xs md:!text-sm
+                                        !font-medium
+                                        !border
+                                        transition-all duration-200
+                                        ${
+                                          selectedCurrency === currency
+                                            ? Number(balance) < 0
+                                              ? "!bg-red-600 !text-white !border-red-600"
+                                              : "!bg-blue-600 !text-white !border-blue-600"
+                                            : Number(balance) < 0
+                                              ? "!bg-red-50 !text-red-600 !border-red-300 hover:!bg-red-100"
+                                              : "!bg-blue-50 !text-blue-700 !border-blue-300 hover:!bg-blue-100"
+                                        }`}
                         onClick={() => {
                           setSelectedCurrency(currency);
                           form.setFieldsValue({ currency });
                         }}
                       >
-                        <strong>{currency}</strong>{" "}
-                        {Number(balance).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        <span className="font-semibold">{currency}</span>
+
+                        <span className="ml-2 truncate text-right">
+                          {Number(balance).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </span>
                       </Tag>
                     ),
                   )}
@@ -1853,88 +2003,71 @@ const Transactions = () => {
             ))}
           </div>
         </div>
-        <div>
+        <div className=" p-3">
           {/* Form */}
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={edit ? onUpdate : onFinish}
-            initialValues={{ finalAmount: 0 }}
-            size="large"
-            className="space-y-2"
-          >
-            <Row gutter={[16, 12]}>
-              {/* Left Column */}
-              <Col xs={24} lg={12}>
-                <Card
-                  bodyStyle={{ padding: 16 }}
-                  headStyle={{
-                    padding: 0,
-                    borderBottom: "1px solid #e2e8f0",
-                    background:
-                      "linear-gradient(to right, #ffffff, #eff6ff, #eef2ff)",
-                  }}
-                  title={
-                    <div className="flex items-center justify-between">
-                      {/* Left Side */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex !px-3 h-11 w-11  ml-2 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-300 shadow-lg">
-                          <UserOutlined className="text-xl text-white " />
-                        </div>
+          <div className="mx-auto max-w-[1450px] rounded-xl bg-white border border-zinc-300 shadow-lg p-5 !bg-slate-50 ">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-300 pb-3 mb-5 ">
+              <div>
+                <h2 className="text-xl font-bold text-blue-800">
+                  New Transaction
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Customer & Transaction Details
+                </p>
+              </div>
 
-                        <div>
-                          <h2 className="md:text-2xl font-bold text-slate-800">
-                            Customer Information
-                          </h2>
+              <Space>
+                <div className="flex items-center gap-3 p-2 !bg-slate-50">
+                  <Button
+                    type="text"
+                    onClick={handleCalculate}
+                    className="group !flex !h-8 !w-8 !items-center !justify-center
+                          !rounded-sm !border !border-blue-100 !bg-white
+                          !text-slate-700 !shadow-sm transition-all duration-300
+                          hover:!border-blue-500
+                          hover:!bg-gradient-to-br
+                          hover:!from-blue-500
+                          hover:!to-indigo-600
+                          hover:!text-white"
+                  >
+                    <SwapOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
+                  </Button>
 
-                          <p className="text-sm text-slate-500">
-                            Customer &amp; Account Details
-                          </p>
-                        </div>
-                      </div>
+                  <Button
+                    type="text"
+                    onClick={() => setOpen(true)}
+                    className="group !flex !h-8 !w-8 !items-center !justify-center
+                          !rounded-sm !border !border-emerald-100 !bg-white
+                          !text-blue-700 !shadow-sm transition-all duration-300
+                          hover:!border-emerald-500
+                          hover:!bg-gradient-to-br
+                          hover:!from-emerald-500
+                          hover:!to-teal-600
+                          hover:!text-white"
+                  >
+                    <PrinterOutlined className="!text-xl transition-transform duration-300 group-hover:scale-110" />
+                  </Button>
+                </div>
+              </Space>
+            </div>
 
-                      {/* Right Side Buttons */}
-                      <div className="flex items-center gap-3 p-2">
-                        <Button
-                          type="text"
-                          onClick={handleCalculate}
-                          className="group !flex !h-11 !w-11 !items-center !justify-center
-                 !rounded-xl !border !border-blue-100 !bg-white
-                 !text-slate-600 !shadow-sm transition-all duration-300
-                 hover:!border-blue-500
-                 hover:!bg-gradient-to-br
-                 hover:!from-blue-500
-                 hover:!to-indigo-600
-                 hover:!text-white"
-                        >
-                          <SwapOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
-                        </Button>
+            {/* Customer */}
+            <div className="mb-6">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                Customer Information
+              </h3>
 
-                        <Button
-                          type="text"
-                          onClick={() => setOpen(true)}
-                          className="group !flex !h-11 !w-11 !items-center !justify-center
-                 !rounded-xl !border !border-emerald-100 !bg-white
-                 !text-slate-600 !shadow-sm transition-all duration-300
-                 hover:!border-emerald-500
-                 hover:!bg-gradient-to-br
-                 hover:!from-emerald-500
-                 hover:!to-teal-600
-                 hover:!text-white"
-                        >
-                          <PrinterOutlined className="!text-xl transition-transform duration-300 group-hover:scale-110" />
-                        </Button>
-                      </div>
-                    </div>
-                  }
-                  className="!overflow-hidden !rounded-2xl !border-0 !shadow-lg transition-all duration-300 hover:!shadow-xl"
-                >
-                  <Form.Item name="_id" hidden>
-                    <Input />
-                  </Form.Item>
-
-                  {/* Full Name */}
+              <Form
+                form={form}
+                layout="vertical"
+                onFinish={edit ? onUpdate : onFinish}
+                initialValues={{ finalAmount: 0 }}
+                className="rounded-xl bg-white p-5"
+              >
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2 gap-x-1 gap-y-0 !bg-slate-50">
                   <Form.Item
+                    size="small"
                     name="fullname"
                     label={
                       <span className="font-semibold text-slate-700">
@@ -1942,106 +2075,96 @@ const Transactions = () => {
                       </span>
                     }
                     rules={[{ required: true, message: "Enter full name" }]}
-                    className="!mb-2"
+                    className="xl:col-span-2"
                   >
                     <Input
                       placeholder="Full Name"
-                      className="!rounded-xl !border-slate-300 hover:!border-blue-500 focus:!border-blue-500"
+                      className="!rounded-sm !border-slate-300 hover:!border-blue-500 focus:!border-blue-500"
+                    />
+                  </Form.Item>
+                  {/* Acc No */}
+                  <Form.Item
+                    name="accountNo"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Acc No
+                      </span>
+                    }
+                    rules={[
+                      { required: true, message: "Enter account number" },
+                    ]}
+                    className="xl:col-span-1"
+                  >
+                    <InputNumber
+                      placeholder="Acc No"
+                      className="!w-full !rounded-sm"
+                    />
+                  </Form.Item>
+                  {/* currency */}
+                  <Form.Item
+                    name="currency"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Currency
+                      </span>
+                    }
+                    rules={[{ required: true, message: "Select currency" }]}
+                    className="xl:col-span-1"
+                  >
+                    <Select
+                      placeholder="Currency"
+                      value={currencies.currency}
+                      onChange={(val) => setSelectedCurrency(val)}
+                      className="!rounded-sm"
+                    >
+                      {currencies.map((c) => (
+                        <Select.Option key={c.currency} value={c.currency}>
+                          {c.currency}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  {/* Transaction */}
+                  <Form.Item
+                    name="transaction"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Transaction
+                      </span>
+                    }
+                    rules={[{ required: true }]}
+                    className="xl:col-span-1"
+                  >
+                    <Select
+                      placeholder="Transaction"
+                      onChange={(val) => setTransactionType(val)}
+                      className="!rounded-sm"
+                    >
+                      <Option value="transaction">Transaction</Option>
+                      <Option value="transfer">Transfer</Option>
+                      <Option value="exchange">Exchange</Option>
+                    </Select>
+                  </Form.Item>
+                  {/* Amount */}
+                  <Form.Item
+                    name="amount"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Amount
+                      </span>
+                    }
+                    rules={[{ required: true }]}
+                    className="xl:col-span-1"
+                  >
+                    <InputNumber
+                      placeholder="Amount"
+                      className="!w-full !rounded-sm !font-semibold"
+                      onChange={(value) => setAmount(value)}
                     />
                   </Form.Item>
 
-                  <Row gutter={[16, 8]}>
-                    <Col xs={24} md={16}>
-                      <Form.Item
-                        name="accountNo"
-                        label={
-                          <span className="font-semibold text-slate-700">
-                            Acc No
-                          </span>
-                        }
-                        rules={[
-                          { required: true, message: "Enter account number" },
-                        ]}
-                        className="!mb-2"
-                      >
-                        <InputNumber
-                          placeholder="Acc No"
-                          className="!w-full !rounded-xl"
-                        />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={8}>
-                      <Form.Item
-                        name="currency"
-                        label={
-                          <span className="font-semibold text-slate-700">
-                            Currency
-                          </span>
-                        }
-                        rules={[{ required: true, message: "Select currency" }]}
-                        className="!mb-2"
-                      >
-                        <Select
-                          placeholder="Currency"
-                          value={currencies.currency}
-                          onChange={(val) => setSelectedCurrency(val)}
-                          className="!rounded-xl"
-                        >
-                          {currencies.map((c) => (
-                            <Select.Option key={c.currency} value={c.currency}>
-                              {c.currency}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={[16, 8]}>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        name="transaction"
-                        label={
-                          <span className="font-semibold text-slate-700">
-                            Transaction
-                          </span>
-                        }
-                        rules={[{ required: true }]}
-                        className="!mb-2"
-                      >
-                        <Select
-                          placeholder="Transaction"
-                          onChange={(val) => setTransactionType(val)}
-                          className="!rounded-xl"
-                        >
-                          <Option value="transaction">Transaction</Option>
-                          <Option value="transfer">Transfer</Option>
-                          <Option value="exchange">Exchange</Option>
-                        </Select>
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        name="amount"
-                        label={
-                          <span className="font-semibold text-slate-700">
-                            Amount
-                          </span>
-                        }
-                        rules={[{ required: true }]}
-                        className="!mb-2"
-                      >
-                        <InputNumber
-                          placeholder="Amount"
-                          className="!w-full !rounded-xl !font-semibold"
-                          onChange={(value) => setAmount(value)}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
+                  {/* Transaction type */}
                   {transactionType === "transaction" && (
                     <Form.Item
                       name="transactionType"
@@ -2051,11 +2174,11 @@ const Transactions = () => {
                         </span>
                       }
                       rules={[{ required: true }]}
-                      className="!mb-0"
+                      className="xl:col-span-1"
                     >
                       <Select
                         placeholder="Transaction Type"
-                        className="!rounded-xl"
+                        className="!rounded-sm"
                       >
                         <Option value="credit">Credit</Option>
                         <Option value="debit">Debit</Option>
@@ -2063,10 +2186,11 @@ const Transactions = () => {
                     </Form.Item>
                   )}
 
+                  {/* to & tocur */}
                   {(transactionType === "transfer" ||
                     transactionType === "exchange") && (
-                    <Row gutter={[16, 8]}>
-                      <Col xs={24} md={12}>
+                    <>
+                      <div className="col-span-1">
                         <Form.Item
                           name="to"
                           label={
@@ -2074,7 +2198,6 @@ const Transactions = () => {
                               To Account
                             </span>
                           }
-                          className="!mb-0"
                         >
                           <Select
                             showSearch
@@ -2089,17 +2212,20 @@ const Transactions = () => {
                               const customer = users.find(
                                 (c) => c.accountNo === accountNo,
                               );
-                              setToAccount({
-                                accountNo: customer.accountNo,
-                                fullname: customer.fullname,
-                              });
+
+                              if (customer) {
+                                setToAccount({
+                                  accountNo: customer.accountNo,
+                                  fullname: customer.fullname,
+                                });
+                              }
                             }}
-                            className="!rounded-xl"
+                            className="!rounded-sm"
                           />
                         </Form.Item>
-                      </Col>
+                      </div>
 
-                      <Col xs={24} md={12}>
+                      <div className="col-span-1">
                         <Form.Item
                           name="tocurrency"
                           label={
@@ -2108,15 +2234,17 @@ const Transactions = () => {
                             </span>
                           }
                           rules={[
-                            { required: true, message: "Select currency" },
+                            {
+                              required: true,
+                              message: "Select currency",
+                            },
                           ]}
                           className="!mb-0"
                         >
                           <Select
                             placeholder="Currency"
-                            value={currencies.currency}
                             onChange={(val) => setSelectedToCurrency(val)}
-                            className="!rounded-xl"
+                            className="!rounded-sm"
                           >
                             {currencies.map((c) => (
                               <Select.Option
@@ -2128,136 +2256,89 @@ const Transactions = () => {
                             ))}
                           </Select>
                         </Form.Item>
-                      </Col>
-                    </Row>
+                      </div>
+                    </>
                   )}
-                </Card>
-              </Col>
-              {/* Right Column */}
-              <Col xs={24} lg={12}>
-                <Card
-                  bodyStyle={{ padding: 16 }}
-                  headStyle={{
-                    padding: 0,
-                    borderBottom: "1px solid #e2e8f0",
-                    background:
-                      "linear-gradient(to right, #ffffff, #ecfdf5, #f0fdfa)",
-                  }}
-                  title={
-                    <div className="flex items-center gap-3 px-5 py-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-300 via-teal-500 to-cyan-600 shadow-lg">
-                        <FileDoneOutlined className="text-lg text-white" />
-                      </div>
 
-                      <div>
-                        <h2 className="text-lg font-bold leading-none text-slate-800">
-                          Transaction Information
-                        </h2>
+                  {/* Exchange */}
+                  <Form.Item
+                    name="exchangeRate"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Exchange Rate
+                      </span>
+                    }
+                    className="xl:col-span-1"
+                    rules={
+                      transactionType === "transfer" ||
+                      transactionType === "exchange"
+                        ? [{ required: true, message: "Rate is required" }]
+                        : []
+                    }
+                  >
+                    <InputNumber
+                      placeholder="Rate"
+                      onChange={(value) => setRate(value)}
+                      className="!w-full !rounded-sm"
+                    />
+                  </Form.Item>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          Amounts, Exchange & References
-                        </p>
-                      </div>
-                    </div>
-                  }
-                  className="!overflow-hidden !rounded-2xl !border-0 !shadow-lg transition-all duration-300 hover:!shadow-xl"
-                >
-                  {/* Amount Section */}
-                  <Row gutter={[16, 8]}>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        name="exchangeRate"
-                        label={
-                          <span className="font-semibold text-slate-700">
-                            Exchange Rate
-                          </span>
-                        }
-                        className="!mb-2"
-                        rules={
-                          transactionType === "transfer" ||
-                          transactionType === "exchange"
-                            ? [{ required: true, message: "Rate is required" }]
-                            : []
-                        }
-                      >
-                        <InputNumber
-                          placeholder="Rate"
-                          onChange={(value) => setRate(value)}
-                          className="!w-full !rounded-xl"
-                        />
-                      </Form.Item>
-                    </Col>
+                  {/* ex amt */}
 
-                    <Col xs={24} md={12}>
-                      <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 p-3 shadow-md">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Exchange Amount
-                        </p>
+                  <Form.Item
+                    name="finalAmount"
+                    className="!mb-0"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Exchanged Amt
+                      </span>
+                    }
+                  >
+                    <InputNumber
+                      disabled
+                      controls={false}
+                      formatter={(value) => `${Number(value || 0).toFixed(2)}`}
+                      parser={(value) => parseFloat(value)}
+                      className="!w-full final-amount-input"
+                    />
+                  </Form.Item>
 
-                        <Form.Item name="finalAmount" className="!mb-0">
-                          <InputNumber
-                            disabled
-                            controls={false}
-                            size="large"
-                            formatter={(value) =>
-                              `${Number(value || 0).toFixed(2)}`
-                            }
-                            parser={(value) => parseFloat(value)}
-                            className="!h-14 !w-full !border-0 !bg-transparent !text-center !text-3xl !font-black !text-blue-700"
-                          />
-                        </Form.Item>
-                      </div>
-                    </Col>
-                  </Row>
+                  {/* transaction id */}
+                  <Form.Item
+                    name="transactionId"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Transaction ID
+                      </span>
+                    }
+                    rules={[{ required: true }]}
+                    className="xl-col-span-1"
+                  >
+                    <Input
+                      placeholder="Transaction ID"
+                      className="!rounded-sm"
+                      readOnly
+                    />
+                  </Form.Item>
 
-                  <div className="my-3 flex items-center gap-3">
-                    <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      References
-                    </span>
-                    <div className="h-px flex-1 bg-slate-200" />
-                  </div>
+                  {/* transaction no */}
+                  <Form.Item
+                    name="transactionNo"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Daily No
+                      </span>
+                    }
+                    rules={[{ required: true }]}
+                    className="xl:col-span-1"
+                  >
+                    <Input
+                      placeholder="Transaction Daily No"
+                      className="!rounded-sm"
+                    />
+                  </Form.Item>
 
-                  {/* References */}
-                  <Row gutter={[16, 8]}>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        name="transactionId"
-                        label={
-                          <span className="font-semibold text-slate-700">
-                            Transaction ID
-                          </span>
-                        }
-                        rules={[{ required: true }]}
-                        className="!mb-2"
-                      >
-                        <Input
-                          placeholder="Transaction ID"
-                          className="!rounded-xl"
-                          readOnly
-                        />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        name="transactionNo"
-                        label={
-                          <span className="font-semibold text-slate-700">
-                            Daily No
-                          </span>
-                        }
-                        rules={[{ required: true }]}
-                        className="!mb-2"
-                      >
-                        <Input
-                          placeholder="Transaction Daily No"
-                          className="!rounded-xl"
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
+                  {/* hawala no */}
                   <Form.Item
                     name="transferNo"
                     label={
@@ -2265,193 +2346,197 @@ const Transactions = () => {
                         Transfer No
                       </span>
                     }
-                    className="!mb-3"
+                    className="xl:col-span-1"
                   >
-                    <Input placeholder="Transfer No" className="!rounded-xl" />
+                    <Input placeholder="Transfer No" className="!rounded-sm" />
                   </Form.Item>
 
-                  {/* Commission */}
-                  <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4 shadow-sm">
-                    <div className="mb-3 flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400">
-                        <WalletOutlined className="text-white" />
-                      </div>
-
-                      <div>
-                        <h3 className="font-semibold text-emerald-700">
-                          Commission Details
-                        </h3>
-                        <p className="text-xs text-slate-500">
-                          Optional transaction fee
-                        </p>
-                      </div>
-                    </div>
-
-                    <Row gutter={[16, 8]}>
-                      <Col xs={24} md={12}>
-                        <Form.Item
-                          name="comission"
-                          label={
-                            <span className="font-semibold text-slate-700">
-                              Commission Fee
-                            </span>
-                          }
-                          className="!mb-0"
-                        >
-                          <InputNumber
-                            placeholder="Fee"
-                            className="!w-full !rounded-xl"
-                            onChange={(value) => setComission(value)}
-                          />
-                        </Form.Item>
-                      </Col>
-
-                      <Col xs={24} md={12}>
-                        <Form.Item
-                          name="comission_currency"
-                          label={
-                            <span className="font-semibold text-slate-700">
-                              Currency
-                            </span>
-                          }
-                          className="!mb-0"
-                        >
-                          <Select
-                            placeholder="Currency"
-                            onChange={(val) => setComissionCurrency(val)}
-                            className="!rounded-xl"
-                          >
-                            {currencies.map((c) => (
-                              <Select.Option
-                                key={c.currency}
-                                value={c.currency}
-                              >
-                                {c.currency}
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                    </Row>
-                  </div>
-                </Card>
-              </Col>
-            </Row>
-
-            {/* Details */}
-            <Card
-              size="small"
-              bodyStyle={{ padding: 14 }}
-              className="!mt-3 !overflow-hidden !rounded-2xl !border-0 !shadow-md"
-              title={
-                <div className="flex items-center gap-2 px-4 py-2">
-                  <FileTextOutlined className="text-violet-600" />
-                  <span className="font-semibold text-slate-700">
-                    Transaction Notes
-                  </span>
-                  <span className="text-xs text-slate-400">(Optional)</span>
-                </div>
-              }
-            >
-              <Form.Item name="details" className="!mb-0">
-                <Input.TextArea
-                  rows={2}
-                  placeholder="Write additional notes..."
-                  className="!rounded-xl !border-slate-300"
-                />
-              </Form.Item>
-            </Card>
-            {/* Attchments */}
-
-            <Row
-              justify="space-between"
-              align="middle"
-              gutter={[16, 16]}
-              className="mt-3 mb-2"
-            >
-              <Col>
-                <Space size="middle">
-                  <Form.Item name="document" className="!mb-0">
-                    <Upload
-                      accept=".pdf,image/*"
-                      maxCount={1}
-                      fileList={scannedDoc ? [scannedDoc] : []}
-                      beforeUpload={(file) => {
-                        setScannedDoc(file);
-                        return false;
-                      }}
-                      onRemove={() => setScannedDoc(null)}
+                  {/* Comission */}
+                  <Form.Item
+                    name="comission"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Commission Fee
+                      </span>
+                    }
+                    className="xl-col-span-1"
+                  >
+                    <InputNumber
+                      placeholder="Fee"
+                      className="!w-full !rounded-sm"
+                      onChange={(value) => setComission(value)}
+                    />
+                  </Form.Item>
+                  {/* currency */}
+                  <Form.Item
+                    name="comission_currency"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Currency
+                      </span>
+                    }
+                    className="!mb-0"
+                  >
+                    <Select
+                      placeholder="Currency"
+                      onChange={(val) => setComissionCurrency(val)}
+                      className="!rounded-sm"
                     >
-                      <Button
-                        size="large"
-                        icon={<PaperClipOutlined />}
-                        className="!h-11 !rounded-xl !border-slate-200 !bg-white !px-5 !font-semibold !text-slate-700 !shadow-sm transition-all duration-300 hover:!-translate-y-0.5 hover:!border-blue-500 hover:!text-blue-600 hover:!shadow-md"
-                      >
-                        Documents
-                      </Button>
-                    </Upload>
+                      {currencies.map((c) => (
+                        <Select.Option key={c.currency} value={c.currency}>
+                          {c.currency}
+                        </Select.Option>
+                      ))}
+                    </Select>
                   </Form.Item>
+                </div>
+                {/* Notes */}
 
-                  <Button
-                    size="large"
-                    onClick={() => setOpenModal(true)}
-                    className="!flex !h-11 !items-center !justify-center !rounded-xl !border-0 !bg-gradient-to-r !from-orange-400 !to-amber-500 !px-5 !font-semibold !text-white !shadow-md transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl"
-                  >
-                    <CameraOutlined className="!text-lg" />
-                    <SignatureOutlined className="!text-lg" />
-                  </Button>
-                </Space>
-              </Col>
+                <div className="!bg-slate-50">
+                  <h3 className="mb-1 py-2 text-sm font-semibold  tracking-wider text-slate-500 ">
+                    Transaction Details
+                  </h3>
 
-              <Col>
-                <Button
-                  htmlType="submit"
-                  size="large"
-                  icon={<SaveOutlined />}
-                  className={`!h-11 !rounded-xl !border-0 !px-8 !font-semibold !text-white !shadow-lg transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl ${
-                    edit
-                      ? "!bg-gradient-to-r !from-orange-500 !to-amber-500"
-                      : "!bg-gradient-to-r !from-blue-600 !to-indigo-600"
-                  }`}
+                  <Form.Item name="details" className="!mb-0 ">
+                    <Input.TextArea
+                      rows={3}
+                      placeholder="Write additional details..."
+                      className="!rounded-sm !border-slate-300"
+                    />
+                  </Form.Item>
+                </div>
+
+                <Row
+                  gutter={[16, 16]}
+                  align="middle"
+                  className="!pt-4 !bg-slate-50"
                 >
-                  {edit ? "Update Transaction" : "Save Transaction"}
-                </Button>
-              </Col>
-            </Row>
-          </Form>
+                  <Col flex="auto">
+                    <Space size="middle">
+                      <Form.Item name="document" className="!mb-0">
+                        <Upload
+                          accept=".pdf,image/*"
+                          maxCount={1}
+                          fileList={scannedDoc ? [scannedDoc] : []}
+                          beforeUpload={(file) => {
+                            setScannedDoc(file);
+                            return false;
+                          }}
+                          onRemove={() => setScannedDoc(null)}
+                        >
+                          <Button
+                            size="small"
+                            icon={<PaperClipOutlined />}
+                            className="!h-11 !rounded-sm !border-slate-400 !bg-white !px-5 !font-semibold !text-slate-700 !shadow-sm transition-all duration-300 hover:!-translate-y-0.5 hover:!border-blue-500 hover:!text-blue-600 hover:!shadow-md"
+                          >
+                            Documents
+                          </Button>
+                        </Upload>
+                      </Form.Item>
+
+                      <Button
+                        size="small"
+                        onClick={() => setOpenModal(true)}
+                        className="!flex !h-11 !items-center !justify-center !rounded-sm !border-0 !bg-gradient-to-r !from-blue-400 !to-cyan-500 !px-5 !font-semibold !text-white !shadow-md transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl"
+                      >
+                        <CameraOutlined className="!text-lg" />
+                        <SignatureOutlined className="!text-lg" />
+                      </Button>
+                    </Space>
+                  </Col>
+
+                  <Col flex="1">
+                    <Button
+                      htmlType="submit"
+                      size="small"
+                      icon={<SaveOutlined />}
+                      className={`!w-full !h-11 !rounded-sm !border-0 !text-white ${
+                        edit
+                          ? "!bg-gradient-to-r !from-orange-500 !to-amber-500"
+                          : "!bg-gradient-to-r !from-blue-400 !to-cyan-400"
+                      }`}
+                    >
+                      {edit ? "Update Transaction" : "Save Transaction"}
+                    </Button>
+                  </Col>
+                </Row>
+              </Form>
+            </div>
+          </div>
         </div>
 
-        <div className="p-2">
-          <h1 className="text-zinc-500 font-semibold py-2 text-xl">
-            Transaction History
-          </h1>
+        <div className="p-2 border-t border-dashed mt-5 border-blue-400">
+          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h1 className="text-xl font-semibold text-slate-700">
+              Transaction History
+            </h1>
 
+            <div className="flex flex-wrap items-center gap-2 ">
+              <Input.Search
+                placeholder="Search transactions..."
+                allowClear
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="!w-72 !border-lg border-blue-500"
+              />
+
+              <DatePicker
+                placeholder="From"
+                value={fromDate}
+                onChange={setFromDate}
+                format="DD-MM-YYYY"
+              />
+
+              <DatePicker
+                placeholder="To"
+                value={toDate}
+                onChange={setToDate}
+                format="DD-MM-YYYY"
+              />
+
+              <Button
+                type="primary"
+                icon={<SearchOutlined />}
+                onClick={handleSearch}
+              >
+                Search
+              </Button>
+
+              <Button icon={<ClearOutlined />} onClick={handleClear}>
+                Clear
+              </Button>
+
+              <Button
+                onClick={() => setShowIsPassed(!showIsPassed)}
+                className={`!border-0 !text-white
+      ${
+        showIsPassed
+          ? "!bg-gradient-to-r !from-indigo-600 !to-violet-600"
+          : "!bg-gradient-to-r !from-blue-600 !to-cyan-600"
+      }`}
+              >
+                {showIsPassed ? "Passed" : "Pending"}
+              </Button>
+            </div>
+          </div>
           <Tabs
             defaultActiveKey="1"
             size="small"
             animated
+            tabBarGutter={2}
             className="money-tabs mb-9"
             items={[
               {
                 key: "1",
                 label: (
-                  <span className="flex items-center gap-2 font-medium">
+                  <span className="flex items-center gap-2 font-medium !bg-gradient-to-r !from-slate-400 !to-zinc-400 p-2 text-white hover:bg-indigo-300 rounded-md ">
                     <BookOutlined />
                     Transactions
                   </span>
                 ),
                 children: (
-                  <div className="pb-6">
-                    <div className="flex justify-end mb-3">
-                      <Input.Search
-                        placeholder="Search transactions..."
-                        allowClear
-                        size="large"
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        className="!w-80"
-                      />
-                    </div>
+                  <div className="pb-20">
+                  
                     <Table
                       rowKey="_id"
                       columns={columns}
@@ -2459,6 +2544,27 @@ const Transactions = () => {
                       bordered
                       sticky
                       size="small"
+                      locale={{
+                        emptyText: (
+                          <Empty
+                            description={
+                              <div className="py-2">
+                                <h3 className="text-lg font-semibold text-rose-700">
+                                  {searchText
+                                    ? "No Results Found"
+                                    : "No Data Available"}
+                                </h3>
+
+                                <p className="mt-1 text-sm text-gray-500">
+                                  {searchText
+                                    ? `No transaction records match "${searchText}".`
+                                    : "There are no transaction records to display."}
+                                </p>
+                              </div>
+                            }
+                          />
+                        ),
+                      }}
                       pagination={{
                         pageSize: 10,
                         size: "small",
@@ -2472,13 +2578,13 @@ const Transactions = () => {
               {
                 key: "2",
                 label: (
-                  <span className="flex items-center gap-2 font-medium">
-                    <AccountBookFilled />
+                  <span className="flex items-center gap-2 font-medium !bg-gradient-to-r !from-slate-400 !to-zinc-400 p-2 text-white rounded-md ">
+                    <DollarCircleOutlined />
                     Transfers
                   </span>
                 ),
                 children: (
-                  <div className="pb-6">
+                  <div className="pb-15">
                     <Table
                       rowKey="_id"
                       columns={columns}
@@ -2486,6 +2592,27 @@ const Transactions = () => {
                       bordered
                       sticky
                       size="small"
+                      locale={{
+                        emptyText: (
+                          <Empty
+                            description={
+                              <div className="py-2">
+                                <h3 className="text-lg font-semibold text-rose-700">
+                                  {search
+                                    ? "No Results Found"
+                                    : "No Data Available"}
+                                </h3>
+
+                                <p className="mt-1 text-sm text-gray-500">
+                                  {search
+                                    ? `No transfer records match "${search}".`
+                                    : "There are no transfer records to display."}
+                                </p>
+                              </div>
+                            }
+                          />
+                        ),
+                      }}
                       pagination={{
                         pageSize: 10,
                         size: "small",
@@ -2499,13 +2626,13 @@ const Transactions = () => {
               {
                 key: "3",
                 label: (
-                  <span className="flex items-center gap-2 font-medium">
+                  <span className="flex items-center gap-2 font-medium !bg-gradient-to-r  !from-slate-400 !to-zinc-400 p-2 text-white rounded-md ">
                     <SwapOutlined />
                     Exchanges
                   </span>
                 ),
                 children: (
-                  <div className="pb-6">
+                  <div className="pb-15">
                     <Table
                       rowKey="_id"
                       columns={columns}
@@ -2513,6 +2640,27 @@ const Transactions = () => {
                       bordered
                       sticky
                       size="small"
+                      locale={{
+                        emptyText: (
+                          <Empty
+                            description={
+                              <div className="py-2">
+                                <h3 className="text-lg font-semibold text-cyan-700">
+                                  {searchText
+                                    ? "No Results Found"
+                                    : "No Data Available"}
+                                </h3>
+
+                                <p className="mt-1 text-sm text-gray-500">
+                                  {searchText
+                                    ? `No transaction records match "${searchText}".`
+                                    : "There are no transaction records to display."}
+                                </p>
+                              </div>
+                            }
+                          />
+                        ),
+                      }}
                       pagination={{
                         pageSize: 10,
                         size: "small",
@@ -2676,7 +2824,7 @@ const Transactions = () => {
 
               <Button
                 type="text"
-                size="large"
+                size="small"
                 onClick={() => setWebcamActive((prev) => !prev)}
               >
                 {webcamActive ? (
@@ -2741,9 +2889,9 @@ const Transactions = () => {
         <div className="p-2 w-full text-right ">
           {signatureImage || capturedImage ? (
             <Button
-              size="large"
+              size="small"
               icon={<UploadOutlined />}
-              className="!h-14 !px-8 !border-2 !border-dashed !border-blue-400 hover:!border-blue-600 hover:!text-blue-600 transition-all duration-300 rounded-xl"
+              className="!h-14 !px-8 !border-2 !border-dashed !text-rose-500 !border-rose-500 hover:!border-indigo-600 hover:!text-indigo-600 hover:!bg-indigo-100 transition-all duration-300 rounded-xl"
               onClick={() => setOpenModal(false)}
             >
               Add Signature / Image

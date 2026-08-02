@@ -17,6 +17,7 @@ import {
   Select,
   Badge,
   Tooltip,
+  Empty,
 } from "antd";
 
 const { RangePicker } = DatePicker;
@@ -1064,13 +1065,36 @@ ${totalsHTML}
 
               {/* Table */}
 
-              <div className="!overflow-x-auto !rounded-2xl !border !border-slate-700/60 !bg-white !shadow-inner">
+              <div className="mb-10 !overflow-x-auto !rounded-2xl !border !border-slate-700/60 !bg-white !shadow-inner">
+               
                 <Table
                   columns={columns}
                   dataSource={filteredTransactions}
                   rowKey="_id"
+                  locale={{
+                    emptyText: (
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={
+                          <div className="py-2">
+                            <h3 className="text-lg font-semibold text-rose-700">
+                              {search
+                                ? "No Results Found"
+                                : "No Data Available"}
+                            </h3>
+
+                            <p className="mt-1 text-sm text-gray-500">
+                              {search
+                                ? `No customer, account, or transaction matches "${search}".`
+                                : "There are no records to display."}
+                            </p>
+                          </div>
+                        }
+                      />
+                    ),
+                  }}
                   pagination={{
-                    pageSize: 5,
+                    pageSize: 8,
                     showSizeChanger: false,
                     responsive: true,
                   }}
