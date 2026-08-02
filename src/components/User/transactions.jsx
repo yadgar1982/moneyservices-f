@@ -1372,12 +1372,22 @@ const Transactions = () => {
       ellipsis: true,
       render: (v) => v || "—",
     },
-    {
-      title: "Tr-Type",
-      dataIndex: "transactionType",
-      width: 90,
-      render: (v) => v || "—",
-    },
+  {
+  title: "Tr-Type",
+  dataIndex: "transactionType",
+  width: 90,
+  render: (value) => {
+    if (!value) return "—";
+
+    const type = value.toLowerCase();
+
+    return (
+      <Tag color={type === "credit" ? "green" : type === "debit" ? "red" : "default"}>
+        {value}
+      </Tag>
+    );
+  },
+},
     {
       title: "Ex-Rate",
       dataIndex: "exchangeRate",
@@ -2039,7 +2049,7 @@ const Transactions = () => {
                     onClick={() => setOpen(true)}
                     className="group !flex !h-8 !w-8 !items-center !justify-center
                           !rounded-sm !border !border-emerald-100 !bg-white
-                          !text-blue-700 !shadow-sm transition-all duration-300
+                          !text-slate-700 !shadow-sm transition-all duration-300
                           hover:!border-emerald-500
                           hover:!bg-gradient-to-br
                           hover:!from-emerald-500
