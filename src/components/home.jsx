@@ -39,6 +39,8 @@ const Login = () => {
   const navigate = useNavigate();
 
   const [loader, setLoader] = useState(false);
+  const [loaderTitle, setLoaderTitle] = useState("Please Wait");
+  const [loaderMessage, setLoaderMessage] = useState("Loading...");
   const [branding, setBranding] = useState([]);
   const [progress, setProgress] = useState(0);
 
@@ -62,6 +64,9 @@ const Login = () => {
   }, []);
 
   const onFinish = async (values) => {
+    setLoaderTitle("Signing In");
+    setLoaderMessage("Authenticating your account securely...");
+
     setLoader(true);
     setProgress(0);
 
@@ -115,6 +120,13 @@ const Login = () => {
 
   const sendOTP = async (values) => {
     setLoader(true);
+    setLoaderTitle("Sending Verification Code");
+    setLoaderMessage(
+      "Sending a secure verification code to your registered email...",
+    );
+
+    setProgress(null);
+    setLoader(true);
 
     try {
       const httpReq = http();
@@ -150,85 +162,88 @@ const Login = () => {
     }
   };
 
-const verifyOTP = async () => {
-  try {
-    if (otp.length !== 6) {
-      return swal(
-        "Error",
-        "Please enter the complete 6-digit verification code.",
-        "error"
+  const verifyOTP = async () => {
+    try {
+      if (otp.length !== 6) {
+        return swal(
+          "Error",
+          "Please enter the complete 6-digit verification code.",
+          "error",
+        );
+      }
+
+      setLoaderTitle("Verifying Identity");
+      setLoaderMessage("Please wait while we verify your security code...");
+
+      setProgress(null);
+      setLoader(true);
+
+      const httpReq = http();
+
+      const { data } = await httpReq.post("/api/auth/verify-otp", {
+        email,
+        otp,
+      });
+
+      if (!data.success) {
+        return swal("Error", data.message, "error");
+      }
+
+      swal("Success", data.message, "success");
+
+      setStep(3);
+    } catch (err) {
+      swal("Error", err.response?.data?.message || "Invalid OTP", "error");
+    } finally {
+      setLoader(false);
+    }
+  };
+  const resetPassword = async () => {
+    try {
+      setLoader(true);
+
+      const values = await forgotForm.validateFields([
+        "password",
+        "confirmPassword",
+      ]);
+
+      setLoaderTitle("Updating Security");
+      setLoaderMessage("Encrypting and updating your new password...");
+      setProgress(null);
+      setLoader(true);
+      const httpReq = http();
+
+      const { data } = await httpReq.post("/api/auth/reset-password", {
+        email,
+        password: values.password,
+        confirmPassword: values.confirmPassword,
+      });
+
+      if (!data.success) {
+        return swal("Error", data.message, "error");
+      }
+
+      await swal(
+        "Success",
+        "Password reset successfully.\nPlease login with your new password.",
+        "success",
       );
+
+      forgotForm.resetFields();
+
+      setForgotOpen(false);
+      setStep(1);
+      setEmail("");
+    } catch (err) {
+      swal(
+        "Error",
+        err.response?.data?.message || "Password reset failed.",
+        "error",
+      );
+    } finally {
+      setLoader(false);
     }
-
-    setLoader(true);
-
-    const httpReq = http();
-
-    const { data } = await httpReq.post("/api/auth/verify-otp", {
-      email,
-      otp,
-    });
-
-    if (!data.success) {
-      return swal("Error", data.message, "error");
-    }
-
-    swal("Success", data.message, "success");
-
-    setStep(3);
-  } catch (err) {
-    swal(
-      "Error",
-      err.response?.data?.message || "Invalid OTP",
-      "error"
-    );
-  } finally {
-    setLoader(false);
-  }
-};
-const resetPassword = async () => {
-  try {
-    setLoader(true);
-
-    const values = await forgotForm.validateFields([
-      "password",
-      "confirmPassword",
-    ]);
-
-    const httpReq = http();
-
-    const { data } = await httpReq.post("/api/auth/reset-password", {
-      email,
-      password: values.password,
-      confirmPassword: values.confirmPassword,
-    });
-
-    if (!data.success) {
-      return swal("Error", data.message, "error");
-    }
-
-    await swal(
-      "Success",
-      "Password reset successfully.\nPlease login with your new password.",
-      "success"
-    );
-
-    forgotForm.resetFields();
-
-    setForgotOpen(false);
-    setStep(1);
-    setEmail("");
-
-  } catch (err) {
-    swal(
-      "Error",
-      err.response?.data?.message || "Password reset failed.",
-      "error"
-    );
-  } finally {
-    setLoader(false);
-  }
-};
+  };
 
   return (
     <MainLayout>
@@ -248,8 +263,8 @@ const resetPassword = async () => {
         {loader && (
           <AppLoader
             progress={progress}
-            title="Signing In"
-            message="Authenticating your account..."
+            title={loaderTitle}
+            message={loaderMessage}
           />
         )}
 
