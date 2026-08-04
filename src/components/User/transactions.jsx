@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./transactions.css";
 import jsPDF from "jspdf";
-
+import { useReactToPrint } from "react-to-print";
+import AccountStatement from "../Shared/Export/Statements/AccountStatement";
+import TransactionReceipt from "../Shared/Export/Statements/TransactionReceipt";
 import html2canvas from "html2canvas";
 import {
   Form,
@@ -48,6 +50,7 @@ import {
   PaperClipOutlined,
   PayCircleOutlined,
   PrinterOutlined,
+  ReloadOutlined,
   SaveOutlined,
   SearchOutlined,
   SignatureOutlined,
@@ -85,6 +88,9 @@ const { Option } = Select;
 
 const Transactions = () => {
   const topRef = useRef(null);
+  const statementRef = useRef(null);
+  const receiptRef = useRef();
+
   //states
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState("");
@@ -123,6 +129,9 @@ const Transactions = () => {
   const [openModal, setOpenModal] = useState(false);
   const [resultText, setResultText] = useState("");
   const [editTag, setEditTag] = useState("");
+
+  const [statementData, setStatementData] = useState(null);
+  const [receiptData, setReceiptData] = useState(null);
   const httpReq = http();
 
   const dispatch = useDispatch();
@@ -137,8 +146,11 @@ const Transactions = () => {
 
   const myUser = userInfo.fullname;
   const myBranch = userInfo?.branch;
-  const myBrand = JSON.parse(localStorage.getItem("branding"));
+  const branding = JSON.parse(localStorage.getItem("branding"));
+  const myBrand = branding.data?.[0];
+  const logo = myBrand?.logo;
 
+  // Redux
   const { users, uLoading, uError } = useSelector((state) => state.users);
   const { currencies, cLoading, cError } = useSelector(
     (state) => state.currencies,
@@ -149,6 +161,7 @@ const Transactions = () => {
     dispatch(fetchTransaction());
     dispatch(fetchUsers());
     dispatch(fetchCurrency());
+    dispatch(fetchBranch());
   }, []);
 
   // end of redux
@@ -188,21 +201,74 @@ const Transactions = () => {
     return true;
   });
 
+  // PRINT FUNCTIONS
+
+  // handleprint statement
+  const handleStatementPrint = useReactToPrint({
+    contentRef: statementRef,
+    documentTitle: "Account Statement",
+  });
+  useEffect(() => {
+    if (statementData) {
+      handleStatementPrint();
+    }
+  }, [statementData, handleStatementPrint]);
+  // handle print receipt
+  const handleReceiptPrint = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: "Transaction Receipt",
+  });
+  useEffect(() => {
+    if (receiptData) {
+      handleReceiptPrint();
+    }
+  }, [receiptData, handleReceiptPrint]);
+
   // print statement
-  const printStatement = (values) => {
+  const prepareStatement = (values) => {
     const { account, currency, fromDate, toDate } = values;
 
-    // 🔹 1. Filter by account
-    let result = transactions.filter(
+    /* =====================================================
+     STEP 1
+     Account + Currency (NO DATE FILTER)
+     This is the CURRENT ACCOUNT BALANCE (Top Summary)
+  ===================================================== */
+
+    let accountTransactions = transactions.filter(
       (t) => String(t.accountNo) === String(account),
     );
 
-    // 🔹 2. Filter by currency
     if (currency) {
-      result = result.filter((t) => t.currency === currency);
+      accountTransactions = accountTransactions.filter(
+        (t) => t.currency === currency,
+      );
     }
 
-    // 🔹 3. Filter by date
+    const overallTotals = {
+      debit: 0,
+      credit: 0,
+    };
+
+    accountTransactions.forEach((t) => {
+      const amount = Number(t.amount) || 0;
+
+      if (t.transactionType === "credit") {
+        overallTotals.credit += amount;
+      } else {
+        overallTotals.debit += amount;
+      }
+    });
+
+    const currentBalance = overallTotals.credit - overallTotals.debit;
+
+    /* =====================================================
+     STEP 2
+     Apply DATE FILTER
+     This becomes the ACCOUNT STATEMENT
+  ===================================================== */
+
+    let result = [...accountTransactions];
+
     if (fromDate || toDate) {
       result = result.filter((t) => {
         const tx = dayjs(t.createdAt);
@@ -219,515 +285,129 @@ const Transactions = () => {
       });
     }
 
-    // 🔹 4. Handle empty
     if (result.length === 0) {
       setResultText("No data to display");
-      toast.error("No transactions found for the selected date range.");
+      toast.error("No transactions found.");
       return;
     }
 
-    // 🔥 5. SORT (IMPORTANT for running balance)
+    /* =====================================================
+     STEP 3
+     Sort Statement
+  ===================================================== */
+
     const sorted = [...result].sort(
       (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     );
 
-    //  6. Running balance per currency
-    let runningBalances = {};
+    setResultText("");
 
-    const rowsHTML = sorted
-      .map((t, i) => {
-        const cur = t.currency;
-        const amount = Number(t.amount) || 0;
+    /* =====================================================
+     STEP 4
+     Statement Totals + Running Balance
+     (ONLY FILTERED TRANSACTIONS)
+  ===================================================== */
 
-        if (!runningBalances[cur]) runningBalances[cur] = 0;
+    let runningBalance = 0;
 
-        if (t.transactionType === "credit") {
-          runningBalances[cur] += amount;
-        } else {
-          runningBalances[cur] -= amount;
-        }
+    const statementTotals = {
+      debit: 0,
+      credit: 0,
+    };
 
-        return `
-        <tr>
-          <td>${i + 1}</td>
-          <td style="white-space:nowrap;">${new dayjs(t.createdAt).format("DD-MM-YYYY")}</td>
-          <td style="color:${t.transactionType === "credit" ? "green" : "red"}">
-            ${t.transactionType}
-          </td>
-          <td>${t.details || "-"}</td>
-          <td>${amount.toFixed(2)}</td>
-          <td><strong>${runningBalances[cur].toFixed(2)}</strong></td>
-        </tr>
-      `;
-      })
-      .join("");
-
-    //  7. Total balances per currency
-    const totals = {};
-    sorted.forEach((t) => {
-      const cur = t.currency;
+    const statementRows = sorted.map((t, index) => {
       const amount = Number(t.amount) || 0;
 
-      if (!totals[cur]) totals[cur] = 0;
-
       if (t.transactionType === "credit") {
-        totals[cur] += amount;
+        statementTotals.credit += amount;
+        runningBalance += amount;
       } else {
-        totals[cur] -= amount;
+        statementTotals.debit += amount;
+        runningBalance -= amount;
       }
+
+      return {
+        no: index + 1,
+        date: dayjs(t.createdAt).format("DD/MM/YYYY"),
+        transactionNo: t.transactionNo,
+        description: t.details || "-",
+        currency: t.currency,
+        debit: t.transactionType === "debit" ? amount.toLocaleString() : "",
+        credit: t.transactionType === "credit" ? amount.toLocaleString() : "",
+        balance: runningBalance.toLocaleString(),
+      };
     });
 
-    // total current balance
-
-    const currentTotals = {};
-
-    transactions
-      .filter((t) => {
-        if (String(t.accountNo) !== String(account)) return false;
-        if (currency && t.currency !== currency) return false;
-        return true;
-      })
-      .forEach((t) => {
-        const cur = t.currency;
-        const amount = Number(t.amount) || 0;
-
-        if (!currentTotals[cur]) currentTotals[cur] = 0;
-
-        if (t.transactionType === "credit") {
-          currentTotals[cur] += amount;
-        } else {
-          currentTotals[cur] -= amount;
-        }
-      });
-
-    const currentBalanceHTML = Object.entries(currentTotals)
-      .map(
-        ([cur, bal]) => `
-      <div>
-        <strong>${cur}: ${bal.toFixed(2)}</strong>
-      </div>
-    `,
-      )
-      .join("");
-
-    const balanceHTML = Object.entries(totals)
-      .map(
-        ([cur, bal]) => `
-      <div >
-        <strong>${bal.toFixed(2)}</strong>
-      </div>
-    `,
-      )
-      .join("");
-
-    //  8. Print window
-    const printWindow = window.open("", "", "width=900,height=700");
-    printWindow.document.write(`
-      <html>
-      <head>
-        <title>Account Statement</title>
-
-        <style>
-          *{
-            box-sizing:border-box;
-          }
-
-          body{
-            margin:0;
-            padding:30px;
-            background:white;
-            font-family:Arial, sans-serif;
-            color:#1e293b;
-          }
-
-          .container{
-            max-width:1000px;
-            margin:auto;
-            background:#fff;
-            overflow:hidden;
-          
-          }
-
-          .topbar{
-            height:0px;
-
-          }
-
-        .header{
-        padding:15px 15px 10px;
-        border-bottom:1px solid #e5e7eb;
-        text-align:center;
-      }
-
-      .brand{
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:center;
-        gap:10px;
-      }
-
-      .logo{
-        width:75px;
-        height:75px;
-        border-radius:50%;
-        overflow:hidden;
-        border:3px solid #dbeafe;
-      }
-
-      .logo img{
-        width:100%;
-        height:100%;
-        object-fit:cover;
-      }
-
-        .brand-info h1{
-            margin:0;
-            font-size:24px;
-            color:#113b8a;
-          }
-
-        .brand-info p{
-          margin:3px 0;
-          color:#64748b;
-          font-size:13px;
-        }
-
-        .statement-title{
-        margin-top:8px;
-        display:inline-block;
-        background:#113b8a;
-        color:white;
-        padding:6px 16px;
-        border-radius:30px;
-        font-size:12px;
-        font-weight:bold;
-        letter-spacing:1px;
-      }
-
-          .info-section{
-            padding:10px 20px;
-            display:flex;
-
-            flex-direction:column;
-            grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-            gap:10px;
-            background:white;
-          
-          }
-
-          .info-card{
-            background:white;
-        
-          }
-
-          .info-label{
-            font-size:12px;
-            color:#64748b;
-            margin-bottom:5px;
-            text-transform:uppercase;
-            letter-spacing:1px;
-          }
-
-          .info-value{
-            font-size:16px;
-            font-weight:600;
-            color:#0f172a;
-          }
-
-          .section{
-            padding:30px;
-          }
-
-          .section-title{
-            font-size:20px;
-            margin-bottom:20px;
-            color:#113b8a;
-            padding:2px;
-            border-bottom:3px solid #e5e7eb;
-          }
-
-          .balances{
-            display:flex;
-            flex-wrap:wrap;
-            gap:15px;
-          }
-
-          .balance-card{
-            background:linear-gradient(
-              135deg,
-              #113b8a,
-              #1d4ed8
-            );
-            color:white;
-            padding:2px;
-        
-          }
-
-          .balance-card span{
-            display:block;
-            font-size:13px;
-            opacity:0.1;
-            margin-bottom:8px;
-          }
-
-          .balance-card strong{
-            font-size:18px;
-          }
-
-          table{
-            width:100%;
-            border-collapse:collapse;
-            overflow:hidden;
-            border-radius:12px;
-          }
-
-          thead{
-            background:#66666138;
-            color:#113b8a;
-          }
-
-          th{
-            padding:14px;
-            font-size:13px;
-            text-align:left;
-            letter-spacing:0.5px;
-          }
-
-          td{
-            padding:14px;
-            border-bottom:1px solid #e5e7eb;
-            font-size:14px;
-          }
-
-          tbody tr:nth-child(even){
-            background:#f8fafc;
-          }
-
-          tbody tr:hover{
-            background:#eef4ff;
-          }
-
-          .credit{
-            color:#16a34a;
-            font-weight:600;
-            text-transform:capitalize;
-          }
-
-          .debit{
-            color:#dc2626;
-            font-weight:600;
-            text-transform:capitalize;
-          }
-
-          .footer{
-            padding:20px 30px;
-            text-align:center;
-            font-size:12px;
-            color:#94a3b8;
-            border-top:1px solid #e5e7eb;
-          }
-
-          @media print{
-            body{
-              background:white;
-              padding:0;
-            }
-
-            .container{
-              box-shadow:none;
-            }
-          }
-
-        </style>
-      </head>
-
-      <body>
-
-      <div class="container" id="statement-content">
-        <div class="topbar"></div>
-        <div class="header">
-          <div class="brand">     
-            <div style="
-                      width:150px;
-                      height:105px;
-                      border-radius:0;
-                      overflow:hidden;
-                      margin:0 auto;
-                    ">
-                      <img
-                        src="${myLogo}"
-                        alt="logo"
-                        style="width:150px ;heigth:100px;object-fit:cover;display:block;"
-                      />
-                    </div>
-                  </div>
-
-            <div class="brand-info">
-              <h1>${myBrand.data[0].companyName}</h1>
-
-              <p>
-                ${
-                  myBrand.data[0].address
-                    ? myBrand.data[0].address.charAt(0).toUpperCase() +
-                      myBrand.data[0].address.slice(1)
-                    : ""
-                } - ${myBranch} Branch
-              </p>
-
-              <p>
-                ${myBrand.data[0].mobile}
-                |
-                ${myBrand.data[0].email}
-              </p>
-
-              <div class="statement-title">
-                ACCOUNT STATEMENT
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-        <div class="info-section">
-          <div class="info-card">
-                <div class="info-label">Date Range</div>
-                <div class="info-value">
-                  ${fromDate ? fromDate.format("DD-MM-YYYY") : "-"}
-                  →
-                  ${toDate ? toDate.format("DD-MM-YYYY") : "-"}
-          </div>
-          </div>
-          <div class="info-card">
-            <div class="info-label">Account</div>
-            <div class="info-value">${account}</div>
-            <div class="info-label">Account Holder</div>
-            <div class="info-value">${(stName && stName) || "-"}</div>
-          </div>
-
-          <div class="info-card">
-         
-
-            <div style="height:10px"></div>
-
-            <div class="info-label">Acc Current Balance</div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              ${currency || "All"} ${currentBalanceHTML}
-            </div>
-          </div>
-          
-        
-        
-
-        </div>
-
-        
-
-        <div class="section">
-
-          <div class="section-title">
-            Transaction History
-          </div>
-
-          <table>
-
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Date</th>
-                <th>Transaction</th>
-                <th>Description</th>
-                <th>Amount</th>
-                <th>Balance</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${rowsHTML}
-            </tbody>
-
-          </table>
-
-        </div>
-      <div class="balances" style="display:flex; align-items:center;gap:10px; justify-content:end; padding-right:85px">
-      <p>Current Balance</p>${currency || "All"} ${balanceHTML}
-
-          </div>
-
-        <div class="footer">
-          Generated on 
-          ${dayjs().format("DD-MM-YYYY hh:mm A")}
-        </div>
-
-      </div>
-
-      </body>
-      </html>
-      `);
-
-    // printWindow.document.close();
-
-    printWindow.onload(async () => {
-      const element = printWindow.document.getElementById("statement-content");
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      const imgWidth = pdfWidth;
-
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-
-      let position = 0;
-
-      // FIRST PAGE
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-
-      heightLeft -= pdfHeight;
-
-      // EXTRA PAGES
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-
-        pdf.addPage();
-
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-
-        heightLeft -= pdfHeight;
-      }
-
-      // PAGE NUMBERS
-      const totalPages = pdf.getNumberOfPages();
-
-      for (let i = 1; i <= totalPages; i++) {
-        pdf.setPage(i);
-
-        pdf.setFontSize(10);
-
-        pdf.text(`Page ${i} of ${totalPages}`, pdfWidth - 40, pdfHeight - 10);
-      }
-
-      pdf.save(`statement-${account}.pdf`);
-
-      // printWindow.close();
+    const statementBalance = statementTotals.credit - statementTotals.debit;
+
+    //  Save Everything
+
+    setStatementData({
+      account,
+      accountHolder: stName,
+      branch: myBranch,
+      currency,
+      fromDate,
+      toDate,
+
+      rows: statementRows,
+      transactions: sorted,
+
+      // TOP
+      overallTotals,
+      currentBalance,
+
+      // BOTTOM
+      statementTotals,
+      statementBalance,
     });
+
+    return {
+      rows: statementRows,
+      transactions: sorted,
+      overallTotals,
+      currentBalance,
+      statementTotals,
+      statementBalance,
+    };
   };
 
-  //end of statement filter
+  //print transaction
+  const printRecord = async (record) => {
+    const { transactionId } = record;
 
-  //Data source
+    try {
+      const res = await http().get(
+        `/api/transaction/readbyid/${record.transactionId}`,
+      );
+
+      const allTransactions = res.data.data;
+
+      const debit = allTransactions.find((t) => t.transactionType === "debit");
+
+      const credit = allTransactions.find(
+        (t) => t.transactionType === "credit",
+      );
+
+      const base = debit || credit || record;
+
+      setReceiptData({
+        transaction: {
+          ...base,
+          transactionNo: record.transactionNo,
+          transactionId: record.transactionId,
+          createdAt: record.createdAt,
+          isPass: record.isPass,
+
+          debit,
+          credit,
+        },
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const { data, terror } = SWR("/api/transaction/read", fetcher);
   const handleSearch = () => {
     setIsSearching(true);
@@ -748,7 +428,7 @@ const Transactions = () => {
   const datasourceTransfer = getDatasource("transfer");
   const datasourceExchange = getDatasource("exchange");
 
-// end of table datasource
+  // end of table datasource
 
   useEffect(() => {
     const amt = amount || 0;
@@ -769,24 +449,42 @@ const Transactions = () => {
     };
   }, [signatureImage]);
 
-  useEffect(() => {
-    if (selectedAccount) {
-      const accountCustomers = users.filter(
-        (c) => c.accountNo === selectedAccount,
-      );
-      if (accountCustomers.length > 0) {
-        const customer = accountCustomers[0];
-        form.setFieldsValue({
-          fullname: customer.fullname,
+useEffect(() => {
+  if (edit) return;
+
+  if (selectedAccount) {
+    const customer = users.find(
+      (c) => String(c.accountNo) === String(selectedAccount),
+    );
+
+    if (customer) {
+      form.setFieldsValue({
+        fullname: customer.fullname,
+        accountNo: customer.accountNo,
+        currency: customer.currency,
+      });
+
+      setSelectedCurrency(customer.currency);
+
+      // ONLY EXCHANGE
+      if (transactionType === "exchange") {
+        setToAccount({
           accountNo: customer.accountNo,
-          profile: customer.profile,
-          // do not set currency yet
+          fullname: customer.fullname,
+        });
+
+        setSelectedToCurrency(customer.currency);
+
+        form.setFieldsValue({
+          to: customer.accountNo,
+          tocurrency: customer.currency,
         });
       }
-    } else {
-      form.resetFields(["fullname", "accountNo"]);
     }
-  }, [selectedAccount]);
+  } else {
+    form.resetFields(["fullname", "accountNo", "currency"]);
+  }
+}, [selectedAccount, transactionType, users, form, edit]);
 
   //account options
   const accountOptions = [
@@ -1127,8 +825,6 @@ const Transactions = () => {
 
       comission = Number(res.data.data.credit || 0);
       comissionCurrency = res.data.data.currency || "";
-
-      console.log("Commission currency:", comissionCurrency);
     } catch (err) {
       console.error(err);
     }
@@ -1141,15 +837,38 @@ const Transactions = () => {
     setAmount(record.amount);
     setTransactionType(record.transaction);
 
-    setToAccount({
-      accountNo: record.to,
-      fullname: record.toFullname,
-    });
-
     form.setFieldsValue({
-      _id: record._id,
       fullname: record.fullname,
       accountNo: record.accountNo,
+      currency: record.currency,
+    });
+
+    if (
+      record.transaction === "transfer" ||
+      record.transaction === "exchange"
+    ) {
+      const creditTransaction = transactions.find(
+        (item) =>
+          item.transactionId === record.transactionId &&
+          item.transactionType === "credit",
+      );
+
+      if (creditTransaction) {
+        setToAccount({
+          accountNo: creditTransaction.accountNo,
+          fullname: creditTransaction.fullname,
+        });
+
+        setSelectedToCurrency(creditTransaction.currency);
+
+        form.setFieldsValue({
+          to: creditTransaction.accountNo,
+          tocurrency: creditTransaction.currency,
+        });
+      }
+    }
+    form.setFieldsValue({
+      _id: record._id,
       transactionId: record.transactionId,
       transactionNo: record.transactionNo,
       transaction: record.transaction,
@@ -1159,10 +878,10 @@ const Transactions = () => {
       isPass: record.isPass,
       amount: record.amount,
 
-      currency: record.currency,
       exchangeRate: record.exchangeRate,
 
-      // Commission
+      to: record.to,
+
       comission,
       comission_currency: comissionCurrency,
     });
@@ -1286,37 +1005,37 @@ const Transactions = () => {
 
   // data sourse
   const filterData = (data) => {
-  let filtered = [...data];
+    let filtered = [...data];
 
-  //filter data
-  if (searchText) {
-    const keyword = searchText.toLowerCase().trim();
+    //filter data
+    if (searchText) {
+      const keyword = searchText.toLowerCase().trim();
 
-    filtered = filtered.filter((row) =>
-      Object.values(row).some((value) =>
-        String(value ?? "")
-          .toLowerCase()
-          .includes(keyword)
-      )
-    );
-  }
+      filtered = filtered.filter((row) =>
+        Object.values(row).some((value) =>
+          String(value ?? "")
+            .toLowerCase()
+            .includes(keyword),
+        ),
+      );
+    }
 
-  // From Date
-  if (fromDate) {
-    filtered = filtered.filter(
-      (row) => !dayjs(row.createdAt).isBefore(fromDate, "day")
-    );
-  }
+    // From Date
+    if (fromDate) {
+      filtered = filtered.filter(
+        (row) => !dayjs(row.createdAt).isBefore(fromDate, "day"),
+      );
+    }
 
-  // To Date
-  if (toDate) {
-    filtered = filtered.filter(
-      (row) => !dayjs(row.createdAt).isAfter(toDate, "day")
-    );
-  }
+    // To Date
+    if (toDate) {
+      filtered = filtered.filter(
+        (row) => !dayjs(row.createdAt).isAfter(toDate, "day"),
+      );
+    }
 
-  return filtered;
-};
+    return filtered;
+  };
   // color for currencies
   const getCurrencyColor = (currency) => {
     const colors = [
@@ -1604,275 +1323,6 @@ const Transactions = () => {
   const transferGroupMap = buildGroupMap(datasourceTransfer || []);
   const exchangeGroupMap = buildGroupMap(datasourceExchange || []);
 
-  //print transaction
-  const printRecord = async (record) => {
-    const { transactionId } = record;
-
-    try {
-      const res = await http().get(
-        `/api/transaction/readbyid/${transactionId}`,
-      );
-
-      const allTransactions = res.data.data;
-
-      // no need to filter again, already grouped by backend
-      const debit = allTransactions.find((t) => t.transactionType === "debit");
-
-      const credit = allTransactions.find(
-        (t) => t.transactionType === "credit",
-      );
-
-      const base = debit || credit || record;
-
-      const html = `
-      <html>
-        <head>
-          <title>Transaction Receipt</title>
-          <style>
-            body {
-              font-family: 'Segoe UI', sans-serif;
-              padding: 40px;
-              background: #fff;
-              color: #000;
-            }
-
-            .receipt {
-              width: 100%;
-              max-width: 900px;
-              margin: auto;
-            }
-
-            .header {
-              text-align: center;
-              border-bottom: 2px solid #000;
-              margin-bottom: 20px;
-              padding-bottom: 10px;
-            }
-
-            .header h2 {
-              margin: 0;
-              font-size: 26px;
-            }
-
-            .row {
-              display: flex;
-              justify-content: space-between;
-              margin: 8px 0;
-              font-size: 15px;
-            }
-
-            .label {
-              color: #555;
-            }
-
-            .value {
-              font-weight: 600;
-            }
-
-            .section {
-              margin-top: 15px;
-            }
-
-            .amount {
-              font-size: 26px;
-              font-weight: bold;
-              text-align: center;
-              margin: 25px 0;
-            }
-
-            .type-credit {
-              color: green;
-            }
-
-            .type-debit {
-              color: red;
-            }
-
-            .footer {
-              text-align: center;
-              margin-top: 30px;
-              font-size: 13px;
-              border-top: 3px double solid #2d6ff2;
-              padding-top: 10px;
-            }
-
-          </style>
-        </head>
-
-        <body>
-
-          <div class="receipt">
-
-            <div class="header">
-
-            <div class="header-top">
-
-            <div style="text-align:center;">
-              <div style="
-                width:150px;
-                height:105px;
-                border-radius:0;
-                overflow:hidden;
-                margin:0 auto;
-              ">
-                <img
-                  src="${myLogo}"
-                  alt="logo"
-                  style="width:150px ;heigth:100px;object-fit:cover;display:block;"
-                />
-              </div>
-            </div>
-
-              <div class="company-info">
-                <h2>${myBrand.data[0].companyName}</h2>
-                <div>
-                  ${
-                    myBrand.data[0].address
-                      ? myBrand.data[0].address.charAt(0).toUpperCase() +
-                        myBrand.data[0].address.slice(1)
-                      : ""
-                  } - ${myBranch} Branch
-                </div>
-                <div>${myBrand.data[0].mobile} | ${myBrand.data[0].email}</div>
-                <div class="receipt-title">Transaction Receipt</div>
-              </div>
-
-            </div>
-
-          </div>
-
-            <div class="row">
-              <span class="label">Transaction ID:</span>
-              <span class="value">${record.transactionId}</span>
-            </div>
-
-            <div class="row">
-              <span class="label">Date:</span>
-              <span class="value">
-                ${new Date(record.createdAt).toLocaleDateString()} 
-                ${new Date(record.createdAt).toLocaleTimeString()}
-              </span>
-            </div>
-
-            ${
-              debit
-                ? `
-              <div class="section">
-                <div class="row">
-                  <span class="label">From:</span>
-                  <span class="value">${debit.fullname}</span>
-                </div>
-
-                <div class="row">
-                  <span class="label">Account:</span>
-                  <span class="value">${debit.accountNo}</span>
-                </div>
-
-                <div class="row">
-                  <span class="label">Amount:</span>
-                  <span class="value type-debit">
-                     ${Number(debit.amount).toLocaleString()} ${debit.currency} (Debit)
-                  </span>
-                </div>
-              </div>
-            `
-                : ""
-            }
-
-            ${
-              credit
-                ? `
-              <div class="section">
-                <div class="row">
-                  <span class="label">To:</span>
-                  <span class="value">${credit.fullname}</span>
-                </div>
-
-                <div class="row">
-                  <span class="label">Account:</span>
-                  <span class="value">${credit.accountNo}</span>
-                </div>
-
-                <div class="row">
-                  <span class="label">Amount:</span>
-                  <span class="value type-credit">
-                      ${Number(credit.amount).toLocaleString()} ${credit.currency} (Credit)
-                  </span>
-                </div>
-              </div>
-            `
-                : ""
-            }
-
-
-            <div class="section">
-
-              <div class="row">
-                <span class="label">Type:</span>
-                <span class="value transaction-type">
-  ${record.transaction?.toUpperCase()}
-</span>
-              </div>
-
-              ${
-                base.exchangeRate
-                  ? `
-                <div class="row">
-                  <span class="label">Exchange Rate:</span>
-                  <span class="value">
-                    1 ${debit?.currency || ""} = ${base.exchangeRate} ${credit?.currency || ""}
-                  </span>
-                </div>
-              `
-                  : ""
-              }
-
-              ${
-                base.details
-                  ? `
-                <div class="row">
-                  <span class="label">Description:</span>
-                  <span class="value">${base.details}</span>
-                </div>
-              `
-                  : ""
-              }
-
-              <div class="row">
-                <span class="label">Status:</span>
-                <span class="value">
-                  ${record.isPass === "true" ? "Completed" : "Pending"}
-                </span>
-              </div>
-
-            </div>
-
-            <div class="footer">
-              Thank you for your business 🙏 <br/>
-              Keep this receipt for your records
-            </div>
-
-          </div>
-
-          <script>
-            window.onload = function() {
-              window.print();
-              window.onafterprint = () => window.close();
-            }
-          </script>
-
-        </body>
-      </html>
-    `;
-
-      const win = window.open("", "_blank");
-      win.document.write(html);
-      win.document.close();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   // customer search system
   const [customerSearch, setCustomerSearch] = useState("");
   const filteredOptions = accountOptions.filter((option) =>
@@ -1883,6 +1333,31 @@ const Transactions = () => {
     flex: "1 1 180px",
     minWidth: 180,
     maxWidth: "100%",
+  };
+
+  // reset fields
+  const resetFields = () => {
+    form.resetFields();
+
+    setEdit(false);
+    setTrId(null);
+
+    setSelectedCurrency("");
+    setSelectedToCurrency("");
+
+    setTransactionType("");
+    setAmount(0);
+    setRate(0);
+
+    setToAccount({
+      accountNo: "",
+      fullname: "",
+    });
+
+    setComission(0);
+    setComissionCurrency("");
+
+    setEditTag("");
   };
   return (
     <HomeLayout>
@@ -2058,6 +1533,20 @@ const Transactions = () => {
                   >
                     <PrinterOutlined className="!text-xl transition-transform duration-300 group-hover:scale-110" />
                   </Button>
+                  <Button
+                    type="text"
+                    onClick={resetFields}
+                    className="group !flex !h-8 !w-8 !items-center !justify-center
+        !rounded-sm !border !border-emerald-100 !bg-white
+        !text-blue-700 !shadow-sm transition-all duration-300
+        hover:!border-emerald-500
+        hover:!bg-gradient-to-br
+        hover:!from-emerald-500
+        hover:!to-teal-600
+        hover:!text-white"
+                  >
+                    <ReloadOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
+                  </Button>
                 </div>
               </Space>
             </div>
@@ -2123,8 +1612,9 @@ const Transactions = () => {
                   >
                     <Select
                       placeholder="Currency"
-                      value={currencies.currency}
-                      onChange={(val) => setSelectedCurrency(val)}
+                      onChange={(val) => {
+                        setSelectedCurrency(val);
+                      }}
                       className="!rounded-sm"
                     >
                       {currencies.map((c) => (
@@ -2148,7 +1638,43 @@ const Transactions = () => {
                   >
                     <Select
                       placeholder="Transaction"
-                      onChange={(val) => setTransactionType(val)}
+                      onChange={(val) => {
+                        setTransactionType(val);
+
+                        if (val === "exchange" && selectedAccount) {
+                          const customer = users.find(
+                            (c) =>
+                              String(c.accountNo) === String(selectedAccount),
+                          );
+
+                          if (customer) {
+                            setToAccount({
+                              accountNo: customer.accountNo,
+                              fullname: customer.fullname,
+                            });
+
+                            setSelectedToCurrency(customer.currency);
+
+                            form.setFieldsValue({
+                              to: customer.accountNo,
+                              tocurrency: customer.currency,
+                            });
+                          }
+                        } else {
+                          // Transaction and Transfer should always clear receiver fields
+                          setToAccount({
+                            accountNo: "",
+                            fullname: "",
+                          });
+
+                          setSelectedToCurrency("");
+
+                          form.setFieldsValue({
+                            to: undefined,
+                            tocurrency: undefined,
+                          });
+                        }
+                      }}
                       className="!rounded-sm"
                     >
                       <Option value="transaction">Transaction</Option>
@@ -2220,13 +1746,21 @@ const Transactions = () => {
                             }
                             onChange={(accountNo) => {
                               const customer = users.find(
-                                (c) => c.accountNo === accountNo,
+                                (c) =>
+                                  String(c.accountNo) === String(accountNo),
                               );
 
                               if (customer) {
                                 setToAccount({
                                   accountNo: customer.accountNo,
                                   fullname: customer.fullname,
+                                });
+
+                                setSelectedToCurrency(customer.currency);
+
+                                form.setFieldsValue({
+                                  to: customer.accountNo,
+                                  tocurrency: customer.currency,
                                 });
                               }
                             }}
@@ -2546,7 +2080,6 @@ const Transactions = () => {
                 ),
                 children: (
                   <div className="pb-20">
-                  
                     <Table
                       rowKey="_id"
                       columns={columns}
@@ -2696,7 +2229,7 @@ const Transactions = () => {
           content: { borderRadius: 0 },
         }}
       >
-        <Form layout="vertical" onFinish={printStatement}>
+        <Form layout="vertical" onFinish={prepareStatement}>
           {/* ACCOUNT */}
 
           <Form.Item
@@ -2911,6 +2444,44 @@ const Transactions = () => {
           )}
         </div>
       </Modal>
+
+      {/* Statement ref */}
+      <div className="hidden">
+        {statementData && (
+          <div ref={statementRef}>
+            <AccountStatement
+              logo={myLogo}
+              brand={myBrand?.data?.[0]}
+              branch={statementData.branch}
+              account={statementData.account}
+              accountHolder={statementData.accountHolder}
+              currency={statementData.currency}
+              fromDate={statementData.fromDate}
+              toDate={statementData.toDate}
+              overallTotals={statementData.overallTotals}
+              currentBalance={statementData.currentBalance}
+              statementTotals={statementData.statementTotals}
+              statementBalance={statementData.statementBalance}
+              rows={statementData.rows}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* transaction record ref */}
+      <div style={{ display: "none" }}>
+        <div ref={receiptRef}>
+          {receiptData && (
+            <TransactionReceipt
+              logo={myLogo}
+              brand={myBrand?.data?.[0]}
+              branch={myBranch}
+              transaction={receiptData.transaction}
+              exchangeRate={receiptData.transaction?.exchangeRate}
+            />
+          )}
+        </div>
+      </div>
     </HomeLayout>
   );
 };
