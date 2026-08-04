@@ -10,6 +10,8 @@ import {
   Avatar,
   Flex,
   Progress,
+  Modal,
+  message,
 } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
@@ -33,12 +35,19 @@ const { Title, Text } = Typography;
 const cookies = new Cookies();
 
 const Login = () => {
+  const [forgotForm] = Form.useForm();
   const navigate = useNavigate();
 
   const [loader, setLoader] = useState(false);
-  const [dots, setDots] = useState("");
   const [branding, setBranding] = useState([]);
   const [progress, setProgress] = useState(0);
+
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [step, setStep] = useState(1);
+  const [otp, setOtp] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const { data: brandingData } = useSWR("/api/branding/read", fetcher, {
     revalidateOnFocus: false,
@@ -103,6 +112,123 @@ const Login = () => {
       setLoader(false);
     }
   };
+
+  const sendOTP = async (values) => {
+    setLoader(true);
+
+    try {
+      const httpReq = http();
+
+      const finalObj = trimData(values);
+
+      const { data } = await httpReq.post(
+        "/api/auth/forgot-password",
+        finalObj,
+      );
+
+      if (!data.success) {
+        return swal("Error", data.message, "error");
+      }
+
+      setEmail(values.email);
+
+      swal("Success", data.message, "success");
+
+      forgotForm.resetFields();
+
+      setStep(2);
+    } catch (err) {
+      console.log(err);
+
+      swal(
+        "Error",
+        err.response?.data?.message || "Failed to send OTP.",
+        "error",
+      );
+    } finally {
+      setLoader(false);
+    }
+  };
+
+const verifyOTP = async () => {
+  try {
+    if (otp.length !== 6) {
+      return swal(
+        "Error",
+        "Please enter the complete 6-digit verification code.",
+        "error"
+      );
+    }
+
+    setLoader(true);
+
+    const httpReq = http();
+
+    const { data } = await httpReq.post("/api/auth/verify-otp", {
+      email,
+      otp,
+    });
+
+    if (!data.success) {
+      return swal("Error", data.message, "error");
+    }
+
+    swal("Success", data.message, "success");
+
+    setStep(3);
+  } catch (err) {
+    swal(
+      "Error",
+      err.response?.data?.message || "Invalid OTP",
+      "error"
+    );
+  } finally {
+    setLoader(false);
+  }
+};
+const resetPassword = async () => {
+  try {
+    setLoader(true);
+
+    const values = await forgotForm.validateFields([
+      "password",
+      "confirmPassword",
+    ]);
+
+    const httpReq = http();
+
+    const { data } = await httpReq.post("/api/auth/reset-password", {
+      email,
+      password: values.password,
+      confirmPassword: values.confirmPassword,
+    });
+
+    if (!data.success) {
+      return swal("Error", data.message, "error");
+    }
+
+    await swal(
+      "Success",
+      "Password reset successfully.\nPlease login with your new password.",
+      "success"
+    );
+
+    forgotForm.resetFields();
+
+    setForgotOpen(false);
+    setStep(1);
+    setEmail("");
+
+  } catch (err) {
+    swal(
+      "Error",
+      err.response?.data?.message || "Password reset failed.",
+      "error"
+    );
+  } finally {
+    setLoader(false);
+  }
+};
 
   return (
     <MainLayout>
@@ -208,12 +334,18 @@ const Login = () => {
                   <Checkbox className="!text-gray-300">Remember me</Checkbox>
                 </Form.Item>
 
-                <a
-                  href="#"
-                  className="text-cyan-400 hover:text-cyan-300 transition-all duration-300"
+                <Button
+                  type="link"
+                  className="!p-0 !text-cyan-400 hover:!text-cyan-300"
+                  onClick={() => {
+                    forgotForm.resetFields();
+                    setForgotOpen(true);
+                    setStep(1);
+                    setEmail("");
+                  }}
                 >
                   Forgot Password?
-                </a>
+                </Button>
               </div>
 
               {/* Login */}
@@ -237,6 +369,218 @@ const Login = () => {
           </Card>
         </div>
       </div>
+
+      {/* forget password Modal */}
+      <Modal
+        title={null}
+        open={forgotOpen}
+        footer={null}
+        centered
+        destroyOnClose
+        width={500}
+        onCancel={() => {
+          forgotForm.resetFields();
+          setForgotOpen(false);
+          setStep(1);
+          setEmail("");
+        }}
+        styles={{
+          content: {
+            borderRadius: "28px",
+            padding: "32px",
+          },
+        }}
+      >
+        <div className="!text-center !mb-8">
+          <img
+            src={import.meta.env.VITE_LOGO_URL}
+            alt="Logo"
+            className="!w-20 !mx-auto !mb-5 !drop-shadow-xl"
+          />
+
+          <h2 className="!text-3xl !font-bold !text-slate-800">
+            {step === 1
+              ? "Forgot Password"
+              : step === 2
+                ? "Verify OTP"
+                : "Reset Password"}
+          </h2>
+
+          <p className="!mt-2 !text-sm !text-gray-500">
+            {step === 1 &&
+              "Enter your email address to receive a verification code."}
+
+            {step === 2 && `Enter the verification code sent to ${email}`}
+
+            {step === 3 && "Create a strong password for your account."}
+          </p>
+        </div>
+
+        <Form
+          form={forgotForm}
+          layout="vertical"
+          className="!mt-2"
+          onFinish={step === 1 ? sendOTP : undefined}
+        >
+          {/* STEP 1 */}
+
+          {step === 1 && (
+            <>
+              <Form.Item
+                label={
+                  <span className="!text-slate-700 !font-semibold">
+                    Email Address
+                  </span>
+                }
+                name="email"
+                rules={[
+                  {
+                    required: true,
+                    message: "Please enter your email.",
+                  },
+                  {
+                    type: "email",
+                    message: "Please enter a valid email.",
+                  },
+                ]}
+              >
+                <Input
+                  size="large"
+                  autoComplete="email"
+                  placeholder="Email Address"
+                  prefix={
+                    <UserOutlined className="!text-cyan-500 !text-lg !mr-2" />
+                  }
+                  className="!h-14 !rounded-2xl !border-gray-300 hover:!border-cyan-500 focus:!border-cyan-500"
+                />
+              </Form.Item>
+
+              <Button
+                htmlType="submit"
+                type="primary"
+                loading={loader}
+                block
+                className="!w-full !h-14 !mt-4 !rounded-2xl !border-none !bg-gradient-to-r !from-cyan-500 !to-emerald-500 hover:!from-cyan-400 hover:!to-emerald-400 !text-lg !font-semibold !shadow-lg hover:!shadow-cyan-500/40 hover:!scale-[1.02] !transition-all !duration-300"
+              >
+                Send Verification Code
+              </Button>
+            </>
+          )}
+
+          {/* STEP 2 */}
+
+          {step === 2 && (
+            <>
+              <Form.Item
+                label={
+                  <span className="!text-slate-700 !font-semibold">
+                    Verification Code
+                  </span>
+                }
+              >
+                <div className="!flex !justify-center !mb-6">
+                  <Input.OTP
+                    length={6}
+                    size="large"
+                    value={otp}
+                    onChange={(value) => {
+                      console.log("OTP:", value);
+                      setOtp(value);
+                    }}
+                    className="!gap-3"
+                  />
+                </div>
+              </Form.Item>
+
+              <Button
+                type="primary"
+                loading={loader}
+                block
+                onClick={verifyOTP}
+                className="!w-full !h-14 !rounded-2xl !border-none !bg-gradient-to-r !from-cyan-500 !to-emerald-500 hover:!from-cyan-400 hover:!to-emerald-400 !text-lg !font-semibold"
+              >
+                Verify OTP
+              </Button>
+            </>
+          )}
+
+          {/* STEP 3 */}
+
+          {step === 3 && (
+            <>
+              <Form.Item
+                label={
+                  <span className="!text-slate-700 !font-semibold">
+                    New Password
+                  </span>
+                }
+                name="password"
+                rules={[
+                  {
+                    required: true,
+                    message: "Please enter your new password.",
+                  },
+                ]}
+              >
+                <Input.Password
+                  size="large"
+                  placeholder="New Password"
+                  prefix={
+                    <LockOutlined className="!text-cyan-500 !text-lg !mr-2" />
+                  }
+                  className="!h-14 !rounded-2xl"
+                />
+              </Form.Item>
+
+              <Form.Item
+                label={
+                  <span className="!text-slate-700 !font-semibold">
+                    Confirm Password
+                  </span>
+                }
+                name="confirmPassword"
+                dependencies={["password"]}
+                rules={[
+                  {
+                    required: true,
+                    message: "Please confirm your password.",
+                  },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue("password") === value) {
+                        return Promise.resolve();
+                      }
+
+                      return Promise.reject(
+                        new Error("Passwords do not match."),
+                      );
+                    },
+                  }),
+                ]}
+              >
+                <Input.Password
+                  size="large"
+                  placeholder="Confirm Password"
+                  prefix={
+                    <LockOutlined className="!text-cyan-500 !text-lg !mr-2" />
+                  }
+                  className="!h-14 !rounded-2xl"
+                />
+              </Form.Item>
+
+              <Button
+                type="primary"
+                loading={loader}
+                block
+                onClick={resetPassword}
+                className="!w-full !h-14 !rounded-2xl mt-4 !border-none !bg-gradient-to-r !from-cyan-500 !to-emerald-500 hover:!from-cyan-400 hover:!to-emerald-400 !text-lg !font-semibold !shadow-lg hover:!shadow-cyan-500/40 hover:!scale-[1.02] !transition-all !duration-300"
+              >
+                Reset Password
+              </Button>
+            </>
+          )}
+        </Form>
+      </Modal>
     </MainLayout>
   );
 };
