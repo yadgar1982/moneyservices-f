@@ -84,6 +84,11 @@ const Commissions = () => {
   const comissions = data?.data || [];
 
   const onFinish = async (values) => {
+    if (Array.isArray(values.accountNo)) {
+      values.accountNo = values.accountNo[0];
+    }
+
+    console.log("Sending:", values);
     try {
       await http().post("/api/comission/create", values);
       toast.success("data has been saved successfully");
@@ -1036,7 +1041,7 @@ const Commissions = () => {
           </div>
         </div>
         {/* status */}
-        <Row gutter={[16, 16]} className="mb-6">
+        <Row gutter={[16, 16]} className="mb-6 flex justify-center w-full">
           {Object.entries(todayTotals).map(([currency, total]) => {
             const net = total.credit - total.debit;
 
@@ -1077,19 +1082,22 @@ const Commissions = () => {
           })}
         </Row>
         {/* Form */}
-        <div className=" flex justify-center w-full">
+        <div className="flex justify-center w-full ">
           <Card
-            variant={false}
-            className="!w-full !md:!w-8/12 !rounded-[32px] !bg-white/80 !backdrop-blur-xl !border !border-white/40 !shadow-2xl !shadow-blue-100 !overflow-hidden"
+            className="!w-full xl:!w-9/12 !rounded-2xl !shadow-xl !border-0 overflow-hidden"
             title={
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 py-2">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 flex items-center justify-center text-white text-2xl">
+                  💰
+                </div>
+
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-800">
+                  <h2 className="text-xl font-bold text-slate-800">
                     {edit ? "Update Commission" : "New Commission"}
                   </h2>
 
-                  <p className="text-slate-500 mb-2">
-                    Complete the information below
+                  <p className="text-sm text-slate-500">
+                    Manage customer commission transactions
                   </p>
                 </div>
               </div>
@@ -1101,7 +1109,14 @@ const Commissions = () => {
               onFinish={edit ? onUpdat : onFinish}
               autoComplete="off"
             >
-              <Row gutter={50}>
+              {/* Customer Section */}
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-slate-700">
+                  Customer Information
+                </h3>
+              </div>
+
+              <Row gutter={[24, 8]}>
                 <Col xs={24} md={12}>
                   <Form.Item
                     label="Customer Name"
@@ -1115,30 +1130,21 @@ const Commissions = () => {
                   >
                     <Input
                       size="large"
-                      className="!rounded-xl"
+                      className="!rounded-lg"
                       placeholder="Customer Name"
                     />
                   </Form.Item>
                 </Col>
 
                 <Col xs={24} md={12}>
-                  <Form.Item
-                    name="accountNo"
-                    label="Account No"
-                    className="!mb-0"
-                  >
+                  <Form.Item name="accountNo" label="Account No">
                     <Select
                       mode="tags"
                       size="large"
                       showSearch
-                      placeholder="Select or enter Account No"
+                      placeholder="Select Account"
                       options={accountOptions}
-                      className="!rounded-xl"
-                      filterOption={(input, option) =>
-                        option?.label
-                          ?.toLowerCase()
-                          .includes(input.toLowerCase())
-                      }
+                      className="!rounded-lg"
                     />
                   </Form.Item>
                 </Col>
@@ -1156,8 +1162,8 @@ const Commissions = () => {
                   >
                     <Select
                       size="large"
-                      className="!rounded-xl"
-                      placeholder="Select Currency"
+                      className="!rounded-lg"
+                      placeholder="Currency"
                       options={currencies?.map((item) => ({
                         label: item.currency,
                         value: item.currency,
@@ -1170,61 +1176,85 @@ const Commissions = () => {
                   <Form.Item label="Transaction Type" name="transactionType">
                     <Select
                       size="large"
-                      className="!rounded-xl"
+                      className="!rounded-lg"
                       placeholder="Transaction Type"
                       options={[
                         {
                           value: "transaction fees",
-                          label: "Transaction_Fees",
+                          label: "Transaction Fees",
                         },
                         {
-                          value: "transfer comission",
-                          label: "Transfer_Fees",
+                          value: "transfer commission",
+                          label: "Transfer Fees",
                         },
                         {
-                          value: "exchange comission",
-                          label: "Exchange_Fees",
+                          value: "exchange commission",
+                          label: "Exchange Fees",
                         },
                         {
                           value: "expense",
                           label: "Expense",
                         },
                         {
-                          value: "company_withdrawal",
-                          label: "Company Withdrawal",
+                          value: "withdrawal",
+                          label: "Withdrawal",
                         },
                       ]}
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={12}>
-                  <Form.Item label="Credit" name="credit" initialValue={0}>
-                    <InputNumber
-                      size="large"
-                      className="!rounded-xl"
-                      min={0}
-                      style={{ width: "100%" }}
-                    />
-                  </Form.Item>
+                {/* Amount Section */}
+
+                <Col span={24}>
+                  <div className="bg-slate-50 border rounded-xl p-4">
+                    <h3 className="font-semibold text-slate-700 mb-3">
+                      Commission Amount
+                    </h3>
+
+                    <Row gutter={[24, 8]}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          label="Credit"
+                          name="credit"
+                          initialValue={0}
+                        >
+                          <InputNumber
+                            size="large"
+                            className="!w-full !rounded-lg"
+                            min={0}
+                            formatter={(value) =>
+                              `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                            }
+                            parser={(value) => value.replace(/,/g, "")}
+                          />
+                        </Form.Item>
+                      </Col>
+
+                      <Col xs={24} md={12}>
+                        <Form.Item label="Debit" name="debit" initialValue={0}>
+                          <InputNumber
+                            size="large"
+                            className="!w-full !rounded-lg"
+                            min={0}
+                            formatter={(value) =>
+                              `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                            }
+                            parser={(value) => value.replace(/,/g, "")}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </div>
                 </Col>
 
-                <Col xs={24} md={12}>
-                  <Form.Item label="Debit" name="debit" initialValue={0}>
-                    <InputNumber
-                      size="large"
-                      className="!rounded-xl"
-                      min={0}
-                      style={{ width: "100%" }}
-                    />
-                  </Form.Item>
-                </Col>
+                {/* Reference */}
 
                 <Col xs={24} md={12}>
                   <Form.Item label="Transaction ID" name="transactionId">
                     <Input
                       size="large"
-                      className="!rounded-xl"
+                      className="!rounded-lg"
                       readOnly={edit}
                     />
                   </Form.Item>
@@ -1232,28 +1262,38 @@ const Commissions = () => {
 
                 <Col xs={24} md={12}>
                   <Form.Item label="Transaction No" name="transactionNo">
-                    <Input size="large" className="!rounded-xl" />
+                    <Input size="large" className="!rounded-lg" />
                   </Form.Item>
                 </Col>
 
                 <Col span={24}>
                   <Form.Item label="Details" name="details">
-                    <TextArea rows={3} placeholder="Commission details..." />
+                    <Input.TextArea
+                      rows={3}
+                      className="!rounded-lg"
+                      placeholder="Commission details..."
+                    />
                   </Form.Item>
                 </Col>
 
                 <Col span={24}>
-                  <Form.Item>
-                    <Button
-                      type="primary"
-                      htmlType="submit"
-                      size="large"
-                      className="!h-12 !px-10 !rounded-xl !font-semibold !bg-gradient-to-r !from-blue-600 !to-cyan-500 !border-0 
-                    !shadow-lg hover:!scale-105 !transition-all !duration-300"
-                    >
-                      {edit ? "Update Commission" : "Save Commission"}
-                    </Button>
-                  </Form.Item>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    size="large"
+                    block
+                    className="
+        !h-12
+        !rounded-xl
+        !font-semibold
+        !bg-gradient-to-r
+        !from-blue-600
+        !to-cyan-500
+        !border-0
+        "
+                  >
+                    {edit ? "Update Commission" : "Save Commission"}
+                  </Button>
                 </Col>
               </Row>
             </Form>
@@ -1264,7 +1304,7 @@ const Commissions = () => {
           className="!mt-8 !rounded-3xl !bg-white/80 !backdrop-blur-xl !border !border-white/40 !shadow-xl"
           title={
             <div>
-              <h2 className="text-xl font-bold text-slate-800">
+              <h2 className="text-xl font-bold text-slate-800 py-4">
                 Commission History
               </h2>
 
@@ -1372,18 +1412,14 @@ const Commissions = () => {
 
           {/* ACCOUNT */}
 
-          <Form.Item name="account" label="Account">
-           <Select
-      mode="tags"
-      size="large"
-      showSearch
-      placeholder="Select or enter Account No"
-      options={accountOptions}
-      className="!rounded-xl"
-      filterOption={(input, option) =>
-        option?.label?.toLowerCase().includes(input.toLowerCase())
-      }
-    />
+          <Form.Item name="accountNo" label="Account No">
+            <Select
+              size="large"
+              showSearch
+              placeholder="Select Account No"
+              options={accountOptions}
+              className="!rounded-lg !border-slate-300 hover:!border-blue-500"
+            />
           </Form.Item>
 
           {/* DATE RANGE */}

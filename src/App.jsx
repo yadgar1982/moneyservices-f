@@ -21,6 +21,7 @@ import ProtectedLayout from "./components/Shared/Layouts/ProtectedLayout"
 import ProtectedAdminLayout from "./components/Shared/Layouts/ProtectedAdminLayout"
 import NotFound from "./components/Shared/NotFound";
 import Commissions from "./components/User/Comission";
+import Backup from "./components/Shared/backup/backup";
 
 const App = () => {
   return (
@@ -55,6 +56,7 @@ const App = () => {
           <Route element={<ProtectedAdminLayout/>}>
 
           <Route path="/admin-dash" element={<AdminDash />} />
+          <Route path="/backup" element={<Backup />} />
           <Route path="/register" element={<Register />} />
           <Route path="/branding" element={<Branding />} />
           <Route path="/currency" element={<Currency />} />

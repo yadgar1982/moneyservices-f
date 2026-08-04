@@ -6,6 +6,7 @@ import AppLoader from "../loader";
 import {
   BranchesOutlined,
   DashboardOutlined,
+  DatabaseOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -76,7 +77,7 @@ const AdminLayout = ({ children }) => {
   const menuItems = [
     {
       key: "admin-dash",
-      icon: <DashboardOutlined className="!text-[#022c22]"/>,
+      icon: <DashboardOutlined className="!text-[#022c22]" />,
       label: <span className="!text-zinc-100 ">Dashboard</span>,
     },
     {
@@ -84,27 +85,32 @@ const AdminLayout = ({ children }) => {
       icon: <UserOutlined />,
       label: <span className="!text-zinc-100 ">User Register</span>,
     },
-        {
-          key: "branding",
-          icon: <UploadOutlined />,
-          label:  <span className="!text-zinc-100 ">Branding</span>,
-        },
-        {
-          key: "currency",
-          icon: <MoneyCollectOutlined />,
-          label:  <span className="!text-zinc-100 ">Currency</span>,
-        },
-        {
-          key: "branch",
-          icon: <BranchesOutlined />,
-          label:  <span className="!text-zinc-100 ">Branch</span>,
-        },
-   
+    {
+      key: "branding",
+      icon: <UploadOutlined />,
+      label: <span className="!text-zinc-100 ">Branding</span>,
+    },
+    {
+      key: "currency",
+      icon: <MoneyCollectOutlined />,
+      label: <span className="!text-zinc-100 ">Currency</span>,
+    },
+    {
+      key: "branch",
+      icon: <BranchesOutlined />,
+      label: <span className="!text-zinc-100 ">Branch</span>,
+    },
+    {
+      key: "backup",
+      icon: <DatabaseOutlined />,
+      label: <span className="!text-zinc-100">Backup & Restore</span>,
+    },
   ];
+ 
   const items = [
     {
       key: "admin-dash",
-      icon: <DashboardOutlined className="!text-[#022c22]"/>,
+      icon: <DashboardOutlined className="!text-[#022c22]" />,
       label: <span className="!text-zinc-900 ">Dashboard</span>,
     },
     {
@@ -132,6 +138,11 @@ const AdminLayout = ({ children }) => {
           key: "branch",
           icon: <BranchesOutlined />,
           label: <span className="!text-slate-900 ">Branches</span>,
+        },
+        {
+          key: "backup",
+          icon: <DatabaseOutlined />,
+          label: <span className="!text-slate-900 ">Backup & Restore</span>,
         },
       ],
     },
@@ -187,19 +198,19 @@ const AdminLayout = ({ children }) => {
             onClick={() => setDrawerOpen(true)}
             className="!text-white hover:!text-emerald-300 md:!text-2xl !text-lg"
           />
-{!drawerOpen ? (
-              <Menu
-                mode="horizontal "
-                theme="dark"
-                selectedKeys={[location.pathname]}
-                items={menuItems}
-                onClick={nav}
-                className="!bg-transparent !border-0 flex-1 !text-white hidden md:flex"
-                overflowedIndicator={null}
-              />
-            ) : (
-              " "
-            )}
+          {!drawerOpen ? (
+            <Menu
+              mode="horizontal "
+              theme="dark"
+              selectedKeys={[location.pathname]}
+              items={menuItems}
+              onClick={nav}
+              className="!bg-transparent !border-0 flex-1 !text-white hidden md:flex"
+              overflowedIndicator={null}
+            />
+          ) : (
+            " "
+          )}
           {/* Right */}
           <div className="flex items-center gap-5">
             <div className="flex flex-col items-end">
