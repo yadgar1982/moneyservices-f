@@ -21,7 +21,7 @@ import ProtectedLayout from "./components/Shared/Layouts/ProtectedLayout"
 import ProtectedAdminLayout from "./components/Shared/Layouts/ProtectedAdminLayout"
 import NotFound from "./components/Shared/NotFound";
 import Commissions from "./components/User/Comission";
-import Backup from "./components/Shared/Backup"
+import Backup from "./components/Shared/Backup/Backup.jsx";
 
 const App = () => {
   return (
