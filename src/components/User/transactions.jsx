@@ -1537,13 +1537,13 @@ useEffect(() => {
                     type="text"
                     onClick={resetFields}
                     className="group !flex !h-8 !w-8 !items-center !justify-center
-        !rounded-sm !border !border-emerald-100 !bg-white
-        !text-blue-700 !shadow-sm transition-all duration-300
-        hover:!border-emerald-500
-        hover:!bg-gradient-to-br
-        hover:!from-emerald-500
-        hover:!to-teal-600
-        hover:!text-white"
+                    !rounded-sm !border !border-emerald-100 !bg-white
+                    !text-blue-700 !shadow-sm transition-all duration-300
+                    hover:!border-emerald-500
+                    hover:!bg-gradient-to-br
+                    hover:!from-emerald-500
+                    hover:!to-teal-600
+                    hover:!text-white"
                   >
                     <ReloadOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
                   </Button>
@@ -1599,31 +1599,7 @@ useEffect(() => {
                       className="!w-full !rounded-sm"
                     />
                   </Form.Item>
-                  {/* currency */}
-                  <Form.Item
-                    name="currency"
-                    label={
-                      <span className="font-semibold text-slate-700">
-                        Currency
-                      </span>
-                    }
-                    rules={[{ required: true, message: "Select currency" }]}
-                    className="xl:col-span-1"
-                  >
-                    <Select
-                      placeholder="Currency"
-                      onChange={(val) => {
-                        setSelectedCurrency(val);
-                      }}
-                      className="!rounded-sm"
-                    >
-                      {currencies.map((c) => (
-                        <Select.Option key={c.currency} value={c.currency}>
-                          {c.currency}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
+            
 
                   {/* Transaction */}
                   <Form.Item
@@ -1680,6 +1656,31 @@ useEffect(() => {
                       <Option value="transaction">Transaction</Option>
                       <Option value="transfer">Transfer</Option>
                       <Option value="exchange">Exchange</Option>
+                    </Select>
+                  </Form.Item>
+                        {/* currency */}
+                  <Form.Item
+                    name="currency"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Currency
+                      </span>
+                    }
+                    rules={[{ required: true, message: "Select currency" }]}
+                    className="xl:col-span-1"
+                  >
+                    <Select
+                      placeholder="Currency"
+                      onChange={(val) => {
+                        setSelectedCurrency(val);
+                      }}
+                      className="!rounded-sm"
+                    >
+                      {currencies.map((c) => (
+                        <Select.Option key={c.currency} value={c.currency}>
+                          {c.currency}
+                        </Select.Option>
+                      ))}
                     </Select>
                   </Form.Item>
                   {/* Amount */}
