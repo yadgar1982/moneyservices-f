@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import * as XLSX from "xlsx";
 import "./transactions.css";
 import jsPDF from "jspdf";
 import { useReactToPrint } from "react-to-print";
@@ -13,8 +14,6 @@ import {
   Select,
   Upload,
   message,
-  Card,
-  Divider,
   Table,
   Tabs,
   Tag,
@@ -30,25 +29,16 @@ import {
 } from "antd";
 import HomeLayout from "../Shared/Layouts/HomeLayout";
 import {
-  AccountBookFilled,
   BankOutlined,
   BookOutlined,
-  CameraFilled,
   CameraOutlined,
-  CameraTwoTone,
-  CheckCircleOutlined,
   CheckOutlined,
   ClearOutlined,
-  ClockCircleOutlined,
   DeleteOutlined,
   DollarCircleOutlined,
-  DollarCircleTwoTone,
-  DollarTwoTone,
   EditOutlined,
-  FileDoneOutlined,
   FileTextOutlined,
   PaperClipOutlined,
-  PayCircleOutlined,
   PrinterOutlined,
   ReloadOutlined,
   SaveOutlined,
@@ -56,12 +46,10 @@ import {
   SignatureOutlined,
   StopOutlined,
   SwapOutlined,
-  TransactionOutlined,
   UploadOutlined,
-  UserOutlined,
   VideoCameraAddOutlined,
-  VideoCameraOutlined,
-  WalletOutlined,
+  MessageOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import SignatureCanvas from "react-signature-canvas";
 import Webcam from "react-webcam";
@@ -69,8 +57,6 @@ import { toast } from "react-toastify";
 import { useMemo } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const myBrand = JSON.parse(localStorage.getItem("branding"));
-const myLogo = `${import.meta.env.VITE_ENDPOINT}${myBrand?.data?.[0]?.logo || ""}`;
 
 import { http, fetcher } from "../Modules/http";
 import { fetchTransaction } from "../../redux/slices/transactionSlice";
@@ -80,14 +66,12 @@ import { fetchUsers } from "../../redux/slices/customerSlice";
 import { fetchCurrency } from "../../redux/slices/currencySlice";
 import { fetchBranch } from "../../redux/slices/branchSlice";
 import dayjs from "dayjs";
-import isBetween from "dayjs/plugin/isBetween";
 const shutterSound = new Audio("./camera.mp3");
 shutterSound.volume = 0.2;
 
 const { Option } = Select;
 
 const Transactions = () => {
-  const topRef = useRef(null);
   const statementRef = useRef(null);
   const receiptRef = useRef();
 
@@ -96,6 +80,7 @@ const Transactions = () => {
   const [selectedCurrency, setSelectedCurrency] = useState("");
   const [selectedToCurrency, setSelectedToCurrency] = useState("");
   const [form] = Form.useForm();
+  const [statementForm] = Form.useForm();
   const [transactionType, setTransactionType] = useState("");
   const [capturedImage, setCapturedImage] = useState(null);
   const [signatureImage, setSignatureImage] = useState(null);
@@ -107,31 +92,27 @@ const Transactions = () => {
   const [calc, setCalc] = useState(false);
   const [amount, setAmount] = useState(null);
   const [rate, setRate] = useState(null);
-  const [comission, setComission] = useState(null);
-  const [comissionCurrency, setComissionCurrency] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
+  const validationConfirmed = useRef(false);
 
   // data search for main table
   const [showIsPassed, setShowIsPassed] = useState(false);
-  const [tableData, setTableData] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   //account statement states
   const [stAcc, setStAcc] = useState(null);
-  const [stCurrency, setStCurrency] = useState(null);
   const [stName, setStName] = useState(null);
-  const [selectedTr, setSelectedTr] = useState("");
-  const [stCur, setStCur] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [open, setOpen] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [resultText, setResultText] = useState("");
   const [editTag, setEditTag] = useState("");
-
+  const [statementChecked, setStatementChecked] = useState(false);
   const [statementData, setStatementData] = useState(null);
   const [receiptData, setReceiptData] = useState(null);
+  const [activeHistoryTab, setActiveHistoryTab] = useState("1");
+  const [historyPage, setHistoryPage] = useState(1);
   const httpReq = http();
 
   const dispatch = useDispatch();
@@ -146,9 +127,16 @@ const Transactions = () => {
 
   const myUser = userInfo.fullname;
   const myBranch = userInfo?.branch;
+
   const branding = JSON.parse(localStorage.getItem("branding"));
-  const myBrand = branding.data?.[0];
-  const logo = myBrand?.logo;
+
+  const myBrand = branding?.data?.[0];
+
+  const logo = myBrand?.logo
+    ? `${import.meta.env.VITE_ENDPOINT}${myBrand.logo}`
+    : "";
+
+  console.log("TRANSACTION LOGO:", logo);
 
   // Redux
   const { users, uLoading, uError } = useSelector((state) => state.users);
@@ -208,6 +196,7 @@ const Transactions = () => {
     contentRef: statementRef,
     documentTitle: "Account Statement",
   });
+
   useEffect(() => {
     if (statementData) {
       handleStatementPrint();
@@ -225,24 +214,53 @@ const Transactions = () => {
   }, [receiptData, handleReceiptPrint]);
 
   // print statement
-  const prepareStatement = (values) => {
+  const prepareStatement = (values, shouldPrint = true) => {
+    setStatementChecked(true);
+
     const { account, currency, fromDate, toDate } = values;
 
-    /* =====================================================
-     STEP 1
-     Account + Currency (NO DATE FILTER)
-     This is the CURRENT ACCOUNT BALANCE (Top Summary)
-  ===================================================== */
+    const selectedAccountNo =
+      account !== undefined && account !== null && String(account).trim() !== ""
+        ? String(account)
+        : "";
 
-    let accountTransactions = transactions.filter(
-      (t) => String(t.accountNo) === String(account),
-    );
+    // SELECTED CURRENCY
+    const selectedCurrencyValue =
+      currency !== undefined &&
+      currency !== null &&
+      String(currency).trim() !== ""
+        ? String(currency)
+        : "";
 
-    if (currency) {
+    // 1. GET ALL TRANSACTIONS
+    let accountTransactions = [...(transactions || [])];
+
+    // 2. FILTER BY ACCOUNT
+    if (selectedAccountNo) {
       accountTransactions = accountTransactions.filter(
-        (t) => t.currency === currency,
+        (t) => String(t.accountNo || "") === String(selectedAccountNo),
       );
     }
+
+    // 3. FILTER BY CURRENCY
+
+    if (selectedCurrencyValue) {
+      accountTransactions = accountTransactions.filter(
+        (t) =>
+          String(t.currency || "").toUpperCase() ===
+          String(selectedCurrencyValue).toUpperCase(),
+      );
+    }
+
+    // =========================================================
+    // 4. CURRENT TOTALS
+    //
+    // IMPORTANT:
+    // NO DATE FILTER HERE.
+    //
+    // These represent the actual current position
+    // of the selected account/currency.
+    // =========================================================
 
     const overallTotals = {
       debit: 0,
@@ -254,124 +272,583 @@ const Transactions = () => {
 
       if (t.transactionType === "credit") {
         overallTotals.credit += amount;
-      } else {
+      }
+
+      if (t.transactionType === "debit") {
         overallTotals.debit += amount;
       }
     });
 
     const currentBalance = overallTotals.credit - overallTotals.debit;
 
-    /* =====================================================
-     STEP 2
-     Apply DATE FILTER
-     This becomes the ACCOUNT STATEMENT
-  ===================================================== */
-
+    // 5. APPLY DATE FILTER
+    //
+    // DATE FILTER ONLY AFFECTS THE STATEMENT.
+    // It does NOT affect currentBalance.
     let result = [...accountTransactions];
 
-    if (fromDate || toDate) {
+    if (fromDate) {
       result = result.filter((t) => {
-        const tx = dayjs(t.createdAt);
+        const txDate = dayjs(t.createdAt);
 
-        if (fromDate && tx.isBefore(fromDate, "day")) {
-          return false;
-        }
-
-        if (toDate && tx.isAfter(toDate, "day")) {
-          return false;
-        }
-
-        return true;
+        return !txDate.isBefore(dayjs(fromDate), "day");
       });
     }
 
-    if (result.length === 0) {
-      setResultText("No data to display");
-      toast.error("No transactions found.");
-      return;
+    if (toDate) {
+      result = result.filter((t) => {
+        const txDate = dayjs(t.createdAt);
+
+        return !txDate.isAfter(dayjs(toDate), "day");
+      });
     }
 
-    /* =====================================================
-     STEP 3
-     Sort Statement
-  ===================================================== */
+    // 6. NO DATA
+    if (result.length === 0) {
+      setResultText("No data to display");
 
+      toast.error("No transactions found for the selected filters.");
+
+      return null;
+    }
+
+    // 7. SORT OLDEST → NEWEST
     const sorted = [...result].sort(
       (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     );
 
     setResultText("");
 
-    /* =====================================================
-     STEP 4
-     Statement Totals + Running Balance
-     (ONLY FILTERED TRANSACTIONS)
-  ===================================================== */
-
-    let runningBalance = 0;
-
+    // 8. STATEMENT TOTALS
+    // These ARE date-filtered.
     const statementTotals = {
       debit: 0,
       credit: 0,
     };
 
+    // Running balance belongs ONLY to
+    // the transactions displayed in this statement.
+    let runningBalance = 0;
+
+    // 9. BUILD STATEMENT ROWS
     const statementRows = sorted.map((t, index) => {
       const amount = Number(t.amount) || 0;
 
+      // CREDIT
       if (t.transactionType === "credit") {
         statementTotals.credit += amount;
         runningBalance += amount;
-      } else {
+      }
+
+      // DEBIT
+      if (t.transactionType === "debit") {
         statementTotals.debit += amount;
         runningBalance -= amount;
       }
 
+      // RETURN ROW
       return {
+        // Row number
         no: index + 1,
-        date: dayjs(t.createdAt).format("DD/MM/YYYY"),
-        transactionNo: t.transactionNo,
+
+        // Date
+        date: t.createdAt ? dayjs(t.createdAt).format("DD-MM-YYYY") : "-",
+
+        // Account number
+        accountNo: t.accountNo || "-",
+
+        // Customer full name
+        fullName: t.fullname || "-",
+
+        // Transaction ID
+        transactionId: t.transactionId || "-",
+
+        // Transaction Number
+        transactionNo:
+          t.transactionNo ||
+          t.transferNo ||
+          t.transactionNoId ||
+          t.transNo ||
+          "-",
+
+        // Transaction Type
+        transactionType: t.transactionType || "-",
+
+        // Description
         description: t.details || "-",
-        currency: t.currency,
-        debit: t.transactionType === "debit" ? amount.toLocaleString() : "",
-        credit: t.transactionType === "credit" ? amount.toLocaleString() : "",
-        balance: runningBalance.toLocaleString(),
+
+        // Credit
+        credit: t.transactionType === "credit" ? amount : "",
+
+        // Debit
+        debit: t.transactionType === "debit" ? amount : "",
+
+        // Running balance
+        balance: runningBalance,
+
+        // Currency
+        currency: t.currency || selectedCurrencyValue || "-",
       };
     });
 
+    // 10. STATEMENT BALANCE
+    // This is ONLY the selected date-range balance.
     const statementBalance = statementTotals.credit - statementTotals.debit;
 
-    //  Save Everything
+    // 11. FIND ACCOUNT HOLDER
+    const selectedCustomer = selectedAccountNo
+      ? users.find(
+          (user) => String(user.accountNo) === String(selectedAccountNo),
+        )
+      : null;
 
-    setStatementData({
-      account,
-      accountHolder: stName,
+    const accountHolder =
+      selectedCustomer?.fullname ||
+      (selectedAccountNo ? stName || "-" : "All Accounts");
+
+    // =========================================================
+    // 12. PREPARED STATEMENT DATA
+    // =========================================================
+
+    const preparedData = {
+      // -----------------------------
+      // Account information
+      // -----------------------------
+
+      account: selectedAccountNo || "",
+
+      accountHolder,
+
       branch: myBranch,
+
+      currency: selectedCurrencyValue || "All Currencies",
+
+      // -----------------------------
+      // Date range
+      // -----------------------------
+
+      fromDate: fromDate || "",
+
+      toDate: toDate || "",
+
+      // -----------------------------
+      // Statement rows
+      // -----------------------------
+
+      rows: statementRows,
+
+      // -----------------------------
+      // Raw date-filtered transactions
+      // -----------------------------
+
+      transactions: sorted,
+
+      // -----------------------------
+      // CURRENT TOTALS
+      //
+      // Not affected by date filter
+      // -----------------------------
+
+      overallTotals,
+
+      currentDebit: overallTotals.debit,
+
+      currentCredit: overallTotals.credit,
+
+      currentBalance,
+
+      // -----------------------------
+      // STATEMENT TOTALS
+      //
+      // Affected by date filter
+      // -----------------------------
+
+      statementTotals,
+
+      statementDebit: statementTotals.debit,
+
+      statementCredit: statementTotals.credit,
+
+      statementBalance,
+
+      // Useful aliases for print/export
+      filteredDebit: statementTotals.debit,
+
+      filteredCredit: statementTotals.credit,
+
+      filteredBalance: statementBalance,
+    };
+
+    // 13. SAVE FOR EXISTING PRINT SYSTEM
+    if (shouldPrint) {
+      setStatementData(preparedData);
+    }
+
+    return preparedData;
+  };
+
+  // Export professional account statement to Excel
+  const exportStatementToExcel = (values) => {
+    const preparedData = prepareStatement(values, false);
+
+    if (!preparedData) {
+      return;
+    }
+
+    const {
+      account,
+      accountHolder,
       currency,
       fromDate,
       toDate,
-
-      rows: statementRows,
-      transactions: sorted,
-
-      // TOP
-      overallTotals,
+      rows,
       currentBalance,
-
-      // BOTTOM
       statementTotals,
-      statementBalance,
+    } = preparedData;
+
+    // Company information
+    const companyName = myBrand?.companyName || "Money Services";
+
+    const companyEmail = myBrand?.email || "";
+
+    const companyMobile = myBrand?.mobile || "";
+
+    const companyAddress = myBrand?.address || "";
+
+    // Format date
+    const formatDate = (date) => {
+      if (!date) {
+        return "";
+      }
+
+      return dayjs(date).format("DD-MM-YYYY");
+    };
+
+    // Statement period
+    const statementPeriod =
+      fromDate || toDate
+        ? `${fromDate ? formatDate(fromDate) : "Beginning"} - ${
+            toDate ? formatDate(toDate) : "Present"
+          }`
+        : "All Dates";
+
+    // Format number
+    const amount = (value) => Number(value || 0);
+
+    // Transaction rows
+    const transactionRows = rows.map((row) => [
+      row.no,
+
+      row.date,
+
+      row.accountNo || "-",
+
+      row.description || "-",
+
+      row.credit === "" ? "" : amount(row.credit),
+
+      row.debit === "" ? "" : amount(row.debit),
+
+      amount(row.balance),
+    ]);
+
+    // Excel content
+    const worksheetData = [
+      // Company
+      [companyName],
+
+      [[companyEmail, companyMobile].filter(Boolean).join("  |  ")],
+
+      [companyAddress],
+
+      [],
+
+      // Report title
+      ["ACCOUNT STATEMENT"],
+
+      [],
+
+      // Account information
+      [
+        "Account No",
+        account || "All Accounts",
+        "",
+        "Currency",
+        currency || "-",
+        "",
+        "",
+      ],
+
+      [
+        "Account Holder",
+        accountHolder || "All Accounts",
+        "",
+        "Statement Period",
+        statementPeriod,
+        "",
+        "",
+      ],
+
+      [],
+
+      // Current balance
+      [
+        "CURRENT BALANCE",
+        "",
+        "",
+        "",
+        amount(currentBalance),
+        currency || "",
+        "",
+      ],
+
+      [],
+
+      // Table header
+      ["#", "Date", "Account No", "Description", "Credit", "Debit", "Balance"],
+
+      // Transactions
+      ...transactionRows,
+
+      // Empty row
+      [],
+
+      // Statement totals
+      [
+        "",
+        "",
+        "",
+        "STATEMENT TOTALS",
+        amount(statementTotals?.credit || 0),
+        amount(statementTotals?.debit || 0),
+        "",
+      ],
+
+      [],
+      ["Generated", dayjs().format("DD-MM-YYYY HH:mm")],
+
+      ["Powered by", companyName],
+    ];
+
+    // Create worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+    // Merge company header
+    worksheet["!merges"] = [
+      // Company name
+      {
+        s: { r: 0, c: 0 },
+        e: { r: 0, c: 6 },
+      },
+
+      // Contact
+      {
+        s: { r: 1, c: 0 },
+        e: { r: 1, c: 6 },
+      },
+
+      // Address
+      {
+        s: { r: 2, c: 0 },
+        e: { r: 2, c: 6 },
+      },
+
+      // Title
+      {
+        s: { r: 4, c: 0 },
+        e: { r: 4, c: 6 },
+      },
+
+      // Account information
+      {
+        s: { r: 6, c: 1 },
+        e: { r: 6, c: 2 },
+      },
+
+      {
+        s: { r: 6, c: 4 },
+        e: { r: 6, c: 6 },
+      },
+
+      {
+        s: { r: 7, c: 1 },
+        e: { r: 7, c: 2 },
+      },
+
+      {
+        s: { r: 7, c: 4 },
+        e: { r: 7, c: 6 },
+      },
+
+      // Current balance
+      {
+        s: { r: 9, c: 0 },
+        e: { r: 9, c: 3 },
+      },
+
+      {
+        s: { r: 9, c: 4 },
+        e: { r: 9, c: 6 },
+      },
+
+      // Generated footer
+      {
+        s: { r: worksheetData.length - 2, c: 1 },
+        e: { r: worksheetData.length - 2, c: 6 },
+      },
+
+      {
+        s: { r: worksheetData.length - 1, c: 1 },
+        e: { r: worksheetData.length - 1, c: 6 },
+      },
+    ];
+
+    // Professional column widths
+    worksheet["!cols"] = [
+      { wch: 7 },
+      { wch: 15 },
+      { wch: 16 },
+      { wch: 65 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+    ];
+
+    // Row heights
+    worksheet["!rows"] = [
+      { hpt: 30 }, // Company
+      { hpt: 20 }, // Contact
+      { hpt: 20 }, // Address
+      { hpt: 8 }, // Spacer
+      { hpt: 30 }, // Title
+      { hpt: 8 }, // Spacer
+      { hpt: 24 }, // Account info
+      { hpt: 24 }, // Holder info
+      { hpt: 8 }, // Spacer
+      { hpt: 30 }, // Current balance
+      { hpt: 8 }, // Spacer
+      { hpt: 28 }, // Table header
+    ];
+
+    // Number format for transaction rows
+    const transactionStartRow = 12;
+    const transactionEndRow = transactionStartRow + transactionRows.length - 1;
+
+    for (let row = transactionStartRow; row <= transactionEndRow; row++) {
+      // Credit
+      const creditCell = XLSX.utils.encode_cell({
+        r: row,
+        c: 4,
+      });
+
+      // Debit
+      const debitCell = XLSX.utils.encode_cell({
+        r: row,
+        c: 5,
+      });
+
+      // Balance
+      const balanceCell = XLSX.utils.encode_cell({
+        r: row,
+        c: 6,
+      });
+
+      if (worksheet[creditCell]) {
+        worksheet[creditCell].z = "#,##0.00";
+      }
+
+      if (worksheet[debitCell]) {
+        worksheet[debitCell].z = "#,##0.00";
+      }
+
+      if (worksheet[balanceCell]) {
+        worksheet[balanceCell].z = "#,##0.00";
+      }
+    }
+
+    // Current balance number format
+    if (worksheet["E10"]) {
+      worksheet["E10"].z = "#,##0.00";
+    }
+
+    // Statement totals number format
+    const totalsRow = transactionEndRow + 2;
+
+    const totalCreditCell = XLSX.utils.encode_cell({
+      r: totalsRow,
+      c: 4,
     });
 
-    return {
-      rows: statementRows,
-      transactions: sorted,
-      overallTotals,
-      currentBalance,
-      statementTotals,
-      statementBalance,
-    };
-  };
+    const totalDebitCell = XLSX.utils.encode_cell({
+      r: totalsRow,
+      c: 5,
+    });
 
+    if (worksheet[totalCreditCell]) {
+      worksheet[totalCreditCell].z = "#,##0.00";
+    }
+
+    if (worksheet[totalDebitCell]) {
+      worksheet[totalDebitCell].z = "#,##0.00";
+    }
+
+    // Freeze the transaction header
+    worksheet["!freeze"] = {
+      xSplit: 0,
+      ySplit: 12,
+    };
+
+    // Enable Excel filters on transactions
+    worksheet["!autofilter"] = {
+      ref: `A12:G${transactionEndRow + 1}`,
+    };
+
+    // Print settings
+    worksheet["!pageSetup"] = {
+      orientation: "landscape",
+      paperSize: 9,
+      fitToWidth: 1,
+      fitToHeight: 0,
+    };
+
+    // Page margins
+    worksheet["!margins"] = {
+      left: 0.3,
+      right: 0.3,
+      top: 0.5,
+      bottom: 0.5,
+      header: 0.2,
+      footer: 0.2,
+    };
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Workbook properties
+    workbook.Props = {
+      Title: "Account Statement",
+      Subject: "Customer Account Statement",
+      Author: companyName,
+      Company: companyName,
+      Category: "Financial Statement",
+      Keywords: "Account Statement, Transactions",
+    };
+
+    // Add worksheet
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Account Statement");
+
+    // Professional filename
+    const accountPart = account ? `Account-${account}` : "All-Accounts";
+
+    const currencyPart = currency || "All-Currencies";
+
+    const fileName = `${accountPart}-${currencyPart}-Statement-${dayjs().format(
+      "YYYY-MM-DD-HHmm",
+    )}.xlsx`;
+
+    // Export
+    XLSX.writeFile(workbook, fileName);
+  };
   //print transaction
   const printRecord = async (record) => {
     const { transactionId } = record;
@@ -449,42 +926,42 @@ const Transactions = () => {
     };
   }, [signatureImage]);
 
-useEffect(() => {
-  if (edit) return;
+  useEffect(() => {
+    if (edit) return;
 
-  if (selectedAccount) {
-    const customer = users.find(
-      (c) => String(c.accountNo) === String(selectedAccount),
-    );
+    if (selectedAccount) {
+      const customer = users.find(
+        (c) => String(c.accountNo) === String(selectedAccount),
+      );
 
-    if (customer) {
-      form.setFieldsValue({
-        fullname: customer.fullname,
-        accountNo: customer.accountNo,
-        currency: customer.currency,
-      });
-
-      setSelectedCurrency(customer.currency);
-
-      // ONLY EXCHANGE
-      if (transactionType === "exchange") {
-        setToAccount({
-          accountNo: customer.accountNo,
-          fullname: customer.fullname,
-        });
-
-        setSelectedToCurrency(customer.currency);
-
+      if (customer) {
         form.setFieldsValue({
-          to: customer.accountNo,
-          tocurrency: customer.currency,
+          fullname: customer.fullname,
+          accountNo: customer.accountNo,
+          currency: customer.currency,
         });
+
+        setSelectedCurrency(customer.currency);
+
+        // ONLY EXCHANGE
+        if (transactionType === "exchange") {
+          setToAccount({
+            accountNo: customer.accountNo,
+            fullname: customer.fullname,
+          });
+
+          setSelectedToCurrency(customer.currency);
+
+          form.setFieldsValue({
+            to: customer.accountNo,
+            tocurrency: customer.currency,
+          });
+        }
       }
+    } else {
+      form.resetFields(["fullname", "accountNo", "currency"]);
     }
-  } else {
-    form.resetFields(["fullname", "accountNo", "currency"]);
-  }
-}, [selectedAccount, transactionType, users, form, edit]);
+  }, [selectedAccount, transactionType, users, form, edit]);
 
   //account options
   const accountOptions = [
@@ -523,6 +1000,8 @@ useEffect(() => {
 
     return balances;
   };
+
+  // save customer
   const selectedCustomers = useMemo(() => {
     if (!selectedAccount) return [];
 
@@ -533,6 +1012,20 @@ useEffect(() => {
         balances: getBalancesByAccount(transactions, c.accountNo),
       }));
   }, [users, transactions, selectedAccount]);
+
+  // save currencyes and balance
+  const customerCurrencies = useMemo(() => {
+    if (!selectedAccount) return [];
+
+    const customer = selectedCustomers[0];
+
+    if (!customer?.balances) return [];
+
+    return Object.entries(customer.balances).map(([currency, balance]) => ({
+      currency,
+      balance: Number(balance) || 0,
+    }));
+  }, [selectedAccount, selectedCustomers]);
 
   //validate file
   const MAX_SIZE = 30 * 1024;
@@ -691,6 +1184,89 @@ useEffect(() => {
     try {
       const { _id, ...rest } = values;
 
+      // CUSTOMER CURRENCY / BALANCE VALIDATION
+      if (!validationConfirmed.current) {
+        const selectedCustomerCurrency = customerCurrencies.find(
+          (item) => item.currency === selectedCurrency,
+        );
+
+        // Currency does not exist for this customer
+        if (!selectedCustomerCurrency) {
+          Modal.confirm({
+            title: "Currency not found",
+            content: (
+              <div>
+                <p>
+                  This customer does not have a{" "}
+                  <strong>{selectedCurrency}</strong> balance.
+                </p>
+
+                <p>Do you want to continue anyway?</p>
+              </div>
+            ),
+            okText: "Yes, Continue",
+            cancelText: "No",
+
+            onOk: () => {
+              validationConfirmed.current = true;
+              form.submit();
+            },
+          });
+
+          return;
+        }
+
+        // Amount exceeds customer's balance
+        if (Number(rest.amount) > Number(selectedCustomerCurrency.balance)) {
+          Modal.confirm({
+            title: "Insufficient Balance",
+            content: (
+              <div>
+                <p>
+                  Customer's <strong>{selectedCurrency}</strong> balance is{" "}
+                  <strong>
+                    {Number(selectedCustomerCurrency.balance).toLocaleString(
+                      undefined,
+                      {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      },
+                    )}
+                  </strong>
+                  .
+                </p>
+
+                <p>
+                  Transaction amount is{" "}
+                  <strong>
+                    {Number(rest.amount).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </strong>
+                  .
+                </p>
+
+                <p>
+                  The amount exceeds the customer's balance.
+                  <br />
+                  Do you want to continue anyway?
+                </p>
+              </div>
+            ),
+            okText: "Yes, Continue",
+            cancelText: "No",
+
+            onOk: () => {
+              validationConfirmed.current = true;
+              form.submit();
+            },
+          });
+
+          return;
+        }
+      }
+
       const commissionData = {
         fullname: rest.fullname,
         user: myUser,
@@ -724,7 +1300,7 @@ useEffect(() => {
         if (signatureImage) fd.append("signature", signatureImage);
 
         // Append exchangeRate ONLY ONCE
-        fd.append("exchangeRate", selectedCurrency === "USD" ? 1 : rate || 0);
+        fd.append("exchangeRate", rate || 1);
 
         fd.append("isPass", "false");
 
@@ -741,7 +1317,6 @@ useEffect(() => {
 
         await http().post("/api/transaction/create", formData);
       }
-
       //  TRANSFER → CREATE TWO ENTRIES
       if (
         (transactionType === "transfer" || transactionType === "exchange") &&
@@ -750,28 +1325,40 @@ useEffect(() => {
         const originalAmount = Number(rest.amount);
         const convertedAmount = Number(rest.finalAmount);
 
-        //  Debit (sender → original amount)
+        const details =
+          rest.details?.trim() ||
+          (transactionType === "exchange"
+            ? `${selectedCurrency} ${originalAmount} exchange from ${rest.fullname} to ${toAccount.fullname} at exchange rate ${rest.exchangeRate}`
+            : `${selectedCurrency} ${originalAmount} transfer from ${rest.fullname} to ${toAccount.fullname}`);
+
+        // Debit
         const debitData = buildFormData({
           ...rest,
           user: myUser,
           branch: myBranch,
           transactionType: "debit",
+          transaction: transactionType,
           amount: originalAmount,
           finalAmount: convertedAmount,
           currency: selectedCurrency,
+          toFullname: toAccount.fullname,
+          details,
         });
 
-        // Credit (receiver → converted amount)
+        // Credit
         const creditData = buildFormData({
           ...rest,
           user: myUser,
           branch: myBranch,
           accountNo: toAccount.accountNo,
-          fullname: toAccount?.fullname,
+          fullname: toAccount.fullname,
+          toFullname: toAccount.fullname,
           currency: selectedToCurrency,
           transactionType: "credit",
+          transaction: transactionType,
           amount: convertedAmount,
           finalAmount: convertedAmount,
+          details,
         });
 
         await http().post("/api/transaction/create", debitData);
@@ -785,7 +1372,8 @@ useEffect(() => {
 
       toast.success("Transaction created successfully!");
       form.resetFields();
-
+      setRate(1);
+      validationConfirmed.current = false;
       // Get the next transaction ID
       await loadTransactionId();
       setCapturedImage(null);
@@ -1036,6 +1624,559 @@ useEffect(() => {
 
     return filtered;
   };
+
+  // TRANSACTION HISTORY - GET CURRENT FILTERED DATA
+  const getHistoryData = (tabKey = activeHistoryTab) => {
+    let source = [];
+
+    if (tabKey === "1") {
+      source = datasource || [];
+    } else if (tabKey === "2") {
+      source = datasourceTransfer || [];
+    } else if (tabKey === "3") {
+      source = datasourceExchange || [];
+    }
+
+    return filterData(source);
+  };
+
+  // PRINT TRANSACTION HISTORY
+  const printTransactionHistory = () => {
+    const rows = getHistoryData();
+
+    if (!rows.length) {
+      message.warning("No transactions found to print.");
+      return;
+    }
+
+    const tabNames = {
+      1: "Transactions",
+      2: "Transfers",
+      3: "Exchanges",
+    };
+
+    const reportType = tabNames[activeHistoryTab] || "Transactions";
+
+    const companyName = myBrand?.companyName || "Money Services";
+
+    const companyAddress = myBrand?.address || "";
+
+    const companyMobile = myBrand?.mobile || "";
+
+    const companyEmail = myBrand?.email || "";
+
+    const formatAmount = (value) =>
+      Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+    const rowsHTML = rows
+      .map(
+        (record, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${record.accountNo || "-"}</td>
+          <td>
+            ${
+              record.createdAt
+                ? dayjs(record.createdAt).format("DD-MM-YYYY")
+                : "-"
+            }
+          </td>
+          <td>${record.fullname || "-"}</td>
+          <td>${record.transactionId || "-"}</td>
+          <td>${record.transactionNo || "-"}</td>
+          <td>${record.details || "-"}</td>
+          <td>${record.transactionType || "-"}</td>
+          <td>${record.exchangeRate || "-"}</td>
+          <td>${record.currency || "-"}</td>
+          <td class="amount">
+            ${formatAmount(record.amount)}
+          </td>
+        </tr>
+      `,
+      )
+      .join("");
+
+    const totalCredit = rows.reduce(
+      (sum, row) =>
+        row.transactionType === "credit" ? sum + Number(row.amount || 0) : sum,
+      0,
+    );
+
+    const totalDebit = rows.reduce(
+      (sum, row) =>
+        row.transactionType === "debit" ? sum + Number(row.amount || 0) : sum,
+      0,
+    );
+
+    const printWindow = window.open("", "_blank", "width=1400,height=900");
+
+    if (!printWindow) {
+      message.error("Please allow pop-ups to print the transaction history.");
+      return;
+    }
+
+    printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${reportType} - Transaction History</title>
+
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 25px;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #1e293b;
+            background: white;
+          }
+
+          .container {
+            width: 100%;
+          }
+
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 18px;
+            margin-bottom: 20px;
+          }
+
+          .company {
+            font-size: 24px;
+            font-weight: bold;
+            color: #113b8a;
+            margin-bottom: 8px;
+          }
+
+          .contact {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.6;
+          }
+
+          .title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 15px;
+            color: #0f172a;
+          }
+
+          .period {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 5px;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 10px;
+          }
+
+          th {
+            background: #1e3a8a;
+            color: white;
+            padding: 8px 6px;
+            border: 1px solid #cbd5e1;
+            text-align: left;
+            white-space: nowrap;
+          }
+
+          td {
+            padding: 7px 6px;
+            border: 1px solid #cbd5e1;
+            vertical-align: top;
+          }
+
+          tr:nth-child(even) {
+            background: #f8fafc;
+          }
+
+          .amount {
+            text-align: right;
+            font-weight: 600;
+          }
+
+          .totals {
+            margin-top: 18px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 25px;
+          }
+
+          .total-box {
+            border: 1px solid #cbd5e1;
+            padding: 10px 18px;
+            min-width: 150px;
+          }
+
+          .label {
+            font-size: 10px;
+            color: #64748b;
+          }
+
+          .value {
+            display: block;
+            margin-top: 4px;
+            font-size: 15px;
+            font-weight: bold;
+          }
+
+          .footer {
+            margin-top: 25px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            font-size: 10px;
+            color: #94a3b8;
+          }
+
+          @media print {
+            body {
+              padding: 10px;
+            }
+
+            @page {
+              size: landscape;
+              margin: 10mm;
+            }
+
+            thead {
+              display: table-header-group;
+            }
+
+            tr {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="container">
+
+          <div class="header">
+            <div class="company">
+              ${companyName}
+            </div>
+
+            <div class="contact">
+              ${companyAddress || ""}
+              ${companyMobile ? ` | ${companyMobile}` : ""}
+              ${companyEmail ? ` | ${companyEmail}` : ""}
+            </div>
+
+            <div class="title">
+              ${reportType} Transaction History
+            </div>
+
+            <div class="period">
+              ${
+                fromDate || toDate
+                  ? `${fromDate ? dayjs(fromDate).format("DD-MM-YYYY") : "Beginning"}
+                     - 
+                     ${toDate ? dayjs(toDate).format("DD-MM-YYYY") : "Present"}`
+                  : "All Dates"
+              }
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Account No</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Transaction ID</th>
+                <th>Transaction No</th>
+                <th>Details</th>
+                <th>Type</th>
+                <th>Ex-Rate</th>
+                <th>Currency</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${rowsHTML}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Generated on ${dayjs().format("DD-MM-YYYY HH:mm")}
+            | ${rows.length} record(s)
+          </div>
+
+        </div>
+
+        <script>
+          window.onload = function () {
+            window.focus();
+            window.print();
+          };
+        </script>
+
+      </body>
+    </html>
+  `);
+
+    printWindow.document.close();
+  };
+
+  // EXPORT TRANSACTION HISTORY TO EXCEL
+  const exportTransactionHistoryToExcel = () => {
+    const rows = getHistoryData();
+
+    if (!rows.length) {
+      message.warning("No transactions found to export.");
+      return;
+    }
+
+    const tabNames = {
+      1: "Transactions",
+      2: "Transfers",
+      3: "Exchanges",
+    };
+
+    const reportType = tabNames[activeHistoryTab] || "Transactions";
+
+    const companyName = myBrand?.companyName || "Money Services";
+
+    const companyAddress = myBrand?.address || "";
+
+    const companyMobile = myBrand?.mobile || "";
+
+    const companyEmail = myBrand?.email || "";
+
+    const worksheetData = [
+      [companyName],
+
+      [[companyEmail, companyMobile].filter(Boolean).join(" | ")],
+
+      [companyAddress],
+
+      [],
+
+      [`${reportType.toUpperCase()} TRANSACTION HISTORY`],
+
+      [],
+
+      [
+        "Report Type",
+        reportType,
+        "",
+        "From",
+        fromDate ? dayjs(fromDate).format("DD-MM-YYYY") : "Beginning",
+        "",
+        "To",
+        toDate ? dayjs(toDate).format("DD-MM-YYYY") : "Present",
+      ],
+
+      [],
+
+      [
+        "#",
+        "Account No",
+        "Date",
+        "Customer",
+        "Transaction ID",
+        "Transaction No",
+        "Transfer No",
+        "Details",
+        "Transaction Type",
+        "Exchange Rate",
+        "Currency",
+        "Amount",
+        "Status",
+      ],
+
+      ...rows.map((record, index) => [
+        index + 1,
+
+        record.accountNo || "-",
+
+        record.createdAt ? dayjs(record.createdAt).format("DD-MM-YYYY") : "-",
+
+        record.fullname || "-",
+
+        record.transactionId || "-",
+
+        record.transactionNo || "-",
+
+        record.transferNo || "-",
+
+        record.details || "-",
+
+        record.transactionType || "-",
+
+        Number(record.exchangeRate || 0),
+
+        record.currency || "-",
+
+        Number(record.amount || 0),
+
+        record.isPass === "true" ? "Passed" : "Pending",
+      ]),
+
+      [],
+
+      ["", "", "", "", "", "", "", "TOTAL RECORDS", rows.length],
+
+      [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TOTAL CREDIT",
+        rows
+          .filter((r) => r.transactionType === "credit")
+          .reduce((sum, r) => sum + Number(r.amount || 0), 0),
+      ],
+
+      [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TOTAL DEBIT",
+        rows
+          .filter((r) => r.transactionType === "debit")
+          .reduce((sum, r) => sum + Number(r.amount || 0), 0),
+      ],
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+    // Merge company header
+    worksheet["!merges"] = [
+      {
+        s: { r: 0, c: 0 },
+        e: { r: 0, c: 12 },
+      },
+      {
+        s: { r: 1, c: 0 },
+        e: { r: 1, c: 12 },
+      },
+      {
+        s: { r: 2, c: 0 },
+        e: { r: 2, c: 12 },
+      },
+      {
+        s: { r: 4, c: 0 },
+        e: { r: 4, c: 12 },
+      },
+    ];
+
+    // Column widths
+    worksheet["!cols"] = [
+      { wch: 7 },
+      { wch: 15 },
+      { wch: 14 },
+      { wch: 25 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 50 },
+      { wch: 18 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 18 },
+      { wch: 12 },
+    ];
+
+    // Freeze transaction header
+    worksheet["!freeze"] = {
+      xSplit: 0,
+      ySplit: 9,
+    };
+
+    // Excel filter
+    worksheet["!autofilter"] = {
+      ref: `A9:M${9 + rows.length}`,
+    };
+
+    // Number formatting
+    const transactionStartRow = 9;
+
+    rows.forEach((_, index) => {
+      const rowNumber = transactionStartRow + index;
+
+      const amountCell = XLSX.utils.encode_cell({
+        r: rowNumber,
+        c: 11,
+      });
+
+      const exchangeCell = XLSX.utils.encode_cell({
+        r: rowNumber,
+        c: 9,
+      });
+
+      if (worksheet[amountCell]) {
+        worksheet[amountCell].z = "#,##0.00";
+      }
+
+      if (worksheet[exchangeCell]) {
+        worksheet[exchangeCell].z = "#,##0.0000";
+      }
+    });
+
+    // Page setup
+    worksheet["!pageSetup"] = {
+      orientation: "landscape",
+      paperSize: 9,
+      fitToWidth: 1,
+      fitToHeight: 0,
+    };
+
+    worksheet["!margins"] = {
+      left: 0.3,
+      right: 0.3,
+      top: 0.5,
+      bottom: 0.5,
+      header: 0.2,
+      footer: 0.2,
+    };
+
+    const workbook = XLSX.utils.book_new();
+
+    workbook.Props = {
+      Title: `${reportType} Transaction History`,
+      Subject: "Transaction History",
+      Author: companyName,
+      Company: companyName,
+      Category: "Transactions",
+    };
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      reportType.substring(0, 31),
+    );
+
+    const fileName = `${reportType}_Transaction_History_${dayjs().format(
+      "YYYY-MM-DD_HH-mm",
+    )}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
+
+    message.success(`${reportType} transaction history exported successfully.`);
+  };
+
   // color for currencies
   const getCurrencyColor = (currency) => {
     const colors = [
@@ -1065,7 +2206,7 @@ useEffect(() => {
       key: "serial",
       width: 80,
       align: "center",
-      render: (_, __, index) => index + 1,
+      render: (_, __, index) => (historyPage - 1) * 10 + index + 1,
     },
     {
       title: "AccountNo",
@@ -1091,22 +2232,26 @@ useEffect(() => {
       ellipsis: true,
       render: (v) => v || "—",
     },
-  {
-  title: "Tr-Type",
-  dataIndex: "transactionType",
-  width: 90,
-  render: (value) => {
-    if (!value) return "—";
+    {
+      title: "Tr-Type",
+      dataIndex: "transactionType",
+      width: 90,
+      render: (value) => {
+        if (!value) return "—";
 
-    const type = value.toLowerCase();
+        const type = value.toLowerCase();
 
-    return (
-      <Tag color={type === "credit" ? "green" : type === "debit" ? "red" : "default"}>
-        {value}
-      </Tag>
-    );
-  },
-},
+        return (
+          <Tag
+            color={
+              type === "credit" ? "green" : type === "debit" ? "red" : "default"
+            }
+          >
+            {value}
+          </Tag>
+        );
+      },
+    },
     {
       title: "Ex-Rate",
       dataIndex: "exchangeRate",
@@ -1171,28 +2316,40 @@ useEffect(() => {
       },
     },
 
-    // Actions (fixed right)
     {
-      title: "Print",
-      key: "print",
+      title: "Print/Send",
+      key: "actions",
       fixed: "right",
-      width: 20,
-      height: 20,
+      width: 70,
       render: (_, record) => {
         const data = datasourceTransfer?.length
           ? datasourceTransfer
           : datasourceExchange;
 
         const disabled = shouldDisable(record, data);
+
         return (
-          <PrinterOutlined
-            onClick={() => printRecord(record)}
-            className={`!text-xl  rounded ${
-              disabled
-                ? "!text-gray-300 !cursor-not-allowed"
-                : "!text-purple-600 !cursor-pointer"
-            }`}
-          />
+          <Space size={15}>
+            {/* Print */}
+            <PrinterOutlined
+              onClick={() => !disabled && printRecord(record)}
+              className={`!text-lg ${
+                disabled
+                  ? "!text-gray-300 !cursor-not-allowed"
+                  : "!text-purple-600 !cursor-pointer"
+              }`}
+            />
+
+            {/* WhatsApp */}
+            <MessageOutlined
+              onClick={() => !disabled && sendToWhatsApp(record)}
+              className={`!text-lg ${
+                disabled
+                  ? "!text-gray-300 !cursor-not-allowed"
+                  : "!text-green-600 !cursor-pointer"
+              }`}
+            />
+          </Space>
         );
       },
     },
@@ -1308,33 +2465,6 @@ useEffect(() => {
     return sameGroup.length === 2 && record.transactionType === "credit";
   };
 
-  // for transfer and exchange color management
-  const buildGroupMap = (data) => {
-    const map = {};
-    let index = 0;
-
-    data.forEach((item) => {
-      const key = item.transactionId?.toString();
-      if (!(key in map)) map[key] = index++;
-    });
-
-    return map;
-  };
-  const transferGroupMap = buildGroupMap(datasourceTransfer || []);
-  const exchangeGroupMap = buildGroupMap(datasourceExchange || []);
-
-  // customer search system
-  const [customerSearch, setCustomerSearch] = useState("");
-  const filteredOptions = accountOptions.filter((option) =>
-    option.label.toLowerCase().includes(customerSearch.toLowerCase()),
-  );
-
-  const fieldStyle = {
-    flex: "1 1 180px",
-    minWidth: 180,
-    maxWidth: "100%",
-  };
-
   // reset fields
   const resetFields = () => {
     form.resetFields();
@@ -1358,6 +2488,270 @@ useEffect(() => {
     setComissionCurrency("");
 
     setEditTag("");
+  };
+
+  // send to Whatsapp
+  const sendToWhatsApp = (record) => {
+    const customer = users.find(
+      (user) => String(user.accountNo) === String(record.accountNo),
+    );
+
+    if (!customer?.mobile) {
+      toast.error("Customer mobile number not found!");
+      return;
+    }
+
+    // Remove spaces, brackets, dashes, etc.
+    let phone = String(customer.mobile).replace(/\D/g, "");
+
+    // If your database stores US numbers as 10 digits
+    if (phone.length === 10) {
+      phone = `1${phone}`;
+    }
+
+    const message = `
+Transaction Receipt
+
+Customer: ${record.fullname || customer.fullname}
+Account No: ${record.accountNo}
+Transaction No: ${record.transactionNo || "-"}
+Transaction ID: ${record.transactionId || "-"}
+Date: ${record.createdAt ? dayjs(record.createdAt).format("DD-MM-YYYY HH:mm") : "-"}
+
+Transaction: ${record.transaction || "-"}
+Type: ${record.transactionType || "-"}
+Currency: ${record.currency || "-"}
+Amount: ${Number(record.amount || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}
+
+Details: ${record.details || "-"}
+`;
+
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(
+      message,
+    )}`;
+
+    window.open(whatsappUrl, "_blank");
+  };
+
+  // value validation
+  const handleAmountChange = (value) => {
+    setAmount(value);
+
+    // Credit and Debit → always allow
+    if (!["transfer", "exchange"].includes(transactionType)) {
+      return;
+    }
+
+    // Empty amount
+    if (value === null || value === undefined || value === "") {
+      return;
+    }
+
+    const customerCurrency = customerCurrencies.find(
+      (item) => item.currency === selectedCurrency,
+    );
+
+    // No currency/balance record → let the currency validation handle it
+    if (!customerCurrency) {
+      return;
+    }
+
+    const availableBalance = Number(customerCurrency.balance || 0);
+    const enteredAmount = Number(value);
+
+    // Amount is within available balance
+    if (enteredAmount <= availableBalance) {
+      return;
+    }
+
+    // =========================
+    // EXCHANGE → BLOCK
+    // =========================
+    if (transactionType === "exchange") {
+      Modal.error({
+        title: "Insufficient Balance",
+        content: (
+          <div className="py-2">
+            <p className="text-sm text-slate-600">
+              The exchange amount exceeds the customer's available balance.
+            </p>
+
+            <div className="mt-3 rounded-md bg-slate-50 p-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Available Balance</span>
+
+                <strong>
+                  {availableBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  {selectedCurrency}
+                </strong>
+              </div>
+
+              <div className="mt-1 flex justify-between text-sm">
+                <span className="text-slate-500">Requested Amount</span>
+
+                <strong className="text-red-600">
+                  {enteredAmount.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  {selectedCurrency}
+                </strong>
+              </div>
+            </div>
+
+            <p className="mt-3 mb-0 font-medium text-red-600">
+              Exchange cannot be completed.
+            </p>
+          </div>
+        ),
+        okText: "OK",
+      });
+
+      setAmount(null);
+
+      form.setFieldsValue({
+        amount: null,
+      });
+
+      return;
+    }
+
+    // =========================
+    // TRANSFER → CONFIRM
+    // =========================
+    if (transactionType === "transfer") {
+      Modal.confirm({
+        title: "Insufficient Balance",
+        content: (
+          <div className="py-2">
+            <p className="text-sm text-slate-600">
+              The transfer amount exceeds the customer's available balance.
+            </p>
+
+            <div className="mt-3 rounded-md bg-slate-50 p-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Available Balance</span>
+
+                <strong>
+                  {availableBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  {selectedCurrency}
+                </strong>
+              </div>
+
+              <div className="mt-1 flex justify-between text-sm">
+                <span className="text-slate-500">Transfer Amount</span>
+
+                <strong className="text-red-600">
+                  {enteredAmount.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  {selectedCurrency}
+                </strong>
+              </div>
+            </div>
+
+            <p className="mt-3 mb-0 text-sm text-slate-500">
+              Do you want to continue with this transfer?
+            </p>
+          </div>
+        ),
+        width: 400,
+        okText: "Continue",
+        cancelText: "Cancel",
+
+        onOk: () => {
+          setAmount(enteredAmount);
+
+          form.setFieldsValue({
+            amount: enteredAmount,
+          });
+        },
+
+        onCancel: () => {
+          setAmount(null);
+
+          form.setFieldsValue({
+            amount: null,
+          });
+        },
+      });
+    }
+  };
+
+  // Curency Validation
+  const handleCurrencyChange = (val) => {
+    // Customer has NO currencies at all
+    // → allow currency selection without alert
+    if (!customerCurrencies || customerCurrencies.length === 0) {
+      setSelectedCurrency(val);
+
+      form.setFieldsValue({
+        currency: val,
+      });
+
+      return;
+    }
+
+    // Customer has currencies → check whether selected currency exists
+    const customerCurrency = customerCurrencies.find(
+      (item) => item.currency === val,
+    );
+
+    // Selected currency is available
+    if (customerCurrency) {
+      setSelectedCurrency(val);
+
+      form.setFieldsValue({
+        currency: val,
+      });
+
+      return;
+    }
+
+    // Customer has currencies, but NOT the selected currency
+    Modal.confirm({
+      title: "Currency Not Available",
+      content: (
+        <div className="py-2">
+          <p className="m-0 text-sm text-slate-600">
+            This customer does not have a balance in{" "}
+            <strong className="text-slate-800">{val}</strong>.
+          </p>
+
+          <p className="mt-2 mb-0 text-sm text-slate-500">
+            Do you want to continue anyway?
+          </p>
+        </div>
+      ),
+      width: 380,
+      okText: "Continue",
+      cancelText: "Cancel",
+
+      onOk: () => {
+        setSelectedCurrency(val);
+
+        form.setFieldsValue({
+          currency: val,
+        });
+      },
+
+      onCancel: () => {
+        // Restore previous currency
+        form.setFieldsValue({
+          currency: selectedCurrency || undefined,
+        });
+      },
+    });
   };
   return (
     <HomeLayout>
@@ -1387,25 +2781,19 @@ useEffect(() => {
               <div className="flex items-start gap-3">
                 <div className="flex-1">
                   <Select
-                    showSearch
+                    allowClear
                     placeholder="🔍 Search customer..."
-                    options={filteredOptions}
+                    options={accountOptions}
                     className="w-full"
-                    searchValue={customerSearch}
-                    onSearch={setCustomerSearch}
-                    filterOption={false}
-                    onChange={(value) => setSelectedAccount(value)}
+                    value={selectedAccount ?? undefined}
+                    showSearch={{
+                      optionFilterProp: "label",
+                    }}
+                    onChange={(value) => {
+                      setSelectedAccount(value ?? null);
+                    }}
                   />
                 </div>
-
-                {customerSearch && filteredOptions.length === 0 && (
-                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 whitespace-nowrap">
-                    <span className="text-sm font-medium text-red-700">
-                      ❌ No customer found for "
-                      <strong>{customerSearch}</strong>"
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1599,7 +2987,6 @@ useEffect(() => {
                       className="!w-full !rounded-sm"
                     />
                   </Form.Item>
-            
 
                   {/* Transaction */}
                   <Form.Item
@@ -1658,7 +3045,7 @@ useEffect(() => {
                       <Option value="exchange">Exchange</Option>
                     </Select>
                   </Form.Item>
-                        {/* currency */}
+                  {/* currency */}
                   <Form.Item
                     name="currency"
                     label={
@@ -1666,14 +3053,17 @@ useEffect(() => {
                         Currency
                       </span>
                     }
-                    rules={[{ required: true, message: "Select currency" }]}
+                    rules={[
+                      {
+                        required: true,
+                        message: "Select currency",
+                      },
+                    ]}
                     className="xl:col-span-1"
                   >
                     <Select
                       placeholder="Currency"
-                      onChange={(val) => {
-                        setSelectedCurrency(val);
-                      }}
+                      onChange={handleCurrencyChange}
                       className="!rounded-sm"
                     >
                       {currencies.map((c) => (
@@ -1683,6 +3073,7 @@ useEffect(() => {
                       ))}
                     </Select>
                   </Form.Item>
+
                   {/* Amount */}
                   <Form.Item
                     name="amount"
@@ -1697,7 +3088,7 @@ useEffect(() => {
                     <InputNumber
                       placeholder="Amount"
                       className="!w-full !rounded-sm !font-semibold"
-                      onChange={(value) => setAmount(value)}
+                      onChange={handleAmountChange}
                     />
                   </Form.Item>
 
@@ -2054,18 +3445,49 @@ useEffect(() => {
               <Button
                 onClick={() => setShowIsPassed(!showIsPassed)}
                 className={`!border-0 !text-white
-      ${
-        showIsPassed
-          ? "!bg-gradient-to-r !from-indigo-600 !to-violet-600"
-          : "!bg-gradient-to-r !from-blue-600 !to-cyan-600"
-      }`}
+                  ${
+                    showIsPassed
+                      ? "!bg-gradient-to-r !from-indigo-600 !to-violet-600"
+                      : "!bg-gradient-to-r !from-blue-600 !to-cyan-600"
+                  }`}
               >
                 {showIsPassed ? "Passed" : "Pending"}
+              </Button>
+              <Button
+                icon={<PrinterOutlined />}
+                onClick={printTransactionHistory}
+                className="
+                  !border-blue-300
+                  !text-blue-700
+                  hover:!border-blue-500
+                  hover:!bg-blue-50
+                  hover:!text-blue-800
+                "
+              >
+                Print
+              </Button>
+
+              <Button
+                icon={<FileTextOutlined />}
+                onClick={exportTransactionHistoryToExcel}
+                className="
+                  !border-emerald-300
+                  !text-emerald-700
+                  hover:!border-emerald-500
+                  hover:!bg-emerald-50
+                  hover:!text-emerald-800
+                "
+              >
+                Excel
               </Button>
             </div>
           </div>
           <Tabs
-            defaultActiveKey="1"
+            activeKey={activeHistoryTab}
+            onChange={(key) => {
+              setActiveHistoryTab(key);
+              setHistoryPage(1);
+            }}
             size="small"
             animated
             tabBarGutter={2}
@@ -2110,9 +3532,11 @@ useEffect(() => {
                         ),
                       }}
                       pagination={{
+                        current: historyPage,
                         pageSize: 10,
                         size: "small",
                         showSizeChanger: false,
+                        onChange: (page) => setHistoryPage(page),
                       }}
                       scroll={{ x: "max-content" }}
                     />
@@ -2158,9 +3582,11 @@ useEffect(() => {
                         ),
                       }}
                       pagination={{
+                        current: historyPage,
                         pageSize: 10,
                         size: "small",
                         showSizeChanger: false,
+                        onChange: (page) => setHistoryPage(page),
                       }}
                       scroll={{ x: "max-content" }}
                     />
@@ -2206,9 +3632,11 @@ useEffect(() => {
                         ),
                       }}
                       pagination={{
+                        current: historyPage,
                         pageSize: 10,
                         size: "small",
                         showSizeChanger: false,
+                        onChange: (page) => setHistoryPage(page),
                       }}
                       scroll={{ x: "max-content" }}
                     />
@@ -2225,72 +3653,212 @@ useEffect(() => {
         open={open}
         onCancel={() => setOpen(false)}
         footer={null}
-        title="Select your account to get Statement"
+        centered
+        width={560}
+        destroyOnClose={false}
+        closeIcon={
+          <span className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+            ×
+          </span>
+        }
         styles={{
-          content: { borderRadius: 0 },
+          content: {
+            padding: 0,
+            overflow: "hidden",
+            borderRadius: 16,
+            boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)",
+          },
+          body: {
+            padding: 0,
+          },
         }}
       >
-        <Form layout="vertical" onFinish={prepareStatement}>
-          {/* ACCOUNT */}
+        <div className="bg-white">
+          {/* Header */}
+          <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+            <div className="flex items-center gap-4">
+              {/* Icon */}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 shadow-sm">
+                <FileTextOutlined className="text-lg text-white" />
+              </div>
 
-          <Form.Item
-            name="account"
-            label="Account"
-            rules={[{ required: true }]}
-          >
-            <Select
-              showSearch
-              options={accountOptions}
-              placeholder="Select Account"
-              onChange={(value, option) => {
-                setStAcc(value);
-                setStName(option.fullname);
-              }}
-              filterOption={(input, option) =>
-                option?.label?.toLowerCase().includes(input.toLowerCase())
-              }
-            />
-          </Form.Item>
+              {/* Title */}
+              <div>
+                <h2 className="m-0 text-lg font-semibold text-slate-800">
+                  Account Statement
+                </h2>
 
-          {/* CURRENCY */}
-          <Form.Item name="currency" label="Currency">
-            <Select placeholder="Select Currency" allowClear>
-              {filteredCurrencies.map((cur) => (
-                <Select.Option key={cur} value={cur}>
-                  {cur}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          {/* DATE RANGE */}
-          <div className="flex gap-3">
-            <Form.Item name="fromDate" label="From Date">
-              <DatePicker />
-            </Form.Item>
-
-            <Form.Item name="toDate" label="To Date">
-              <DatePicker />
-            </Form.Item>
+                <p className="mt-1 text-xs text-slate-500">
+                  Generate, print, or export a customer transaction statement
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* BUTTON */}
-          <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              icon={<PrinterOutlined />}
-              className="w-full"
+          {/* Form */}
+          <div className="px-6 py-5">
+            <Form
+              form={statementForm}
+              layout="vertical"
+              onFinish={prepareStatement}
             >
-              Print Statement
-            </Button>
-          </Form.Item>
-          {stAcc && (!resultText || resultText.length === 0) && (
-            <div style={{ textAlign: "center", marginTop: 10 }}>
-              <Tag color="red">No Data Found</Tag>
-            </div>
-          )}
-        </Form>
+              {/* Account */}
+              <Form.Item
+                name="account"
+                label={
+                  <span className="text-sm font-medium text-slate-700">
+                    Account
+                  </span>
+                }
+                className="!mb-4"
+              >
+                <Select
+                  showSearch
+                  allowClear
+                  size="large"
+                  options={accountOptions}
+                  placeholder="Select account"
+                  onChange={(value, option) => {
+                    setStAcc(value);
+                    setStName(option?.fullname || "");
+                  }}
+                  filterOption={(input, option) =>
+                    option?.label?.toLowerCase().includes(input.toLowerCase())
+                  }
+                  className="statement-select"
+                />
+              </Form.Item>
+
+              {/* Currency */}
+              <Form.Item
+                name="currency"
+                label={
+                  <span className="text-sm font-medium text-slate-700">
+                    Currency
+                  </span>
+                }
+                className="!mb-4"
+              >
+                <Select allowClear size="large" placeholder="Select currency">
+                  {filteredCurrencies.map((cur) => (
+                    <Select.Option key={cur} value={cur}>
+                      {cur}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              {/* Date Range */}
+              <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <CalendarOutlined className="text-blue-600" />
+
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Date Range
+                  </span>
+
+                  <span className="text-[11px] text-slate-400">Optional</span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Form.Item
+                    name="fromDate"
+                    label={
+                      <span className="text-xs font-medium text-slate-600">
+                        From Date
+                      </span>
+                    }
+                    className="!mb-0"
+                  >
+                    <DatePicker
+                      size="large"
+                      format="DD-MM-YYYY"
+                      placeholder="Start date"
+                      className="!w-full"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="toDate"
+                    label={
+                      <span className="text-xs font-medium text-slate-600">
+                        To Date
+                      </span>
+                    }
+                    className="!mb-0"
+                  >
+                    <DatePicker
+                      size="large"
+                      format="DD-MM-YYYY"
+                      placeholder="End date"
+                      className="!w-full"
+                    />
+                  </Form.Item>
+                </div>
+              </div>
+
+              {statementChecked && resultText && (
+                <div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-center">
+                  <span className="text-sm font-medium text-red-600">
+                    No transactions found for the selected filters.
+                  </span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Print */}
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  icon={<PrinterOutlined />}
+                  size="large"
+                  className="
+                    !h-11
+                    !rounded-lg
+                    !border-0
+                    !bg-blue-600
+                    !font-medium
+                    !shadow-sm
+                    hover:!bg-blue-700
+                  "
+                >
+                  Print Statement
+                </Button>
+
+                {/* Excel */}
+                <Button
+                  type="default"
+                  icon={<FileTextOutlined />}
+                  size="large"
+                  onClick={() => {
+                    const values = statementForm.getFieldsValue();
+                    exportStatementToExcel(values);
+                  }}
+                  className="
+                      !h-11
+                      !rounded-lg
+                      !border-emerald-300
+                      !font-medium
+                      !text-emerald-700
+                      hover:!border-emerald-500
+                      hover:!bg-emerald-50
+                      hover:!text-emerald-800
+                    "
+                >
+                  Export to Excel
+                </Button>
+              </div>
+
+              {/* Footer hint */}
+              <div className="mt-5 border-t border-slate-100 pt-4 text-center">
+                <span className="text-[11px] text-slate-400">
+                  Select an account or currency to generate the statement
+                </span>
+              </div>
+            </Form>
+          </div>
+        </div>
       </Modal>
 
       {/* Image and Signature Modal */}
@@ -2448,11 +4016,16 @@ useEffect(() => {
 
       {/* Statement ref */}
       <div className="hidden">
+        <img
+          src={logo}
+          alt="test logo"
+          style={{ width: "100px", height: "100px", objectFit: "contain" }}
+        />
         {statementData && (
-          <div ref={statementRef}>
+          <div ref={statementRef} className="statement-print-root">
             <AccountStatement
-              logo={myLogo}
-              brand={myBrand?.data?.[0]}
+              logo={logo}
+              brand={myBrand}
               branch={statementData.branch}
               account={statementData.account}
               accountHolder={statementData.accountHolder}
@@ -2474,8 +4047,8 @@ useEffect(() => {
         <div ref={receiptRef}>
           {receiptData && (
             <TransactionReceipt
-              logo={myLogo}
-              brand={myBrand?.data?.[0]}
+              logo={logo}
+              brand={myBrand}
               branch={myBranch}
               transaction={receiptData.transaction}
               exchangeRate={receiptData.transaction?.exchangeRate}

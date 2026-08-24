@@ -21,19 +21,12 @@ import {
 
 const { RangePicker } = DatePicker;
 import {
-  DollarOutlined,
+
   UserOutlined,
   SwapOutlined,
-  BankOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-  PlusOutlined,
   PrinterOutlined,
   ClockCircleOutlined,
   SyncOutlined,
-  SearchOutlined,
-  CheckOutlined,
-  CheckCircleOutlined,
   BellOutlined,
   CalendarOutlined,
 } from "@ant-design/icons";
@@ -213,30 +206,6 @@ const Dashboard = () => {
     return true;
   });
 
-  const recentTransactions = [
-    {
-      key: 1,
-      name: "Hadya Fardin",
-      currency: "USD",
-      amount: 500,
-      type: "credit",
-    },
-    {
-      key: 2,
-      name: "Ahmad Khan",
-      currency: "AFN",
-      amount: 25000,
-      type: "debit",
-    },
-    {
-      key: 3,
-      name: "Ali Reza",
-      currency: "PKR",
-      amount: 150000,
-      type: "credit",
-    },
-  ];
-
   const columns = [
     {
       title: "S/N",
@@ -338,316 +307,967 @@ const Dashboard = () => {
     },
   ];
 
-  // print transaction
+  // Print transaction statement
   const printTransactions = () => {
-    const dataToPrint = (
-      filteredTransactions?.length > 0 ? filteredTransactions : transactions
-    ).filter((t) => !currency || t.currency === currency);
-
-    if (!dataToPrint.length) {
-      toast.error("No transactions to print.");
-      return;
+  // FILTERED DATA
+  // These are the transactions that will appear in the statement.
+  const filteredData = (transactions || []).filter((t) => {
+    // Transaction tab
+    if (t.transaction !== activeTab) {
+      return false;
     }
 
-    // Calculate totals
-    const totals = {
-      debit: 0,
-      credit: 0,
-    };
+    // Search
+    if (search) {
+      const keyword = search.toLowerCase();
 
-    dataToPrint.forEach((t) => {
-      const amount = Number(t.amount) || 0;
+      const found = Object.values(t).some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(keyword),
+      );
 
-      if (t.transactionType === "debit") {
-        totals.debit += amount;
-      } else {
-        totals.credit += amount;
+      if (!found) {
+        return false;
       }
-    });
+    }
 
-    const totalTransactions = dataToPrint.length;
+    // From date
+    if (fromDate && dayjs(t.createdAt).isBefore(fromDate, "day")) {
+      return false;
+    }
 
-    // Build table rows & running balance
-    let balance = 0;
+    // To date
+    if (toDate && dayjs(t.createdAt).isAfter(toDate, "day")) {
+      return false;
+    }
 
-    const rowsHTML = dataToPrint
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-      .map((t, index) => {
+    // Currency
+    if (currency && t.currency !== currency) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Stop if there is no filtered data
+  if (!filteredData.length) {
+    toast.error("No transactions to print.");
+    return;
+  }
+
+  // Sort oldest to newest
+  const sortedFilteredData = [...filteredData].sort(
+    (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+  );
+
+  // GROUP FILTERED TRANSACTIONS BY CURRENCY
+  const currencyGroups = {};
+
+  sortedFilteredData.forEach((t) => {
+    const cur = t.currency || "N/A";
+
+    if (!currencyGroups[cur]) {
+      currencyGroups[cur] = [];
+    }
+
+    currencyGroups[cur].push(t);
+  });
+
+  // BUILD CURRENCY SECTIONS
+  const currencySections = Object.entries(currencyGroups)
+    .map(([currencyName, currencyTransactions]) => {
+      // FILTERED TOTALS
+      // These use ONLY the transactions shown in this statement.
+      let filteredDebit = 0;
+      let filteredCredit = 0;
+
+      currencyTransactions.forEach((t) => {
+        const amount = Number(t.amount) || 0;
+
+        if (t.transactionType === "debit") {
+          filteredDebit += amount;
+        }
+
+        if (t.transactionType === "credit") {
+          filteredCredit += amount;
+        }
+      });
+
+      const filteredBalance = filteredCredit - filteredDebit;
+
+      // CURRENT TOTALS
+      // These use ALL transactions for this currency.
+      // Date, search, and active-tab filters do NOT affect these values.
+      const allCurrencyTransactions = (transactions || []).filter(
+        (t) => t.currency === currencyName,
+      );
+
+      let currentCredit = 0;
+      let currentDebit = 0;
+
+      allCurrencyTransactions.forEach((t) => {
         const amount = Number(t.amount) || 0;
 
         if (t.transactionType === "credit") {
-          balance += amount;
-        } else {
-          balance -= amount;
+          currentCredit += amount;
         }
 
-        return `
-        <tr>
-          <td>${index + 1}</td>
-          <td>${dayjs(t.createdAt).format("DD/MM/YYYY")}</td>
-          <td>${t.transactionId}</td>
-          <td>${t.details || "-"}</td>
+        if (t.transactionType === "debit") {
+          currentDebit += amount;
+        }
+      });
 
-          <td style="text-align:right;color:#dc2626;">
-            ${t.transactionType === "debit" ? amount.toLocaleString() : ""}
-          </td>
+      const currentBalance = currentCredit - currentDebit;
 
-          <td style="text-align:right;color:#16a34a;">
-            ${t.transactionType === "credit" ? amount.toLocaleString() : ""}
-          </td>
+      // RUNNING BALANCE
+      // This is ONLY for the rows displayed in this statement.
+      let runningBalance = 0;
 
-          <td style="text-align:right;font-weight:bold;">
-            ${balance.toLocaleString()}
-          </td>
-        </tr>
+      const rowsHTML = currencyTransactions
+        .map((t, index) => {
+          const amount = Number(t.amount) || 0;
+
+          if (t.transactionType === "credit") {
+            runningBalance += amount;
+          }
+
+          if (t.transactionType === "debit") {
+            runningBalance -= amount;
+          }
+
+          return `
+            <tr>
+              <td>${index + 1}</td>
+
+              <td>
+                ${dayjs(t.createdAt).format("DD-MM-YYYY")}
+              </td>
+
+              <td>
+                ${t.transactionId || "-"}
+              </td>
+
+              <td class="details-cell">
+                ${t.details || "-"}
+              </td>
+
+              <td class="right debit">
+                ${
+                  t.transactionType === "debit"
+                    ? amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : ""
+                }
+              </td>
+
+              <td class="right credit">
+                ${
+                  t.transactionType === "credit"
+                    ? amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : ""
+                }
+              </td>
+
+              <td class="right balance">
+                ${runningBalance.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      return `
+        <section class="currency-section">
+
+          <div class="currency-title">
+
+            <div>
+              <span class="currency-label">
+                Currency
+              </span>
+
+              <span class="currency-name">
+                ${currencyName}
+              </span>
+            </div>
+
+            <!-- CURRENT BALANCE FROM ALL TRANSACTIONS -->
+            <div class="currency-total">
+
+              <span>
+                Current Balance
+              </span>
+
+              <strong>
+                ${currentBalance.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                ${currencyName}
+              </strong>
+
+            </div>
+
+          </div>
+
+          <!-- FILTERED TOTALS -->
+          <div class="summary">
+
+            <div class="summary-card debit-card">
+              <div class="summary-label">
+                Total Debit
+              </div>
+
+              <div class="summary-value debit-text">
+                ${filteredDebit.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                ${currencyName}
+              </div>
+
+              <div class="summary-note">
+                Filtered statement
+              </div>
+            </div>
+
+            <div class="summary-card credit-card">
+              <div class="summary-label">
+                Total Credit
+              </div>
+
+              <div class="summary-value credit-text">
+                ${filteredCredit.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                ${currencyName}
+              </div>
+
+              <div class="summary-note">
+                Filtered statement
+              </div>
+            </div>
+
+            <div class="summary-card balance-card">
+              <div class="summary-label">
+                Total Balance
+              </div>
+
+              <div class="summary-value balance-text">
+                ${currentBalance.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                ${currencyName}
+              </div>
+
+              <div class="summary-note">
+                Complete currency balance
+              </div>
+            </div>
+
+          </div>
+
+          <!-- TRANSACTION TABLE -->
+          <table>
+
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Date</th>
+                <th>Transaction ID</th>
+                <th>Details</th>
+                <th class="right">Debit</th>
+                <th class="right">Credit</th>
+                <th class="right">Balance</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${rowsHTML}
+            </tbody>
+
+            <!-- FILTERED TOTALS -->
+            <tfoot>
+              <tr>
+
+                <td colspan="4">
+                  Filtered Statement Totals
+                </td>
+
+                <td class="right debit">
+                  ${filteredDebit.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </td>
+
+                <td class="right credit">
+                  ${filteredCredit.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </td>
+
+                <td class="right balance">
+                  ${filteredBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </td>
+
+              </tr>
+            </tfoot>
+
+          </table>
+
+          <!-- CURRENT ACCOUNT TOTALS -->
+          <div class="current-section">
+
+            <div class="current-section-header">
+              <div>
+                <div class="current-section-title">
+                  Current Account Position
+                </div>
+
+                <div class="current-section-subtitle">
+                  Complete transaction history for ${currencyName}
+                </div>
+              </div>
+            </div>
+
+            <div class="current-summary">
+
+              <div class="current-card current-credit-card">
+
+                <span class="current-card-label">
+                  Current Credit
+                </span>
+
+                <strong>
+                  ${currentCredit.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                  ${currencyName}
+                </strong>
+
+              </div>
+
+              <div class="current-card current-debit-card">
+
+                <span class="current-card-label">
+                  Current Debit
+                </span>
+
+                <strong>
+                  ${currentDebit.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                  ${currencyName}
+                </strong>
+
+              </div>
+
+              <div class="current-card current-balance-card">
+
+                <span class="current-card-label">
+                  Current Balance
+                </span>
+
+                <strong>
+                  ${currentBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                  ${currencyName}
+                </strong>
+
+              </div>
+
+            </div>
+
+            <div class="current-note">
+              Current totals are calculated from all transactions for this currency.
+              Date, search, and transaction-type filters do not affect these values.
+            </div>
+
+          </div>
+
+        </section>
       `;
-      })
-      .join("");
+    })
+    .join("");
 
-    // Summary cards
-    const totalsHTML = `
-    <div style="
-      display:flex;
-      gap:20px;
-      margin:20px 0;
-    ">
+  // OPEN PRINT WINDOW
+  const printWindow = window.open(
+    "",
+    "_blank",
+    "width=1200,height=800",
+  );
 
-      <div style="
-        flex:1;
-        background:#fee2e2;
-        border:1px solid #fecaca;
-        border-radius:10px;
-        padding:15px;
-        text-align:center;
-      ">
-        <div style="font-size:13px;color:#666;">Total Debit</div>
-        <div style="font-size:22px;font-weight:bold;color:#dc2626;">
-          ${totals.debit.toLocaleString()}
+  if (!printWindow) {
+    toast.error("Please allow pop-ups to print the statement.");
+    return;
+  }
+
+  // COMPANY INFORMATION
+  const companyName =
+    myBrand?.data?.[0]?.companyName || "Money Services";
+
+  const companyAddress =
+    myBrand?.data?.[0]?.address || "";
+
+  const companyMobile =
+    myBrand?.data?.[0]?.mobile || "";
+
+  const companyEmail =
+    myBrand?.data?.[0]?.email || "";
+
+  // STATEMENT PERIOD
+  const statementPeriod =
+    fromDate || toDate
+      ? `${fromDate ? fromDate.format("DD-MM-YYYY") : "Beginning"} → ${
+          toDate ? toDate.format("DD-MM-YYYY") : "Present"
+        }`
+      : "All Dates";
+
+  // PRINT HTML
+  printWindow.document.write(`
+    <!DOCTYPE html>
+
+    <html>
+
+      <head>
+
+        <title>
+          Transaction Statement
+        </title>
+
+        <style>
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 30px;
+            background: #f8fafc;
+            color: #1e293b;
+            font-family: Arial, Helvetica, sans-serif;
+          }
+
+          .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+          }
+
+          .header {
+            text-align: center;
+            padding: 25px 30px;
+            border-bottom: 2px solid #e2e8f0;
+          }
+
+          .logo img {
+            width: 100px;
+            height: auto;
+            object-fit: contain;
+          }
+
+          .brand-name {
+            margin-top: 10px;
+            font-size: 24px;
+            font-weight: 700;
+            color: #113b8a;
+          }
+
+          .brand-info {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #64748b;
+          }
+
+          .statement-title {
+            display: inline-block;
+            margin-top: 16px;
+            padding: 8px 22px;
+            border-radius: 20px;
+            background: #113b8a;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+          }
+
+          .info-section {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin: 22px 0;
+          }
+
+          .info-card {
+            padding: 13px;
+            border: 1px solid #e2e8f0;
+            border-radius: 9px;
+            background: #f8fafc;
+          }
+
+          .info-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+          }
+
+          .info-value {
+            margin-top: 5px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
+          }
+
+          .currency-section {
+            margin-top: 35px;
+          }
+
+          .currency-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+          }
+
+          .currency-label {
+            display: block;
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+          }
+
+          .currency-name {
+            display: block;
+            margin-top: 3px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #113b8a;
+          }
+
+          .currency-total {
+            text-align: right;
+          }
+
+          .currency-total span {
+            display: block;
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+          }
+
+          .currency-total strong {
+            display: block;
+            margin-top: 3px;
+            font-size: 18px;
+            color: #1d4ed8;
+          }
+
+          .summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin: 16px 0;
+          }
+
+          .summary-card {
+            padding: 14px;
+            border-radius: 9px;
+            border: 1px solid;
+            text-align: center;
+          }
+
+          .debit-card {
+            background: #fef2f2;
+            border-color: #fecaca;
+          }
+
+          .credit-card {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+          }
+
+          .balance-card {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+          }
+
+          .summary-label {
+            font-size: 11px;
+            color: #64748b;
+          }
+
+          .summary-value {
+            margin-top: 4px;
+            font-size: 18px;
+            font-weight: 700;
+          }
+
+          .summary-note {
+            margin-top: 4px;
+            font-size: 9px;
+            color: #94a3b8;
+          }
+
+          .debit-text {
+            color: #dc2626;
+          }
+
+          .credit-text {
+            color: #16a34a;
+          }
+
+          .balance-text {
+            color: #2563eb;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            table-layout: fixed;
+          }
+
+          th {
+            padding: 10px;
+            background: #113b8a;
+            color: white;
+            border: 1px solid #113b8a;
+            font-size: 11px;
+            text-align: left;
+          }
+
+          td {
+            padding: 9px 10px;
+            border: 1px solid #e2e8f0;
+            font-size: 11px;
+            vertical-align: top;
+          }
+
+          th:nth-child(1),
+          td:nth-child(1) {
+            width: 5%;
+            text-align: center;
+          }
+
+          th:nth-child(2),
+          td:nth-child(2) {
+            width: 11%;
+            white-space: nowrap;
+          }
+
+          th:nth-child(3),
+          td:nth-child(3) {
+            width: 15%;
+          }
+
+          th:nth-child(4),
+          td:nth-child(4) {
+            width: 39%;
+          }
+
+          th:nth-child(5),
+          td:nth-child(5),
+          th:nth-child(6),
+          td:nth-child(6),
+          th:nth-child(7),
+          td:nth-child(7) {
+            width: 10%;
+          }
+
+          .details-cell {
+            word-break: break-word;
+          }
+
+          tbody tr:nth-child(even) {
+            background: #f8fafc;
+          }
+
+          .right {
+            text-align: right;
+          }
+
+          .debit {
+            color: #dc2626;
+            font-weight: 600;
+          }
+
+          .credit {
+            color: #16a34a;
+            font-weight: 600;
+          }
+
+          .balance {
+            color: #334155;
+            font-weight: 700;
+            text-align: right;
+          }
+
+          tfoot td {
+            background: #eaf0f7;
+            font-weight: 700;
+            border-top: 2px solid #cbd5e1;
+          }
+
+          .current-section {
+            margin-top: 20px;
+            padding: 18px;
+            border: 1px solid #dbe3ec;
+            border-radius: 10px;
+            background: #ffffff;
+          }
+
+          .current-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+          }
+
+          .current-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+          }
+
+          .current-section-subtitle {
+            margin-top: 3px;
+            font-size: 10px;
+            color: #94a3b8;
+          }
+
+          .current-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+          }
+
+          .current-card {
+            padding: 14px 15px;
+            border-radius: 8px;
+            border: 1px solid;
+          }
+
+          .current-card-label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+          }
+
+          .current-card strong {
+            display: block;
+            font-size: 17px;
+          }
+
+          .current-credit-card {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+          }
+
+          .current-credit-card strong {
+            color: #15803d;
+          }
+
+          .current-debit-card {
+            background: #fef2f2;
+            border-color: #fecaca;
+          }
+
+          .current-debit-card strong {
+            color: #dc2626;
+          }
+
+          .current-balance-card {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+          }
+
+          .current-balance-card strong {
+            color: #1d4ed8;
+          }
+
+          .current-note {
+            margin-top: 10px;
+            font-size: 10px;
+            color: #94a3b8;
+          }
+
+          @media print {
+
+            body {
+              padding: 0;
+              background: white;
+            }
+
+            .container {
+              max-width: none;
+            }
+
+            thead {
+              display: table-header-group;
+            }
+
+            .currency-section {
+              page-break-inside: auto;
+            }
+
+            .current-section {
+              page-break-inside: avoid;
+            }
+
+          }
+
+          @media screen and (max-width: 800px) {
+
+            body {
+              padding: 10px;
+            }
+
+            .info-section {
+              grid-template-columns: 1fr 1fr;
+            }
+
+            .summary {
+              grid-template-columns: 1fr;
+            }
+
+            .current-summary {
+              grid-template-columns: 1fr;
+            }
+
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <div class="container">
+
+          <div class="header">
+
+            <div class="logo">
+              <img
+                src="${myLogo}"
+                alt="Company Logo"
+              />
+            </div>
+
+            <div class="brand-name">
+              ${companyName}
+            </div>
+
+            <div class="brand-info">
+              ${companyAddress}
+              ${companyAddress && myBranch ? " • " : ""}
+              ${myBranch || ""}
+            </div>
+
+            <div class="brand-info">
+              ${companyMobile}
+              ${companyMobile && companyEmail ? " • " : ""}
+              ${companyEmail}
+            </div>
+
+            <div class="statement-title">
+              TRANSACTION STATEMENT
+            </div>
+
+          </div>
+
+          <div class="info-section">
+
+            <div class="info-card">
+              <div class="info-label">
+                Transaction Type
+              </div>
+
+              <div class="info-value">
+                ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              </div>
+            </div>
+
+            <div class="info-card">
+              <div class="info-label">
+                Currency
+              </div>
+
+              <div class="info-value">
+                ${currency || "All Currencies"}
+              </div>
+            </div>
+
+            <div class="info-card">
+              <div class="info-label">
+                Statement Period
+              </div>
+
+              <div class="info-value">
+                ${statementPeriod}
+              </div>
+            </div>
+
+            <div class="info-card">
+              <div class="info-label">
+                Filtered Records
+              </div>
+
+              <div class="info-value">
+                ${sortedFilteredData.length}
+              </div>
+            </div>
+
+          </div>
+
+          ${currencySections}
+
         </div>
-      </div>
 
-      <div style="
-        flex:1;
-        background:#dcfce7;
-        border:1px solid #bbf7d0;
-        border-radius:10px;
-        padding:15px;
-        text-align:center;
-      ">
-        <div style="font-size:13px;color:#666;">Total Credit</div>
-        <div style="font-size:22px;font-weight:bold;color:#16a34a;">
-          ${totals.credit.toLocaleString()}
-        </div>
-      </div>
+      </body>
 
-      <div style="
-        flex:1;
-        background:#dbeafe;
-        border:1px solid #bfdbfe;
-        border-radius:10px;
-        padding:15px;
-        text-align:center;
-      ">
-        <div style="font-size:13px;color:#666;">Closing Balance</div>
-        <div style="font-size:22px;font-weight:bold;color:#2563eb;">
-          ${balance.toLocaleString()}
-        </div>
-      </div>
+    </html>
+  `);
 
-    </div>
-  `;
+  printWindow.document.close();
 
-    const printWindow = window.open("", "_blank");
+  printWindow.focus();
 
-    printWindow.document.write(`
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Transaction Statement</title>
-
-  <style>
-    body{
-      font-family:Arial,sans-serif;
-      padding:30px;
-      color:#333;
-    }
-
-    .header{
-      text-align:center;
-      margin-bottom:25px;
-      border-bottom:2px solid #ddd;
-      padding-bottom:20px;
-    }
-
-    .logo img{
-      width:140px;
-      height:auto;
-    }
-
-    .brand-info h1{
-      margin:10px 0 5px;
-      color:#113b8a;
-    }
-
-    .brand-info p{
-      margin:3px 0;
-      color:#666;
-    }
-
-    .statement-title{
-      display:inline-block;
-      margin-top:15px;
-      background:#113b8a;
-      color:#fff;
-      padding:8px 20px;
-      border-radius:20px;
-      font-weight:bold;
-    }
-
-    .info-section{
-      display:flex;
-      justify-content:space-between;
-      gap:15px;
-      margin:25px 0;
-    }
-
-    .info-card{
-      flex:1;
-      border:1px solid #ddd;
-      border-radius:8px;
-      padding:12px;
-      background:#f8fafc;
-    }
-
-    .info-label{
-      font-size:12px;
-      color:#666;
-      margin-bottom:5px;
-    }
-
-    .info-value{
-      font-weight:bold;
-      color:#111827;
-    }
-
-    table{
-      width:100%;
-      border-collapse:collapse;
-      margin-top:20px;
-    }
-
-    th,
-    td{
-      border:1px solid #ddd;
-      padding:10px;
-    }
-
-    th{
-      background:#0f766e;
-      color:white;
-    }
-
-    tbody tr:nth-child(even){
-      background:#f8fafc;
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="header">
-
-  <div class="logo">
-    <img src="${myLogo}" alt="Logo">
-  </div>
-
-  <div class="brand-info">
-
-    <h1>${myBrand.data[0].companyName}</h1>
-
-    <p>
-      ${myBrand.data[0].address || ""} - ${myBranch} Branch
-    </p>
-
-    <p>
-      ${myBrand.data[0].mobile} |
-      ${myBrand.data[0].email}
-    </p>
-
-    <div class="statement-title">
-      TRANSACTION STATEMENT
-    </div>
-
-  </div>
-
-</div>
-
-<div class="info-section">
-
-  <div class="info-card">
-    <div class="info-label">Transaction Type</div>
-    <div class="info-value">
-      ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-    </div>
-  </div>
-
-  <div class="info-card">
-    <div class="info-label">Currency</div>
-    <div class="info-value">
-      ${currency || "All"}
-    </div>
-  </div>
-
-  <div class="info-card">
-    <div class="info-label">Statement Period</div>
-    <div class="info-value">
-      ${fromDate ? fromDate.format("DD-MM-YYYY") : "-"}
-      →
-      ${toDate ? toDate.format("DD-MM-YYYY") : "-"}
-    </div>
-  </div>
-
-  <div class="info-card">
-    <div class="info-label">Total Records</div>
-    <div class="info-value">
-      ${totalTransactions}
-    </div>
-  </div>
-
-</div>
-
-${totalsHTML}
-
-<table>
-
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Date</th>
-      <th>Transaction ID</th>
-      <th>Details</th>
-      <th style="text-align:right;">Debit</th>
-      <th style="text-align:right;">Credit</th>
-      <th style="text-align:right;">Balance</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    ${rowsHTML}
-  </tbody>
-
-</table>
-
-</body>
-</html>
-`);
-
-    printWindow.document.close();
-    printWindow.focus();
+  setTimeout(() => {
     printWindow.print();
     printWindow.close();
-  };
-
+  }, 700);
+};
   // greetings
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -853,7 +1473,7 @@ ${totalsHTML}
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-white">
-                    Transaction Activity
+                    Transaction Activity ddd
                   </h2>
 
                   <p className="text-zinc-400">

@@ -90,3 +90,4 @@
     color: #0369a1;
 }
 
+#customer-statement-print{display:none;}@media print{body *{visibility:hidden!important;}#customer-statement-print,#customer-statement-print *{visibility:visible!important;}#customer-statement-print{display:block!important;position:absolute;left:0;top:0;width:100%;margin:0;padding:0;}@page{size:A4 landscape;margin:10mm;}}

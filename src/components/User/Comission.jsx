@@ -1,6 +1,7 @@
 import HomeLayout from "../Shared/Layouts/HomeLayout";
 import React from "react";
 import { toast } from "react-toastify";
+import * as XLSX from "xlsx";
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
@@ -41,6 +42,7 @@ import {
   EditOutlined,
   PrinterOutlined,
   WalletOutlined,
+  FileExcelOutlined,
 } from "@ant-design/icons";
 
 const Commissions = () => {
@@ -62,6 +64,7 @@ const Commissions = () => {
 
   const dispatch = useDispatch();
   const [form] = Form.useForm();
+  const [statementForm] = Form.useForm();
 
   useEffect(() => {
     dispatch(fetchCurrency());
@@ -420,504 +423,910 @@ const Commissions = () => {
     setOpen(true);
   };
 
-  const printStatement = (values) => {
-    const { account, currency, fromDate, toDate } = values;
+  // GET FILTERED STATEMENT DATA
+  const getStatementFilteredData = (values = {}) => {
+    const { accountNo, currency, fromDate, toDate } = values;
 
-    // Start with all transactions
     let result = [...comissions];
 
-    // Currency (required)
-    result = result.filter((t) => t.currency === currency);
-
-    // Account (optional)
-    if (account) {
-      result = result.filter((t) => String(t.accountNo) === String(account));
+    // Filter by account number
+    if (accountNo) {
+      result = result.filter((t) => String(t.accountNo) === String(accountNo));
     }
 
-    // Date (optional)
+    // Filter by currency
+    if (currency) {
+      result = result.filter(
+        (t) =>
+          String(t.currency).toUpperCase() === String(currency).toUpperCase(),
+      );
+    }
+
+    // Filter by date range
     if (fromDate || toDate) {
       result = result.filter((t) => {
-        const tx = dayjs(t.createdAt);
+        const transactionDate = dayjs(t.createdAt);
 
-        if (fromDate && tx.isBefore(fromDate, "day")) return false;
-        if (toDate && tx.isAfter(toDate, "day")) return false;
+        if (
+          fromDate &&
+          transactionDate.isBefore(dayjs(fromDate), "day")
+        ) {
+          return false;
+        }
+
+        if (
+          toDate &&
+          transactionDate.isAfter(dayjs(toDate), "day")
+        ) {
+          return false;
+        }
 
         return true;
       });
     }
 
-    // 🔹 4. Handle empty
-    if (result.length === 0) {
-      setResultText("No data to display");
-      toast.error("No transactions found for the selected query.");
-      return;
-    }
+    // Sort oldest to newest
+    return result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  };
 
-    // 🔥 5. SORT (IMPORTANT for running balance)
-    const sorted = [...result].sort(
-      (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
-    );
+  const buildStatementRows = (result) => {
+    const runningBalances = {};
 
-    //  6. Running balance per currency
-    let runningBalances = {};
+    return result.map((transaction, index) => {
+      const currency = transaction.currency || "N/A";
+      const credit = Number(transaction.credit) || 0;
+      const debit = Number(transaction.debit) || 0;
 
-    const rowsHTML = sorted
-      .map((t, i) => {
-        const cur = t.currency;
-        const credit = Number(t.credit) || 0;
-        const debit = Number(t.debit) || 0;
-
-        if (!runningBalances[cur]) {
-          runningBalances[cur] = 0;
-        }
-
-        runningBalances[cur] += credit;
-        runningBalances[cur] -= debit;
-
-        return `
-       <tr>
-    <td>${i + 1}</td>
-    <td>${dayjs(t.createdAt).format("DD-MM-YYYY")}</td>
-    <td>${t.details || "-"}</td>
-
-    <td style="text-align:right;color:green">
-        ${credit > 0 ? credit.toFixed(2) : "-"}
-    </td>
-
-    <td style="text-align:right;color:red">
-        ${debit > 0 ? debit.toFixed(2) : "-"}
-    </td>
-
-    <td style="text-align:right;font-weight:bold">
-        ${runningBalances[cur].toFixed(2)}
-    </td>
-</tr>
-      `;
-      })
-      .join("");
-
-    //  7. Total balances per currency
-    const totals = {};
-    sorted.forEach((t) => {
-      const cur = t.currency;
-      const credit = Number(t.credit) || 0;
-      const debit = Number(t.debit) || 0;
-
-      if (!totals[cur]) {
-        totals[cur] = 0;
+      if (runningBalances[currency] === undefined) {
+        runningBalances[currency] = 0;
       }
 
-      totals[cur] += credit;
-      totals[cur] -= debit;
+      runningBalances[currency] += credit;
+      runningBalances[currency] -= debit;
+
+      return {
+        index: index + 1,
+        date: dayjs(transaction.createdAt).format("DD-MM-YYYY"),
+        accountNo: transaction.accountNo || "-",
+        description: transaction.details || "-",
+        currency,
+        credit,
+        debit,
+        balance: runningBalances[currency],
+      };
+    });
+  };
+
+  const formatNumber = (value) =>
+    Number(value || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
 
-    const balanceHTML = Object.entries(totals)
+  const escapeHtml = (value) =>
+    String(value ?? "-")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+const getCurrentBalance = (accountNo, currency) => {
+  if (!currency) {
+    return 0;
+  }
+
+  return comissions
+    .filter((transaction) => {
+      const sameCurrency =
+        String(transaction.currency || "").toUpperCase() ===
+        String(currency).toUpperCase();
+
+      if (!sameCurrency) {
+        return false;
+      }
+
+      // If an account is selected,
+      // only calculate that account's balance.
+      if (
+        accountNo !== undefined &&
+        accountNo !== null &&
+        String(accountNo).trim() !== ""
+      ) {
+        return (
+          String(transaction.accountNo) ===
+          String(accountNo)
+        );
+      }
+
+      // No account selected,
+      // include all accounts for this currency.
+      return true;
+    })
+    .reduce((balance, transaction) => {
+      const credit =
+        Number(transaction.credit) || 0;
+
+      const debit =
+        Number(transaction.debit) || 0;
+
+      return balance + credit - debit;
+    }, 0);
+};
+
+  // PRINT ACCOUNT STATEMENT
+  const printStatement = (values) => {
+  // Get transactions matching the selected filters
+  const result = getStatementFilteredData(values);
+
+  // Stop if there are no matching transactions
+  if (result.length === 0) {
+    setResultText("No data to display");
+
+    toast.error(
+      "No transactions found for the selected query."
+    );
+
+    return;
+  }
+
+  setResultText("");
+
+  // Build the statement rows
+  const rows = buildStatementRows(result);
+
+  // Calculate current balance.
+  // Account selected: account + currency.
+  // No account: currency across all accounts.
+  const currentBalance = getCurrentBalance(
+    values.accountNo,
+    values.currency
+  );
+
+  // Format current balance
+  const balanceHTML = `
+    <div class="balance-item">
+      <span class="balance-currency">
+        ${escapeHtml(values.currency || "")}
+      </span>
+
+      <strong>
+        ${formatNumber(currentBalance)}
+      </strong>
+    </div>
+  `;
+
+
+    // Build the transaction table
+    const rowsHTML = rows
       .map(
-        ([cur, bal]) => `
-      <div >
-        <strong>${bal.toFixed(2)}</strong>
-      </div>
-    `,
+        (row) => `
+        <tr>
+          <td class="center nowrap">
+            ${row.index}
+          </td>
+
+          <td class="date-cell nowrap">
+            ${row.date}
+          </td>
+
+          <td class="account-cell nowrap">
+            ${escapeHtml(row.accountNo)}
+          </td>
+
+          <td class="description-cell">
+            ${escapeHtml(row.description)}
+          </td>
+
+          <td class="number credit">
+            ${row.credit > 0 ? formatNumber(row.credit) : "-"}
+          </td>
+
+          <td class="number debit">
+            ${row.debit > 0 ? formatNumber(row.debit) : "-"}
+          </td>
+
+          <td class="number balance">
+            ${formatNumber(row.balance)}
+          </td>
+        </tr>
+      `,
       )
       .join("");
 
-    //  8. Print window
-    const printWindow = window.open("", "", "width=900,height=700");
+    // Format the selected date range
+    const firstDate = values.fromDate
+      ? dayjs(values.fromDate).format("DD-MM-YYYY")
+      : "-";
 
+    const lastDate = values.toDate
+      ? dayjs(values.toDate).format("DD-MM-YYYY")
+      : "-";
+
+    // Get company and branch information
+    const company = myBrand?.data?.[0] || {};
+    const branch = myBranch || "";
+
+    // Open the print window
+    const printWindow = window.open("", "_blank", "width=1100,height=800");
+
+    if (!printWindow) {
+      toast.error("Popup blocked. Please allow popups to print.");
+
+      return;
+    }
+
+    // Create the print document
     printWindow.document.write(`
-<html>
-<head>
-  <title>Comissoin Account Statement</title>
+    <!DOCTYPE html>
 
-  <style>
-    *{
-      box-sizing:border-box;
-    }
+    <html>
 
-    body{
-      margin:0;
-      padding:30px;
-      background:white;
-      font-family:Arial, sans-serif;
-      color:#1e293b;
-    }
+      <head>
 
-    .container{
-      max-width:1000px;
-      margin:auto;
-      background:#fff;
-      overflow:hidden;
-     
-    }
+        <meta charset="UTF-8" />
 
-    .topbar{
-      height:0px;
+        <title>
+          Account Statement
+        </title>
 
-    }
+        <style>
 
-   .header{
-  padding:15px 15px 10px;
-  border-bottom:1px solid #e5e7eb;
-  text-align:center;
-}
+          * {
+            box-sizing: border-box;
+          }
 
-.brand{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:10px;
-}
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
 
-.logo{
-  width:75px;
-  height:75px;
-  border-radius:50%;
-  overflow:hidden;
-  border:3px solid #dbeafe;
-}
+          body {
+            margin: 0;
+            padding: 20px;
+            background: #f1f5f9;
+            color: #0f172a;
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+            font-size: 12px;
+          }
 
-.logo img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-}
+          .container {
+            width: 100%;
+            max-width: 1050px;
+            margin: 0 auto;
+            background: #ffffff;
+          }
 
-   .brand-info h1{
-      margin:0;
-      font-size:24px;
-      color:#113b8a;
-    }
+          .header {
+            text-align: center;
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid #cbd5e1;
+          }
 
-  .brand-info p{
-    margin:3px 0;
-    color:#64748b;
-    font-size:13px;
-  }
+          .logo-wrap {
+            width: 100px;
+            height: 75px;
+            margin: 0 auto 8px;
 
-  .statement-title{
-  margin-top:8px;
-  display:inline-block;
-  background:#113b8a;
-  color:white;
-  padding:6px 16px;
-  border-radius:30px;
-  font-size:12px;
-  font-weight:bold;
-  letter-spacing:1px;
-}
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
 
-    .info-section{
-      padding:10px 20px;
-      display:flex;
+          .logo-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+          }
 
-      flex-direction:column;
-      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-      gap:10px;
-      background:white;
-     
-    }
+          .company-name {
+            margin: 0;
+            color: #173b70;
+            font-size: 24px;
+            font-weight: 700;
+          }
 
-    .info-card{
-      background:white;
-   
-    }
+          .company-line {
+            margin: 4px 0 0;
+            color: #64748b;
+            font-size: 12px;
+          }
 
-    .info-label{
-      font-size:12px;
-      color:#64748b;
-      margin-bottom:5px;
-      text-transform:uppercase;
-      letter-spacing:1px;
-    }
+          .statement-title {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 6px 18px;
 
-    .info-value{
-      font-size:16px;
-      font-weight:600;
-      color:#0f172a;
-    }
+            color: #173b70;
 
-    .section{
-      padding:30px;
-    }
+            border-bottom: 2px solid #173b70;
 
-    .section-title{
-      font-size:20px;
-      margin-bottom:20px;
-      color:#113b8a;
-      padding:2px;
-      border-bottom:3px solid #e5e7eb;
-    }
+            font-size: 14px;
+            font-weight: 700;
 
-    .balances{
-      display:flex;
-      flex-wrap:wrap;
-      gap:15px;
-    }
+            letter-spacing: 2px;
+          }
 
-    .balance-card{
-      background:linear-gradient(
-        135deg,
-        #113b8a,
-        #1d4ed8
-      );
-      color:white;
-      padding:2px;
-  
-    }
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
 
-    .balance-card span{
-      display:block;
-      font-size:13px;
-      opacity:0.1;
-      margin-bottom:8px;
-    }
+            gap: 10px 35px;
 
-    .balance-card strong{
-      font-size:18px;
-    }
+            padding: 16px 5px;
 
-    table{
-      width:100%;
-      border-collapse:collapse;
-      overflow:hidden;
-      border-radius:12px;
-    }
+            border-bottom: 1px solid #e2e8f0;
+          }
 
-    thead{
-      background:#66666138;
-      color:#113b8a;
-    }
+          .info-label {
+            margin-bottom: 4px;
 
-    th{
-      padding:14px;
-      font-size:13px;
-      text-align:left;
-      letter-spacing:0.5px;
-    }
+            color: #64748b;
 
-    td{
-      padding:14px;
-      border-bottom:1px solid #e5e7eb;
-      font-size:14px;
-    }
+            font-size: 10px;
+            font-weight: 600;
 
-    tbody tr:nth-child(even){
-      background:#f8fafc;
-    }
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          }
 
-    tbody tr:hover{
-      background:#eef4ff;
-    }
+          .info-value {
+            color: #0f172a;
 
-    .credit{
-      color:#16a34a;
-      font-weight:600;
-      text-transform:capitalize;
-    }
+            font-size: 13px;
+            font-weight: 600;
+          }
 
-    .debit{
-      color:#dc2626;
-      font-weight:600;
-      text-transform:capitalize;
-    }
+          .balance-section {
+            display: flex;
 
-    .footer{
-      padding:20px 30px;
-      text-align:center;
-      font-size:12px;
-      color:#94a3b8;
-      border-top:1px solid #e5e7eb;
-    }
+            align-items: center;
+            justify-content: flex-end;
 
-    @media print{
-      body{
-        background:white;
-        padding:0;
-      }
+            flex-wrap: wrap;
 
-      .container{
-        box-shadow:none;
-      }
-    }
+            gap: 8px;
 
-  </style>
-</head>
+            padding: 12px 5px;
 
-<body>
+            border-bottom: 1px solid #e2e8f0;
+          }
 
-<div class="container" id="statement-content">
-  <div class="topbar"></div>
-  <div class="header">
-    <div class="brand">     
-      <div style="
-                width:150px;
-                height:105px;
-                border-radius:0;
-                overflow:hidden;
-                margin:0 auto;
-              ">
-                <img
-                  src="${myLogo}"
-                  alt="logo"
-                  style="width:150px ;heigth:100px;object-fit:cover;display:block;"
-                />
+          .balance-label {
+            margin-right: 4px;
+
+            color: #64748b;
+
+            font-size: 11px;
+            font-weight: 600;
+
+            text-transform: uppercase;
+          }
+
+          .balance-item {
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 7px;
+
+            padding: 5px 9px;
+
+            border: 1px solid #dbeafe;
+
+            border-radius: 5px;
+
+            background: #eff6ff;
+
+            color: #173b70;
+          }
+
+          .balance-currency {
+            font-weight: 700;
+          }
+
+          .table-section {
+            padding-top: 18px;
+          }
+
+          .section-title {
+            margin: 0 0 10px;
+
+            padding-bottom: 7px;
+
+            border-bottom: 2px solid #e2e8f0;
+
+            color: #173b70;
+
+            font-size: 14px;
+            font-weight: 700;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
+          }
+
+          thead {
+            display: table-header-group;
+          }
+
+          th {
+            padding: 9px 7px;
+
+            border: 1px solid #cbd5e1;
+
+            background: #173b70;
+
+            color: #ffffff;
+
+            font-size: 10px;
+            font-weight: 700;
+
+            text-align: left;
+
+            white-space: nowrap;
+          }
+
+          td {
+            padding: 8px 7px;
+
+            border: 1px solid #dbe2ea;
+
+            color: #334155;
+
+            font-size: 10px;
+
+            vertical-align: middle;
+          }
+
+          tbody tr:nth-child(even) {
+            background: #f8fafc;
+          }
+
+          .center {
+            text-align: center;
+          }
+
+          .number {
+            text-align: right;
+            white-space: nowrap;
+          }
+
+          .nowrap {
+            white-space: nowrap;
+          }
+
+          .date-cell {
+            width: 90px;
+            min-width: 90px;
+            white-space: nowrap;
+          }
+
+          .account-cell {
+            width: 85px;
+            min-width: 85px;
+            white-space: nowrap;
+          }
+
+          .description-cell {
+            min-width: 220px;
+            max-width: 420px;
+
+            white-space: normal;
+
+            overflow-wrap: anywhere;
+
+            line-height: 1.35;
+          }
+
+          .credit {
+            color: #15803d;
+            font-weight: 600;
+          }
+
+          .debit {
+            color: #dc2626;
+            font-weight: 600;
+          }
+
+          .balance {
+            color: #0f172a;
+            font-weight: 700;
+          }
+
+          .footer {
+            margin-top: 18px;
+
+            padding: 12px 5px 0;
+
+            border-top: 1px solid #e2e8f0;
+
+            color: #94a3b8;
+
+            font-size: 9px;
+
+            text-align: center;
+          }
+
+          @media print {
+            body {
+              padding: 0;
+              background: #ffffff;
+            }
+
+            .container {
+              max-width: none;
+            }
+
+            tr {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+
+            .no-print {
+              display: none;
+            }
+          }
+
+          @media screen and (max-width: 700px) {
+            body {
+              padding: 8px;
+            }
+
+            .info-grid {
+              grid-template-columns: 1fr;
+            }
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <div class="container">
+
+          <div class="header">
+
+            ${
+              myLogo
+                ? `
+                  <div class="logo-wrap">
+                    <img
+                      src="${escapeHtml(myLogo)}"
+                      alt="Company Logo"
+                    />
+                  </div>
+                `
+                : ""
+            }
+
+            <h1 class="company-name">
+              ${escapeHtml(company.companyName || "Company Name")}
+            </h1>
+
+            <p class="company-line">
+              ${escapeHtml(company.address || "")}
+
+              ${company.address && branch ? " • " : ""}
+
+              ${escapeHtml(branch)}
+
+              ${branch ? " Branch" : ""}
+            </p>
+
+            <p class="company-line">
+              ${escapeHtml(company.mobile || "")}
+
+              ${company.mobile && company.email ? " | " : ""}
+
+              ${escapeHtml(company.email || "")}
+            </p>
+
+            <div class="statement-title">
+              ACCOUNT STATEMENT
+            </div>
+
+          </div>
+
+          <div class="info-grid">
+
+            <div>
+              <div class="info-label">
+                Date Range
+              </div>
+
+              <div class="info-value">
+                ${firstDate} → ${lastDate}
               </div>
             </div>
 
-      <div class="brand-info">
-        <h1>${myBrand.data[0].companyName}</h1>
+            <div>
+              <div class="info-label">
+                Currency
+              </div>
 
-        <p>
-          ${
-            myBrand.data[0].address
-              ? myBrand.data[0].address.charAt(0).toUpperCase() +
-                myBrand.data[0].address.slice(1)
-              : ""
-          } - ${myBranch} Branch
-        </p>
+              <div class="info-value">
+                ${escapeHtml(values.currency || "All Currencies")}
+              </div>
+            </div>
 
-        <p>
-          ${myBrand.data[0].mobile}
-          |
-          ${myBrand.data[0].email}
-        </p>
+          </div>
 
-        <div class="statement-title">
-          ACCOUNT STATEMENT
+          <div class="balance-section">
+
+            <span class="balance-label">
+              Current Balance
+            </span>
+
+            ${balanceHTML}
+
+          </div>
+
+          <div class="table-section">
+
+            <div class="section-title">
+              Transaction History
+            </div>
+
+            <table>
+
+              <thead>
+
+                <tr>
+
+                  <th
+                    style="
+                      width:35px;
+                      text-align:center;
+                    "
+                  >
+                    #
+                  </th>
+
+                  <th
+                    style="
+                      width:90px;
+                    "
+                  >
+                    Date
+                  </th>
+
+                  <th
+                    style="
+                      width:85px;
+                    "
+                  >
+                    Account No
+                  </th>
+
+                  <th>
+                    Description
+                  </th>
+
+                  <th
+                    style="
+                      width:95px;
+                      text-align:right;
+                    "
+                  >
+                    Credit
+                  </th>
+
+                  <th
+                    style="
+                      width:95px;
+                      text-align:right;
+                    "
+                  >
+                    Debit
+                  </th>
+
+                  <th
+                    style="
+                      width:105px;
+                      text-align:right;
+                    "
+                  >
+                    Balance
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+                ${rowsHTML}
+              </tbody>
+
+            </table>
+
+          </div>
+
+          <div class="footer">
+
+            Generated on
+            ${dayjs().format("DD-MM-YYYY hh:mm A")}
+
+            <br />
+
+            ${escapeHtml(company.companyName || "Your Company")}
+
+          </div>
+
         </div>
-      </div>
 
-    </div>
+        <script>
 
-  </div>
+          (function () {
+            const images =
+              Array.from(
+                document.images
+              );
 
-  <div class="info-section">
-    <div class="info-card">
-          <div class="info-label">Date Range</div>
-          <div class="info-value">
-            ${fromDate ? fromDate.format("DD-MM-YYYY") : "-"}
-            →
-            ${toDate ? toDate.format("DD-MM-YYYY") : "-"}
-    </div>
-    </div>
-    <div class="info-card">
-      <div class="info-label">Account</div>
-      <div class="info-value">${(account && account) || ""}</div>
-       <div class="info-label">Account Holder</div>
-      <div class="info-value">${(stName && stName) || "-"}</div>
-    </div>
+            const printPage = () => {
+              window.focus();
+              window.print();
+            };
 
-    <div class="info-card">
-      <div class="info-label">Current Balance:</div>
-      <div  style="display:flex; align-items:center;gap:10px; ">${currency || "All"}  ${balanceHTML}</div>
-    </div>
-    
-   
-   
+            if (images.length === 0) {
+              setTimeout(
+                printPage,
+                300
+              );
+            } else {
+              let remaining =
+                images.length;
 
-  </div>
+              const done = () => {
+                remaining -= 1;
 
-  
+                if (remaining <= 0) {
+                  setTimeout(
+                    printPage,
+                    300
+                  );
+                }
+              };
 
-  <div class="section">
+              images.forEach((img) => {
+                if (img.complete) {
+                  done();
+                } else {
+                  img.addEventListener(
+                    "load",
+                    done,
+                    { once: true }
+                  );
 
-    <div class="section-title">
-      Transaction History
-    </div>
+                  img.addEventListener(
+                    "error",
+                    done,
+                    { once: true }
+                  );
+                }
+              });
+            }
 
-    <table>
+            window.addEventListener(
+              "afterprint",
+              () => {
+                window.close();
+              }
+            );
+          })();
 
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Date</th>
-          <th>Description</th>
-          <th>Credit</th>
-          <th>Debit</th>
-          <th>Balance</th>
-        </tr>
-      </thead>
+        </script>
 
-      <tbody>
-        ${rowsHTML}
-      </tbody>
+      </body>
 
-    </table>
+    </html>
+  `);
 
-  </div>
- <div class="balances" style="display:flex; align-items:center;gap:10px; justify-content:end; padding-right:30px">
- <p>Balance</p> ${balanceHTML}
-    </div>
+    // Finish the print document
+    printWindow.document.close();
+  };
 
-  <div class="footer">
-    Generated on 
-    ${dayjs().format("DD-MM-YYYY hh:mm A")}
-  </div>
+  // EXPORT THE SAME FILTERED STATEMENT TO EXCEL
+  const exportStatementToExcel = () => {
+    // Get the values selected in the Statement form
+    const values = statementForm.getFieldsValue();
 
-</div>
+    // Get ONLY the filtered statement transactions
+    const filteredData = getStatementFilteredData(values);
 
-</body>
-</html>
-    `);
+    // Nothing found
+    if (!filteredData || filteredData.length === 0) {
+      toast.error("No transactions found for the selected filters.");
+      return;
+    }
 
-    // printWindow.document.close();
+    // Build the exact same statement rows used by Print
+    // so Excel and Print always contain the same filtered records.
+    const rows = buildStatementRows(filteredData);
 
-    printWindow.onload(async () => {
-      const element = printWindow.document.getElementById("statement-content");
+    const excelData = rows.map((row) => ({
+      "#": row.index,
+      Date: row.date,
+      "Account No": row.accountNo,
+      Description: row.description,
+      Currency: row.currency,
+      Credit: row.credit,
+      Debit: row.debit,
+      Balance: row.balance,
+    }));
 
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
+    // Create Excel sheet ONLY from filteredData
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+    // Column widths
+    worksheet["!cols"] = [
+      { wch: 6 }, // #
+      { wch: 15 }, // Date
+      { wch: 15 }, // Account No
+      { wch: 55 }, // Description
+      { wch: 12 }, // Currency
+      { wch: 16 }, // Credit
+      { wch: 16 }, // Debit
+      { wch: 16 }, // Balance
+    ];
+
+    // Format numeric columns
+    const range = XLSX.utils.decode_range(worksheet["!ref"]);
+
+    for (let row = 1; row <= range.e.r; row++) {
+      const creditCell = XLSX.utils.encode_cell({
+        r: row,
+        c: 5,
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      const debitCell = XLSX.utils.encode_cell({
+        r: row,
+        c: 6,
+      });
 
-      const pdf = new jsPDF("p", "mm", "a4");
+      const balanceCell = XLSX.utils.encode_cell({
+        r: row,
+        c: 7,
+      });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      const imgWidth = pdfWidth;
-
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-
-      let position = 0;
-
-      // FIRST PAGE
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-
-      heightLeft -= pdfHeight;
-
-      // EXTRA PAGES
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-
-        pdf.addPage();
-
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-
-        heightLeft -= pdfHeight;
+      if (worksheet[creditCell]) {
+        worksheet[creditCell].z = "#,##0.00";
       }
 
-      // PAGE NUMBERS
-      const totalPages = pdf.getNumberOfPages();
-
-      for (let i = 1; i <= totalPages; i++) {
-        pdf.setPage(i);
-
-        pdf.setFontSize(10);
-
-        pdf.text(`Page ${i} of ${totalPages}`, pdfWidth - 40, pdfHeight - 10);
+      if (worksheet[debitCell]) {
+        worksheet[debitCell].z = "#,##0.00";
       }
 
-      pdf.save(`statement-${account}.pdf`);
+      if (worksheet[balanceCell]) {
+        worksheet[balanceCell].z = "#,##0.00";
+      }
+    }
 
-      // printWindow.close();
-    });
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Account Statement");
+
+    // File name based on selected account
+    const accountNo = values.accountNo || "All";
+
+    const currency = values.currency || "All";
+
+    const date = dayjs().format("YYYY-MM-DD");
+
+    const fileName = `Account_Statement_${accountNo}_${currency}_${date}.xlsx`;
+
+    // Download
+    XLSX.writeFile(workbook, fileName);
+
+    toast.success(`${filteredData.length} transactions exported to Excel.`);
   };
 
   // search function
@@ -1304,19 +1713,14 @@ const Commissions = () => {
           className="!mt-8 !rounded-3xl !bg-white/80 !backdrop-blur-xl !border !border-white/40 !shadow-xl"
           title={
             <div>
-              <h2 className="text-xl font-bold text-slate-800 py-4">
-                Commission History
-              </h2>
-
               <div className="flex justify-between items-center mt-2">
-                <p className="text-slate-500">
-                  Manage and review commission transactions
-                </p>
-
+                <h2 className="text-xl font-bold text-slate-800 py-4">
+                  Commission History
+                </h2>
                 <div className="flex items-center gap-2">
                   <Tooltip title="Print Transactions">
                     <Button onClick={openModal}>
-                      <PrinterOutlined />
+                      <PrinterOutlined className="!text-lg !text-blue-500" />
                     </Button>
                   </Tooltip>
 
@@ -1326,7 +1730,6 @@ const Commissions = () => {
                     size="middle"
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
-                    className="!w-72"
                   />
                 </div>
               </div>
@@ -1388,7 +1791,7 @@ const Commissions = () => {
           content: { borderRadius: 0 },
         }}
       >
-        <Form layout="vertical" onFinish={printStatement}>
+        <Form form={statementForm} layout="vertical" onFinish={printStatement}>
           {/* CURRENCY */}
           <Form.Item
             name="currency"
@@ -1435,20 +1838,26 @@ const Commissions = () => {
 
           {/* BUTTON */}
           <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              icon={<PrinterOutlined />}
-              className="w-full"
-            >
-              Print Statement
-            </Button>
-          </Form.Item>
-          {stAcc && (!resultText || resultText.length === 0) && (
-            <div style={{ textAlign: "center", marginTop: 10 }}>
-              <Tag color="red">No Data Found</Tag>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<PrinterOutlined />}
+                className="!h-10 !rounded-lg"
+              >
+                Print Statement
+              </Button>
+
+              <Button
+                type="default"
+                icon={<FileExcelOutlined className="!text-green-600" />}
+                onClick={exportStatementToExcel}
+                className="!h-10 !rounded-lg !border-green-200 !text-green-700 hover:!border-green-400 hover:!text-green-800"
+              >
+                Export to Excel
+              </Button>
             </div>
-          )}
+          </Form.Item>
         </Form>
       </Modal>
     </HomeLayout>
