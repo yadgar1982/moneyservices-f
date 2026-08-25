@@ -29,6 +29,7 @@ import {
   SwapOutlined,
   PrinterOutlined,
   FileExcelOutlined,
+  FilePdfOutlined,
   ClockCircleOutlined,
   SyncOutlined,
   BellOutlined,
@@ -3179,6 +3180,692 @@ const Dashboard = () => {
     };
   };
 
+  // EXPORT CUSTOMER ID REPORT TO PDF
+  const exportCustomerIdReportToPDF = () => {
+    if (!customerIdReport) {
+      message.warning("Please generate the Customer ID Report first.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=1100,height=900");
+
+    if (!printWindow) {
+      message.error(
+        "Please allow pop-ups in your browser to export the report.",
+      );
+      return;
+    }
+
+    const companyName = myBrand?.data?.[0]?.companyName || "Money Services";
+
+    const companyAddress = myBrand?.data?.[0]?.address || "";
+
+    const companyMobile = myBrand?.data?.[0]?.mobile || "";
+
+    const companyEmail = myBrand?.data?.[0]?.email || "";
+
+    const logoUrl = myLogo || "";
+
+    const formatAmount = (value) =>
+      Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+    // ========================================================
+    // ACCOUNT SECTIONS
+    // ========================================================
+
+    const accountSections = (customerIdReport.accounts || [])
+      .map((account) => {
+        const currencyRows = Object.entries(account.currencyBalances || {})
+          .map(([currency, data]) => {
+            const balanceClass =
+              Number(data.balance) < 0 ? "negative" : "positive";
+
+            return `
+            <tr>
+              <td class="currency">
+                ${currency}
+              </td>
+
+              <td class="number debit">
+                ${formatAmount(data.debit)}
+              </td>
+
+              <td class="number credit">
+                ${formatAmount(data.credit)}
+              </td>
+
+              <td class="number balance ${balanceClass}">
+                ${formatAmount(data.balance)}
+              </td>
+            </tr>
+          `;
+          })
+          .join("");
+
+        return `
+        <div class="account-card">
+
+          <div class="account-header">
+            <div>
+              <div class="small-label">
+                ACCOUNT NUMBER
+              </div>
+
+              <div class="account-number">
+                ${account.accountNo || "-"}
+              </div>
+            </div>
+
+            <div class="account-badge">
+              ACCOUNT
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Currency</th>
+                <th class="right">Debit</th>
+                <th class="right">Credit</th>
+                <th class="right">Balance</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${
+                currencyRows ||
+                `
+                  <tr>
+                    <td
+                      colspan="4"
+                      class="empty"
+                    >
+                      No transactions found for this account.
+                    </td>
+                  </tr>
+                `
+              }
+            </tbody>
+          </table>
+
+        </div>
+      `;
+      })
+      .join("");
+
+    // ========================================================
+    // TOTAL CUSTOMER BALANCE
+    // ========================================================
+
+    const totalRows = Object.entries(
+      customerIdReport.totalCurrencyBalances || {},
+    )
+      .map(([currency, data]) => {
+        const balanceClass = Number(data.balance) < 0 ? "negative" : "positive";
+
+        return `
+        <tr>
+          <td class="currency">
+            ${currency}
+          </td>
+
+          <td class="number debit">
+            ${formatAmount(data.debit)}
+          </td>
+
+          <td class="number credit">
+            ${formatAmount(data.credit)}
+          </td>
+
+          <td class="number balance ${balanceClass}">
+            ${formatAmount(data.balance)}
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    // ========================================================
+    // PDF / PRINT HTML
+    // ========================================================
+
+    printWindow.document.write(`
+    <!DOCTYPE html>
+
+    <html>
+
+      <head>
+
+        <title>
+          Customer ID Report - ${customerIdReport.customerId}
+        </title>
+
+        <style>
+
+          * {
+            box-sizing: border-box;
+          }
+
+          @page {
+            size: A4 portrait;
+            margin: 12mm;
+          }
+
+          body {
+            margin: 0;
+            padding: 25px;
+            background: #f1f5f9;
+            color: #1e293b;
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+          }
+
+          .report {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+          }
+
+          /* =========================
+             COMPANY HEADER
+          ========================= */
+
+          .header {
+            text-align: center;
+            padding: 28px 30px 22px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+
+          .logo-wrapper {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .logo-wrapper img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+          }
+
+          .company-name {
+            margin: 0;
+            color: #173b70;
+            font-size: 23px;
+            font-weight: 700;
+          }
+
+          .company-address {
+            margin-top: 5px;
+            color: #64748b;
+            font-size: 11px;
+          }
+
+          .company-contact {
+            margin-top: 4px;
+            color: #94a3b8;
+            font-size: 10px;
+          }
+
+          .report-title {
+            margin-top: 17px;
+            color: #173b70;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+          }
+
+          .title-line {
+            width: 60px;
+            height: 3px;
+            margin: 8px auto 0;
+            background: #2563eb;
+            border-radius: 999px;
+          }
+
+          /* =========================
+             CUSTOMER INFORMATION
+          ========================= */
+
+          .customer-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border-bottom: 1px solid #e2e8f0;
+            background: #f8fafc;
+          }
+
+          .info-item {
+            padding: 13px 20px;
+          }
+
+          .info-item:first-child {
+            border-right: 1px solid #e2e8f0;
+          }
+
+          .info-label {
+            display: block;
+            margin-bottom: 4px;
+            color: #94a3b8;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+          }
+
+          .info-value {
+            color: #334155;
+            font-size: 13px;
+            font-weight: 700;
+          }
+
+          .customer-id {
+            color: #2563eb;
+          }
+
+          /* =========================
+             ACCOUNTS
+          ========================= */
+
+          .content {
+            padding: 22px 25px;
+          }
+
+          .account-card {
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 9px;
+            overflow: hidden;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          .account-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 14px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+          }
+
+          .small-label {
+            margin-bottom: 3px;
+            color: #94a3b8;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.7px;
+          }
+
+          .account-number {
+            color: #334155;
+            font-size: 13px;
+            font-weight: 700;
+          }
+
+          .account-badge {
+            padding: 4px 9px;
+            border-radius: 5px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 8px;
+            font-weight: 700;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          th {
+            padding: 8px 10px;
+            background: #173b70;
+            color: white;
+            border: 1px solid #173b70;
+            font-size: 9px;
+            font-weight: 700;
+            text-align: left;
+            text-transform: uppercase;
+          }
+
+          td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 10px;
+          }
+
+          tbody tr:nth-child(even) {
+            background: #f8fafc;
+          }
+
+          tbody tr:last-child td {
+            border-bottom: none;
+          }
+
+          .currency {
+            font-weight: 700;
+            color: #334155;
+          }
+
+          .number {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+          }
+
+          .debit {
+            color: #dc2626;
+          }
+
+          .credit {
+            color: #15803d;
+          }
+
+          .balance {
+            font-weight: 700;
+          }
+
+          .positive {
+            color: #1d4ed8;
+          }
+
+          .negative {
+            color: #dc2626 !important;
+          }
+
+          .empty {
+            padding: 15px;
+            text-align: center;
+            color: #94a3b8;
+            font-style: italic;
+          }
+
+          /* =========================
+             TOTAL CUSTOMER BALANCE
+          ========================= */
+
+          .total-card {
+            margin-top: 20px;
+            border: 1px solid #bfdbfe;
+            border-radius: 9px;
+            overflow: hidden;
+            background: #eff6ff;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          .total-header {
+            padding: 11px 14px;
+            background: #dbeafe;
+            border-bottom: 1px solid #bfdbfe;
+          }
+
+          .total-title {
+            color: #1e40af;
+            font-size: 12px;
+            font-weight: 700;
+          }
+
+          .total-subtitle {
+            margin-top: 2px;
+            color: #60a5fa;
+            font-size: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+          }
+
+          /* =========================
+             FOOTER
+          ========================= */
+
+          .footer {
+            padding: 16px 25px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 9px;
+          }
+
+          .footer strong {
+            color: #64748b;
+          }
+
+          @media print {
+
+            body {
+              padding: 0;
+              background: #ffffff;
+            }
+
+            .report {
+              max-width: none;
+              border: none;
+              border-radius: 0;
+            }
+
+            .account-card,
+            .total-card {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+
+            thead {
+              display: table-header-group;
+            }
+
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <div class="report">
+
+          <!-- COMPANY HEADER -->
+
+          <div class="header">
+
+            ${
+              logoUrl
+                ? `
+                  <div class="logo-wrapper">
+                    <img
+                      src="${logoUrl}"
+                      alt="Company Logo"
+                    />
+                  </div>
+                `
+                : ""
+            }
+
+            <h1 class="company-name">
+              ${companyName}
+            </h1>
+
+            <div class="company-address">
+              ${companyAddress}
+            </div>
+
+            <div class="company-contact">
+              ${companyEmail}
+              ${companyEmail && companyMobile ? " • " : ""}
+              ${companyMobile}
+            </div>
+
+            <div class="report-title">
+              CUSTOMER ID REPORT
+            </div>
+
+            <div class="title-line"></div>
+
+          </div>
+
+          <!-- CUSTOMER INFORMATION -->
+
+          <div class="customer-info">
+
+            <div class="info-item">
+
+              <span class="info-label">
+                Customer Name
+              </span>
+
+              <span class="info-value">
+                ${customerIdReport.customerName || "-"}
+              </span>
+
+            </div>
+
+            <div class="info-item">
+
+              <span class="info-label">
+                Customer ID
+              </span>
+
+              <span class="info-value customer-id">
+                ${customerIdReport.customerId || "-"}
+              </span>
+
+            </div>
+
+          </div>
+
+          <!-- ACCOUNTS -->
+
+          <div class="content">
+
+            ${accountSections}
+
+            <!-- TOTAL -->
+
+            <div class="total-card">
+
+              <div class="total-header">
+
+                <div class="total-title">
+                  Total Customer Balance
+                </div>
+
+                <div class="total-subtitle">
+                  All Accounts
+                </div>
+
+              </div>
+
+              <table>
+
+                <thead>
+
+                  <tr>
+                    <th>Currency</th>
+                    <th class="right">Debit</th>
+                    <th class="right">Credit</th>
+                    <th class="right">Total Balance</th>
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  ${
+                    totalRows ||
+                    `
+                      <tr>
+                        <td
+                          colspan="4"
+                          class="empty"
+                        >
+                          No currency balances found.
+                        </td>
+                      </tr>
+                    `
+                  }
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
+
+          <!-- FOOTER -->
+
+          <div class="footer">
+
+            Generated on
+            ${new Date().toLocaleString()}
+
+            <br />
+
+            Powered by
+            <strong>
+              ${companyName}
+            </strong>
+
+          </div>
+
+        </div>
+
+      </body>
+
+    </html>
+  `);
+
+    printWindow.document.close();
+
+    const images = printWindow.document.images;
+
+    if (images.length === 0) {
+      printWindow.focus();
+
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+
+      return;
+    }
+
+    let loaded = 0;
+
+    const finishPrint = () => {
+      loaded++;
+
+      if (loaded === images.length) {
+        printWindow.focus();
+
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      }
+    };
+
+    Array.from(images).forEach((img) => {
+      if (img.complete) {
+        finishPrint();
+      } else {
+        img.onload = finishPrint;
+        img.onerror = finishPrint;
+      }
+    });
+  };
+
   // greetings
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -3240,7 +3927,38 @@ const Dashboard = () => {
 
   return (
     <HomeLayout>
-      <Layout className="!relative !min-h-screen !overflow-hidden !bg-gradient-to-br !from-[#07111F] !via-[#0C1628] !to-[#111827]">
+      <style>{`
+        .custom-light-table .ant-table {
+          background: #ffffff;
+        }
+
+        .custom-light-table .ant-table-thead > tr > th {
+          background: #f8fafc !important;
+          color: #475569 !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          font-weight: 600;
+        }
+
+        .custom-light-table .ant-table-tbody > tr > td {
+          background: #ffffff;
+          border-bottom: 1px solid #f1f5f9 !important;
+        }
+
+        .custom-light-table .ant-table-tbody > tr:hover > td {
+          background: #f8fafc !important;
+        }
+
+        .custom-light-table .ant-table-container {
+          border-inline-start: 0 !important;
+          border-inline-end: 0 !important;
+        }
+
+        .custom-light-table .ant-pagination-item {
+          border-color: #e2e8f0;
+        }
+      `}</style>
+
+      <Layout className="!relative !min-h-screen !overflow-hidden !bg-[#F1F5F9]">
         {/* Background Glow */}
         <div className="!absolute !-top-32 !-left-32 !w-[420px] !h-[420px] !rounded-full !bg-cyan-500/10 !blur-[130px]"></div>
 
@@ -3251,16 +3969,16 @@ const Dashboard = () => {
           <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             {/* Left */}
             <div className="!flex !items-center !gap-4">
-              <div className="!flex !h-14 !w-14 !items-center !justify-center !rounded-2xl !border !border-cyan-500/20 !bg-cyan-500/10 !backdrop-blur-md">
+              <div className="!flex !h-14 !w-14 !items-center !justify-center !rounded-2xl !border !border-cyan-500/20 !bg-cyan-50 !shadow-sm">
                 {greeting.icon}
               </div>
 
               <div>
-                <p className="!text-xl !font-semibold !text-white">
+                <p className="!text-xl !font-semibold !text-slate-800">
                   {greeting.text}
                 </p>
 
-                <p className="!text-sm !text-slate-400">
+                <p className="!text-sm !text-slate-700">
                   Welcome back! Here's what's happening today.
                 </p>
               </div>
@@ -3268,10 +3986,10 @@ const Dashboard = () => {
 
             {/* Right */}
             <div className="!flex !items-center !gap-4">
-              <div className="!hidden md:!flex !items-center !gap-2 !rounded-2xl !border !border-white/10 !bg-white/5 !px-4 !py-3 !backdrop-blur-md">
-                <CalendarOutlined className="!text-cyan-400" />
+              <div className="!hidden md:!flex !items-center !gap-2 !rounded-2xl !border !border-slate-200 !bg-white !px-4 !py-3 !shadow-sm">
+                <CalendarOutlined className="!text-cyan-600" />
 
-                <span className="!text-slate-300">
+                <span className="!text-sm !font-medium !text-slate-600">
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "long",
@@ -3291,12 +4009,13 @@ const Dashboard = () => {
                     lineHeight: "22px",
                     fontSize: 12,
                     fontWeight: 700,
-                    boxShadow: "0 0 0 2px #0f172a",
+                    boxShadow: "0 0 0 2px #F1F5F9",
                   },
                 }}
               >
-                <button className="!flex !h-12 !w-12 !items-center !justify-center !rounded-2xl !border !border-red-500/20 !bg-red-500/10 !backdrop-blur-md !transition-all !duration-300 hover:!bg-red-500/20 hover:!scale-105">
-                  <BellOutlined className="!text-xl !text-red-400" />
+                <button className="!flex !h-12 !w-12 !items-center !justify-center !rounded-2xl !border !border-red-200 !bg-red-50 !shadow-sm !transition-all !duration-300 hover:!scale-105 hover:!bg-red-100">
+                  {" "}
+                  <BellOutlined className="!text-xl !text-red-600" />
                 </button>
               </Badge>
 
@@ -3318,11 +4037,11 @@ const Dashboard = () => {
             {balanceCards.map((item) => (
               <div
                 key={item.currency}
-                className="!group !relative !overflow-hidden !rounded-3xl !border !border-white/10 !bg-white/5 !backdrop-blur-2xl !shadow-[0_10px_40px_rgba(0,0,0,0.25)] !min-h-[230px] !p-7 !transition-all !duration-500 hover:!-translate-y-2 hover:!scale-[1.02] hover:!border-cyan-400/30 hover:!shadow-[0_20px_60px_rgba(6,182,212,0.25)]"
+                className="!group !relative !min-h-[230px] !overflow-hidden !rounded-3xl !border !border-slate-200 !bg-white !p-7
+  !shadow-[0_10px_30px_rgba(15,23,42,0.08)] !transition-all !duration-300 hover:!-translate-y-1 hover:!shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
               >
                 {/* Background Glow */}
-                <div className="!absolute !-top-16 !-right-16 !h-44 !w-44 !rounded-full !bg-cyan-400/10 !blur-3xl !transition-all !duration-500 group-hover:!scale-125" />
-
+                <div className="!absolute !-top-16 !-right-16 !h-44 !w-44 !rounded-full !bg-cyan-400/5 !blur-3xl !transition-all !duration-500 group-hover:!scale-110" />
                 {/* Bottom Gradient */}
                 <div className="!absolute !bottom-0 !left-0 !h-1 !w-full !bg-gradient-to-r !from-cyan-400 !via-blue-500 !to-purple-500" />
 
@@ -3334,12 +4053,13 @@ const Dashboard = () => {
                         Available Balance
                       </p>
 
-                      <h3 className="!mt-3 !text-3xl !font-bold !tracking-wide !text-white">
+                      <h3 className="!mt-3 !text-3xl !font-bold !tracking-wide !text-slate-800">
                         {item.currency}
                       </h3>
                     </div>
 
-                    <div className="!flex !h-16 !w-16 !items-center !justify-center !rounded-2xl !border !border-white/10 !bg-white/10 !backdrop-blur-md">
+                    <div className="!flex !h-16 !w-16 !items-center !justify-center !rounded-2xl !border !border-slate-200 !bg-slate-50 !shadow-sm">
+                      {" "}
                       <ReactCountryFlag
                         countryCode={item.country?.toUpperCase()}
                         svg
@@ -3353,22 +4073,28 @@ const Dashboard = () => {
 
                   {/* Amount */}
                   <div className="!mt-8">
-                    <h2 className="!text-4xl !font-extrabold !tracking-tight !text-white">
+                    <h2
+                      className={`!text-4xl !font-extrabold !tracking-tight ${
+                        Number(item.amount) < 0
+                          ? "!text-rose-500"
+                          : "!text-slate-900"
+                      }`}
+                    >
                       {Number(item.amount).toLocaleString()}
                     </h2>
 
-                    <p className="!mt-2 !text-sm !text-slate-400">
+                    <p className="!mt-2 !text-sm !text-slate-500">
                       Current account balance
                     </p>
                   </div>
 
                   {/* Footer */}
                   <div className="!mt-8 !flex !items-center !justify-between">
-                    <span className="!text-sm !text-slate-400">
+                    <span className="!text-sm !text-slate-500">
                       Updated just now
                     </span>
 
-                    <span className="!rounded-full !border !border-emerald-500/20 !bg-emerald-500/10 !px-3 !py-1 !text-xs !font-semibold !text-emerald-400">
+                    <span className="!rounded-full !border !border-emerald-200 !bg-emerald-50 !px-3 !py-1 !text-xs !font-semibold !text-emerald-600">
                       ● Active
                     </span>
                   </div>
@@ -3381,9 +4107,9 @@ const Dashboard = () => {
 
           <div className="!mt-8">
             <div className="!mb-5">
-              <h2 className="!text-2xl !font-bold !text-white">Reports</h2>
+              <h2 className="!text-2xl !font-bold !text-slate-800">Reports</h2>
 
-              <p className="!mt-1 !text-sm !text-slate-400">
+              <p className="!mt-1 !text-sm !text-slate-500">
                 Generate and print financial reports
               </p>
             </div>
@@ -3391,23 +4117,23 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
               {/* ALL ACCOUNTS */}
 
-              <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
+              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
+                {" "}
                 <div className="!flex !items-start !gap-4">
                   <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !bg-cyan-500/10 !border !border-cyan-500/20">
-                    <BankOutlined className="!text-2xl !text-cyan-400" />
+                    <BankOutlined className="!text-2xl !text-cyan-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-white">
+                    <h3 className="!text-xl !font-bold !text-slate-800">
                       All Accounts Statement
                     </h3>
 
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
+                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
                       View balances for all customer accounts by currency.
                     </p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 !mt-6">
                   <Button
                     type="primary"
@@ -3434,23 +4160,23 @@ const Dashboard = () => {
                     CUSTOMER ID REPORT
                 ================================================== */}
 
-              <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
+              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
+                {" "}
                 <div className="!flex !items-start !gap-4">
-                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-violet-500/20 !bg-violet-500/10">
-                    <UserOutlined className="!text-2xl !text-violet-400" />
+                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-violet-200 !bg-violet-50">
+                    <UserOutlined className="!text-2xl !text-violet-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-white">
+                    <h3 className="!text-xl !font-bold !text-slate-800">
                       Customer ID Report
                     </h3>
 
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
+                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
                       View all accounts and currency balances for a customer.
                     </p>
                   </div>
                 </div>
-
                 <Button
                   type="primary"
                   block
@@ -3464,23 +4190,23 @@ const Dashboard = () => {
               </div>
               {/* CUSTOMER STATEMENT */}
               {/* Customer Account Statement */}
-              <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
+              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
+                {" "}
                 <div className="!flex !items-start !gap-4">
-                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-emerald-500/20 !bg-emerald-500/10">
-                    <FileTextOutlined className="!text-2xl !text-emerald-400" />
+                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-emerald-200 !bg-emerald-50">
+                    <FileTextOutlined className="!text-2xl !text-emerald-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-white">
+                    <h3 className="!text-xl !font-bold !text-slate-800">
                       Customer Account Statement
                     </h3>
 
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
+                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
                       Select a customer and generate a transaction statement.
                     </p>
                   </div>
                 </div>
-
                 <Button
                   type="primary"
                   block
@@ -3494,23 +4220,23 @@ const Dashboard = () => {
               </div>
 
               {/* Currency Balance Report */}
-              <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
+              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
+                {" "}
                 <div className="!flex !items-start !gap-4">
-                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-cyan-500/20 !bg-cyan-500/10">
-                    <BankOutlined className="!text-2xl !text-cyan-400" />
+                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-cyan-200 !bg-cyan-50">
+                    <BankOutlined className="!text-2xl !text-cyan-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-white">
+                    <h3 className="!text-xl !font-bold !text-slate-800">
                       Currency Balance Report
                     </h3>
 
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
+                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
                       View and print current balances by currency.
                     </p>
                   </div>
                 </div>
-
                 <Button
                   type="primary"
                   block
@@ -3528,19 +4254,19 @@ const Dashboard = () => {
           {/* FINANCIAL OVERVIEW */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-8">
             {/* CHART */}
-            <div className="xl:col-span-2 rounded-[30px] bg-[#162235] border border-slate-700 p-7 shadow-xl">
+            <div className="xl:col-span-2 rounded-[24px] bg-white border border-slate-200 p-7 shadow-sm">
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    Transaction Activity
+                  <h2 className="text-2xl font-bold text-slate-800">
+                    Transaction Chart
                   </h2>
 
-                  <p className="text-zinc-400">
+                  <p className="text-sm text-slate-500">
                     Transactions completed over the last 7 days
                   </p>
                 </div>
 
-                <SwapOutlined className="text-cyan-400 text-2xl" />
+                <SwapOutlined className="text-cyan-600 text-2xl" />
               </div>
 
               <ResponsiveContainer width="100%" height={320}>
@@ -3561,27 +4287,26 @@ const Dashboard = () => {
                   </defs>
 
                   <CartesianGrid
-                    stroke="#1f2937"
+                    stroke="#E2E8F0"
                     strokeDasharray="3 3"
                     vertical={false}
                   />
 
                   <XAxis
                     dataKey="name"
-                    stroke="#94a3b8"
-                    tick={{ fill: "#cbd5e1" }}
+                    stroke="#CBD5E1"
+                    tick={{ fill: "#64748B" }}
                     axisLine={false}
                     tickLine={false}
                   />
 
                   <YAxis
                     allowDecimals={false}
-                    stroke="#94a3b8"
-                    tick={{ fill: "#cbd5e1" }}
+                    stroke="#CBD5E1"
+                    tick={{ fill: "#64748B" }}
                     axisLine={false}
                     tickLine={false}
                   />
-
                   <ChartTooltip
                     cursor={{ stroke: "#06b6d4", strokeWidth: 1 }}
                     content={<CustomTooltip />}
@@ -3602,50 +4327,52 @@ const Dashboard = () => {
 
             {/* QUICK STATS */}
             <div className="space-y-5">
-              <div className="bg-[#111827] border border-zinc-800 rounded-[30px] p-6 shadow-2xl">
+              <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm transition-all duration-300 hover:shadow-md">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-zinc-400">Pending Transactions</p>
+                    <p className="text-sm font-medium text-slate-500">
+                      Pending Transactions
+                    </p>
 
-                    <h2 className="text-5xl font-black text-white mt-3">
+                    <h2 className="text-5xl font-black text-slate-900 mt-3">
                       {pendingTransactions}
                     </h2>
                   </div>
 
-                  <div className="bg-cyan-500/20 p-4 rounded-2xl">
-                    <ClockCircleOutlined className="text-3xl text-cyan-400" />
+                  <div className="bg-cyan-50 p-4 rounded-2xl">
+                    <ClockCircleOutlined className="text-3xl text-cyan-600" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-[#111827] border border-zinc-800 rounded-[30px] p-6 shadow-2xl">
+              <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm transition-all duration-300 hover:shadow-md">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-zinc-400">Pending Transfer</p>
+                    <p className="text-zinc-500">Pending Transfer</p>
 
-                    <h2 className="text-5xl font-black text-white mt-3">
+                    <h2 className="text-5xl font-black text-slate-900 mt-3">
                       {pendingTransfers}
                     </h2>
                   </div>
 
-                  <div className="bg-emerald-500/20 p-4 rounded-2xl">
-                    <SyncOutlined className="text-3xl text-emerald-400" />
+                  <div className="bg-emerald-50 p-4 rounded-2xl">
+                    <SyncOutlined className="text-3xl text-emerald-600" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-[#111827] border border-zinc-800 rounded-[30px] p-6 shadow-2xl">
+              <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm transition-all duration-300 hover:shadow-md">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-zinc-400">Pending Exchange</p>
+                    <p className="text-zinc-500">Pending Exchange</p>
 
-                    <h2 className="text-5xl font-black text-white mt-3">
+                    <h2 className="text-5xl font-black text-slate-900 mt-3">
                       {pendingExchanges}
                     </h2>
                   </div>
 
-                  <div className="bg-orange-500/20 p-4 rounded-2xl">
-                    <SwapOutlined className="text-3xl text-orange-400" />
+                  <div className="bg-orange-50 p-4 rounded-2xl">
+                    <SwapOutlined className="text-3xl text-orange-600" />
                   </div>
                 </div>
               </div>
@@ -3653,14 +4380,14 @@ const Dashboard = () => {
           </div>
 
           {/* RECENT TRANSACTIONS */}
-          <div className="!mt-8 !rounded-[30px] !bg-white !border !border-slate-200 !shadow-lg !overflow-hidden">
+          <div className="!mt-8 !overflow-hidden !rounded-[24px] !border !border-slate-200 !bg-white !shadow-sm">
             {/* Header */}
-            <div className="!px-8 !py-6 !border-b !border-slate-700/50">
-              <h2 className="!text-3xl !font-bold !text-slate-500">
-                Transaction Activity
+            <div className="!px-8 !py-6 !border-b !border-slate-200">
+              <h2 className="!text-2xl !font-bold !text-slate-800">
+                Transaction History
               </h2>
 
-              <p className="!mt-2 !text-slate-400">
+              <p className="!mt-1 !text-sm !text-slate-500">
                 Search, filter and manage all customer transactions.
               </p>
             </div>
@@ -3762,7 +4489,7 @@ const Dashboard = () => {
 
               {/* Table */}
 
-              <div className="mb-10 !overflow-x-auto !rounded-2xl !border !border-slate-700/60 !bg-white !shadow-inner">
+              <div className="mb-10 !overflow-x-auto !rounded-2xl !border !border-slate-200 !bg-white !shadow-sm">
                 <Table
                   columns={columns}
                   dataSource={filteredTransactions}
@@ -3795,7 +4522,7 @@ const Dashboard = () => {
                     responsive: true,
                   }}
                   scroll={{ x: 1200 }}
-                  className="custom-dark-table"
+                  className="custom-light-table"
                 />
               </div>
             </div>
@@ -4055,7 +4782,7 @@ const Dashboard = () => {
                           {item.currency}
                         </td>
 
-                        <td className="px-4 py-3 text-right text-sm text-red-600">
+                        <td className="px-4 py-3 text-right text-sm text-slate-600">
                           {item.debit.toLocaleString(undefined, {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -4069,7 +4796,13 @@ const Dashboard = () => {
                           })}
                         </td>
 
-                        <td className="px-4 py-3 text-right text-sm font-bold text-blue-600">
+                        <td
+                          className={`px-4 py-3 text-right text-sm font-bold ${
+                            Number(item.balance) < 0
+                              ? "text-red-600"
+                              : "text-blue-600"
+                          }`}
+                        >
                           {item.balance.toLocaleString(undefined, {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -4128,287 +4861,330 @@ const Dashboard = () => {
             allowClear
             size="large"
             className="w-full"
-            placeholder="Select Customer ID"
+            placeholder="Select Customer"
             value={selectedCustomerId}
-            onChange={setSelectedCustomerId}
-            options={[
-              ...new Set(
-                (users || [])
-                  .filter((user) => user.role === "customer" && user.customerId)
-                  .map((user) => String(user.customerId)),
-              ),
-            ].map((customerId) => ({
-              value: customerId,
-              label: customerId,
-            }))}
+            onChange={(value) => {
+              setSelectedCustomerId(value);
+              setCustomerIdReport(null);
+            }}
+            optionFilterProp="label"
+            filterOption={(input, option) =>
+              String(option?.label || "")
+                .toLowerCase()
+                .includes(input.toLowerCase())
+            }
+            options={Object.values(
+              (users || [])
+                .filter(
+                  (user) =>
+                    user.role === "customer" &&
+                    user.customerId &&
+                    user.fullname,
+                )
+                .reduce((acc, user) => {
+                  const customerId = String(user.customerId).trim();
+
+                  if (!acc[customerId]) {
+                    acc[customerId] = {
+                      value: customerId,
+                      label: `${customerId} — ${user.fullname}`,
+                    };
+                  }
+
+                  return acc;
+                }, {}),
+            )}
           />
 
-          <Button
-            type="primary"
-            block
-            size="large"
-            icon={<PrinterOutlined />}
-            className="mt-6 h-12"
-            disabled={!selectedCustomerId}
-            onClick={() => {
-              const report = prepareCustomerIdReport();
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* GENERATE REPORT */}
+            <Button
+              type="primary"
+              size="large"
+              icon={<UserOutlined />}
+              className="!h-12 !rounded-lg !border-0 !bg-violet-600 !font-medium hover:!bg-violet-700"
+              disabled={!selectedCustomerId}
+              onClick={() => {
+                const report = prepareCustomerIdReport();
 
-              if (!report) {
-                return;
-              }
+                if (!report) {
+                  return;
+                }
 
-              console.log("CUSTOMER ID REPORT:", report);
+                console.log("CUSTOMER ID REPORT:", report);
 
-              setCustomerIdReport(report);
-            }}
-          >
-            Generate Customer ID Report
-          </Button>
+                setCustomerIdReport(report);
+              }}
+            >
+              Generate Report
+            </Button>
+
+            {/* EXPORT PDF */}
+            <Button
+              size="large"
+              icon={<FilePdfOutlined />}
+              className="!h-12 !rounded-lg !border-red-300 !font-medium !text-red-600 hover:!border-red-500 hover:!bg-red-50 hover:!text-red-700"
+              disabled={!customerIdReport}
+              onClick={exportCustomerIdReportToPDF}
+            >
+              Export to PDF
+            </Button>
+          </div>
 
           {customerIdReport && (
-  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-    {/* =====================================================
+            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              {/* =====================================================
         CUSTOMER HEADER
     ===================================================== */}
-    <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-      <div className="flex items-center gap-4">
-        <Avatar
-          size={58}
-          src={
-            customerIdReport?.accounts?.[0]?.profile
-              ? `${import.meta.env.VITE_ENDPOINT}${customerIdReport.accounts[0].profile}`
-              : undefined
-          }
-          icon={<UserOutlined />}
-          className="shrink-0 !bg-blue-600"
-        />
+              <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                <div className="flex items-center gap-4">
+                  <Avatar
+                    size={58}
+                    src={
+                      customerIdReport?.accounts?.[0]?.profile
+                        ? `${import.meta.env.VITE_ENDPOINT}${customerIdReport.accounts[0].profile}`
+                        : undefined
+                    }
+                    icon={<UserOutlined />}
+                    className="shrink-0 !bg-blue-600"
+                  />
 
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Customer
-          </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Customer
+                    </div>
 
-          <div className="text-base font-bold text-slate-800">
-            {customerIdReport?.customerName || "-"}
-          </div>
+                    <div className="text-base font-bold text-slate-800">
+                      {customerIdReport?.customerName || "-"}
+                    </div>
 
-          <div className="mt-0.5 text-xs font-semibold text-blue-600">
-            ID: {customerIdReport?.customerId || "-"}
-          </div>
-        </div>
-      </div>
-    </div>
+                    <div className="mt-0.5 text-xs font-semibold text-blue-600">
+                      ID: {customerIdReport?.customerId || "-"}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-    {/* =====================================================
+              {/* =====================================================
         ACCOUNTS
     ===================================================== */}
-    <div className="space-y-3 p-4">
-      {customerIdReport.accounts.map((account) => (
-        <div
-          key={account.accountNo}
-          className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-        >
-          {/* ACCOUNT HEADER */}
-          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Account Number
-              </div>
+              <div className="space-y-3 p-4">
+                {customerIdReport.accounts.map((account) => (
+                  <div
+                    key={account.accountNo}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                  >
+                    {/* ACCOUNT HEADER */}
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          Account Number
+                        </div>
 
-              <div className="text-sm font-bold text-slate-700">
-                {account.accountNo}
-              </div>
-            </div>
+                        <div className="text-sm font-bold text-slate-700">
+                          {account.accountNo}
+                        </div>
+                      </div>
 
-            <div className="rounded-md bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-600">
-              ACCOUNT
-            </div>
-          </div>
+                      <div className="rounded-md bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-600">
+                        ACCOUNT
+                      </div>
+                    </div>
 
-          {/* ACCOUNT BALANCES */}
-          <div className="px-4 py-1">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                    Currency
-                  </th>
+                    {/* ACCOUNT BALANCES */}
+                    <div className="px-4 py-1">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-slate-100">
+                            <th className="py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                              Currency
+                            </th>
 
-                  <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                    Debit
-                  </th>
+                            <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                              Debit
+                            </th>
 
-                  <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                    Credit
-                  </th>
+                            <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                              Credit
+                            </th>
 
-                  <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                    Balance
-                  </th>
-                </tr>
-              </thead>
+                            <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                              Balance
+                            </th>
+                          </tr>
+                        </thead>
 
-              <tbody>
-                {Object.entries(account.currencyBalances || {}).map(
-                  ([currency, data]) => (
-                    <tr
-                      key={currency}
-                      className="border-b border-slate-50 last:border-0"
-                    >
-                      <td className="py-1.5 text-xs font-semibold text-slate-700">
-                        {currency}
-                      </td>
+                        <tbody>
+                          {Object.entries(account.currencyBalances || {}).map(
+                            ([currency, data]) => (
+                              <tr
+                                key={currency}
+                                className="border-b border-slate-50 last:border-0"
+                              >
+                                <td className="py-1.5 text-xs font-semibold text-slate-700">
+                                  {currency}
+                                </td>
 
-                      <td className="py-1.5 text-right text-xs text-slate-600">
-                        {Number(data.debit).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
+                                <td className="py-1.5 text-right text-xs text-slate-600">
+                                  {Number(data.debit).toLocaleString(
+                                    undefined,
+                                    {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    },
+                                  )}
+                                </td>
 
-                      <td className="py-1.5 text-right text-xs text-green-600">
-                        {Number(data.credit).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
+                                <td className="py-1.5 text-right text-xs text-green-600">
+                                  {Number(data.credit).toLocaleString(
+                                    undefined,
+                                    {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    },
+                                  )}
+                                </td>
 
-                      <td
-                        className={`py-1.5 text-right text-xs font-bold ${
-                          Number(data.balance) < 0
-                            ? "text-red-600"
-                            : "text-blue-700"
-                        }`}
-                      >
-                        {Number(data.balance).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  ),
-                )}
+                                <td
+                                  className={`py-1.5 text-right text-xs font-bold ${
+                                    Number(data.balance) < 0
+                                      ? "text-red-600"
+                                      : "text-blue-700"
+                                  }`}
+                                >
+                                  {Number(data.balance).toLocaleString(
+                                    undefined,
+                                    {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    },
+                                  )}
+                                </td>
+                              </tr>
+                            ),
+                          )}
 
-                {Object.keys(account.currencyBalances || {}).length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="py-3 text-center text-xs text-slate-400"
-                    >
-                      No transactions found for this account.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+                          {Object.keys(account.currencyBalances || {})
+                            .length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={4}
+                                className="py-3 text-center text-xs text-slate-400"
+                              >
+                                No transactions found for this account.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
 
-      {/* =====================================================
+                {/* =====================================================
           TOTAL CUSTOMER BALANCE
       ===================================================== */}
-      <div className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40">
-        {/* TOTAL HEADER */}
-        <div className="flex items-center justify-between border-b border-blue-200 bg-blue-50 px-4 py-2.5">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-500">
-              Customer Summary
+                <div className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40">
+                  {/* TOTAL HEADER */}
+                  <div className="flex items-center justify-between border-b border-blue-200 bg-blue-50 px-4 py-2.5">
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-500">
+                        Customer Summary
+                      </div>
+
+                      <div className="text-sm font-bold text-blue-800">
+                        Total Customer Balance
+                      </div>
+                    </div>
+
+                    <div className="rounded-md bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                      All Accounts
+                    </div>
+                  </div>
+
+                  {/* TOTAL TABLE */}
+                  <div className="px-4 py-1">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-blue-100">
+                          <th className="py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Currency
+                          </th>
+
+                          <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Debit
+                          </th>
+
+                          <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Credit
+                          </th>
+
+                          <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Total Balance
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {Object.entries(
+                          customerIdReport.totalCurrencyBalances || {},
+                        ).map(([currency, data]) => (
+                          <tr
+                            key={currency}
+                            className="border-b border-blue-100/70 last:border-0"
+                          >
+                            <td className="py-1.5 text-xs font-bold text-slate-700">
+                              {currency}
+                            </td>
+
+                            <td className="py-1.5 text-right text-xs text-slate-600">
+                              {Number(data.debit).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+
+                            <td className="py-1.5 text-right text-xs font-semibold text-green-600">
+                              {Number(data.credit).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+
+                            <td
+                              className={`py-1.5 text-right text-xs font-bold ${
+                                Number(data.balance) < 0
+                                  ? "text-red-600"
+                                  : "text-blue-700"
+                              }`}
+                            >
+                              {Number(data.balance).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                          </tr>
+                        ))}
+
+                        {Object.keys(
+                          customerIdReport.totalCurrencyBalances || {},
+                        ).length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              className="py-3 text-center text-xs text-slate-400"
+                            >
+                              No currency balances found.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            <div className="text-sm font-bold text-blue-800">
-              Total Customer Balance
-            </div>
-          </div>
-
-          <div className="rounded-md bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-            All Accounts
-          </div>
-        </div>
-
-        {/* TOTAL TABLE */}
-        <div className="px-4 py-1">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-blue-100">
-                <th className="py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  Currency
-                </th>
-
-                <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  Debit
-                </th>
-
-                <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  Credit
-                </th>
-
-                <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  Total Balance
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {Object.entries(
-                customerIdReport.totalCurrencyBalances || {},
-              ).map(([currency, data]) => (
-                <tr
-                  key={currency}
-                  className="border-b border-blue-100/70 last:border-0"
-                >
-                  <td className="py-1.5 text-xs font-bold text-slate-700">
-                    {currency}
-                  </td>
-
-                  <td className="py-1.5 text-right text-xs text-slate-600">
-                    {Number(data.debit).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-
-                  <td className="py-1.5 text-right text-xs font-semibold text-green-600">
-                    {Number(data.credit).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-
-                  <td
-                    className={`py-1.5 text-right text-xs font-bold ${
-                      Number(data.balance) < 0
-                        ? "text-red-600"
-                        : "text-blue-700"
-                    }`}
-                  >
-                    {Number(data.balance).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                </tr>
-              ))}
-
-              {Object.keys(
-                customerIdReport.totalCurrencyBalances || {},
-              ).length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="py-3 text-center text-xs text-slate-400"
-                  >
-                    No currency balances found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+          )}
         </div>
       </Modal>
 
