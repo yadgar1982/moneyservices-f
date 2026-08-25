@@ -274,7 +274,7 @@ const Dashboard = () => {
             icon={<UserOutlined />}
           />
           <div>
-            <div className="!font-medium">{record.fullname}</div>
+            <div className="!font-medium">{record?.fullname || "-"}</div>
             <div className="!text-xs !text-gray-500">{record.accountNo}</div>
           </div>
         </div>
@@ -2063,7 +2063,9 @@ const Dashboard = () => {
                 ${
                   (users || []).filter(
                     (user) =>
-                      user.accountNo !== undefined && user.accountNo !== null,
+                      user &&
+                      user.accountNo !== undefined &&
+                      user.accountNo !== null,
                   ).length
                 }
               </span>
@@ -2228,7 +2230,10 @@ const Dashboard = () => {
     ].sort();
 
     const excelData = (users || [])
-      .filter((user) => user.accountNo !== undefined && user.accountNo !== null)
+      .filter(
+        (user) =>
+          user && user.accountNo !== undefined && user.accountNo !== null,
+      )
       .map((user, index) => {
         const balances = getBalancesByAccount(user.accountNo);
 
@@ -3078,6 +3083,7 @@ const Dashboard = () => {
     // 1. Find all accounts belonging to this Customer ID
     const customerAccounts = (users || []).filter(
       (user) =>
+        user &&
         user.role === "customer" &&
         String(user.customerId || "").trim() ===
           String(selectedCustomerId).trim(),
@@ -4877,6 +4883,7 @@ const Dashboard = () => {
               (users || [])
                 .filter(
                   (user) =>
+                    user &&
                     user.role === "customer" &&
                     user.customerId &&
                     user.fullname,
@@ -5047,12 +5054,12 @@ const Dashboard = () => {
 
                                 <td
                                   className={`py-1.5 text-right text-xs font-bold ${
-                                    Number(data.balance) < 0
+                                    Number(data?.balance) < 0
                                       ? "text-red-600"
                                       : "text-blue-700"
                                   }`}
                                 >
-                                  {Number(data.balance).toLocaleString(
+                                  {Number(data?.balance).toLocaleString(
                                     undefined,
                                     {
                                       minimumFractionDigits: 2,
@@ -5064,7 +5071,7 @@ const Dashboard = () => {
                             ),
                           )}
 
-                          {Object.keys(account.currencyBalances || {})
+                          {Object.keys(account?.currencyBalances || {})
                             .length === 0 && (
                             <tr>
                               <td
@@ -5082,8 +5089,7 @@ const Dashboard = () => {
                 ))}
 
                 {/* =====================================================
-          TOTAL CUSTOMER BALANCE
-      ===================================================== */}
+          TOTAL CUSTOMER BALANCE */}
                 <div className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40">
                   {/* TOTAL HEADER */}
                   <div className="flex items-center justify-between border-b border-blue-200 bg-blue-50 px-4 py-2.5">
