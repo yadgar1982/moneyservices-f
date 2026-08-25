@@ -4,7 +4,13 @@ import PrintLayout from "../print/PrintLayout";
 import PrintHeader from "../print/PrintHeader";
 import PrintFooter from "../print/PrintFooter";
 
-const TransactionReceipt = ({ logo, brand, branch, transaction,exchangeRate }) => {
+const TransactionReceipt = ({
+  logo,
+  brand,
+  branch,
+  transaction,
+  exchangeRate,
+}) => {
   const debit = transaction?.debit;
   const credit = transaction?.credit;
 
@@ -85,9 +91,7 @@ const TransactionReceipt = ({ logo, brand, branch, transaction,exchangeRate }) =
                 <tr>
                   <td className="text-gray-500 py-1">Exchange Rate</td>
 
-                  <td className="font-semibold">
-                    : {exchangeRate}
-                  </td>
+                  <td className="font-semibold">: {exchangeRate}</td>
                 </tr>
               )}
             </tbody>
@@ -273,23 +277,6 @@ const TransactionReceipt = ({ logo, brand, branch, transaction,exchangeRate }) =
             </div>
           )}
         </div>
-      }
-      bottomSummary={
-        isNormal ? (
-          <div className="text-[12px] px-18">
-            <div className="flex justify-between mt-2 font-bold">
-              <span>Balance</span>
-
-              <span className={balance < 0 ? "text-red-500" : "text-green-500"}>
-                {balance.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                {transaction?.currency}
-              </span>
-            </div>
-          </div>
-        ) : null
       }
       footer={
         <div className="mt-6 text-center text-xs text-gray-500">

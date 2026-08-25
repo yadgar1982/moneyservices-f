@@ -163,55 +163,64 @@ const Transactions = () => {
   const filteredCurrencies = [
     ...new Set(accountFiltered.map((t) => t.currency)),
   ];
-
-  // Final filtered data
-  const finalResult = accountFiltered.filter((t) => {
-    if (selectedCurrency && t.currency !== selectedCurrency) {
-      return false;
-    }
-
-    const d = new Date(t.createdAt);
-
-    // FROM
-    if (fromDate) {
-      const start = new Date(fromDate + "T00:00:00");
-
-      if (d < start) return false;
-    }
-
-    // TO
-    if (toDate) {
-      const end = new Date(toDate + "T23:59:59.999");
-
-      if (d > end) return false;
-    }
-
-    return true;
-  });
-
   // PRINT FUNCTIONS
 
   // handleprint statement
+
   const handleStatementPrint = useReactToPrint({
     contentRef: statementRef,
     documentTitle: "Account Statement",
+
+    pageStyle: `
+    @page {
+      margin: 5mm;
+    }
+
+    @media print {
+      html,
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        background: #ffffff !important;
+      }
+
+      body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+  `,
   });
 
   useEffect(() => {
-    if (statementData) {
+    if (!statementData) return;
+
+    const timer = setTimeout(() => {
       handleStatementPrint();
-    }
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [statementData, handleStatementPrint]);
+
   // handle print receipt
   const handleReceiptPrint = useReactToPrint({
     contentRef: receiptRef,
     documentTitle: "Transaction Receipt",
-  });
-  useEffect(() => {
-    if (receiptData) {
-      handleReceiptPrint();
+
+    pageStyle: `
+    @page {
+      margin: 5mm;
     }
-  }, [receiptData, handleReceiptPrint]);
+
+    html,
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+    }
+  `,
+  });
 
   // print statement
   const prepareStatement = (values, shouldPrint = true) => {
@@ -850,6 +859,7 @@ const Transactions = () => {
     XLSX.writeFile(workbook, fileName);
   };
   //print transaction
+
   const printRecord = async (record) => {
     const { transactionId } = record;
 
@@ -1378,6 +1388,7 @@ const Transactions = () => {
       await loadTransactionId();
       setCapturedImage(null);
       setSignatureImage(null);
+      setSelectedAccount(null);
     } catch (err) {
       console.error(err);
       toast.error("Failed to create transaction!");
@@ -1838,25 +1849,42 @@ const Transactions = () => {
             font-size: 10px;
             color: #94a3b8;
           }
+@media print {
+  body {
+    margin: 0 !important;
+    padding: 5mm !important;
+  }
 
-          @media print {
-            body {
-              padding: 10px;
-            }
+  @page {
+    margin: 5mm;
+  }
 
-            @page {
-              size: landscape;
-              margin: 10mm;
-            }
+  .container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
 
-            thead {
-              display: table-header-group;
-            }
+  table {
+    width: 100% !important;
+    margin-top: 8px !important;
+  }
 
-            tr {
-              page-break-inside: avoid;
-            }
-          }
+  thead {
+    display: table-header-group;
+  }
+
+  tbody {
+    display: table-row-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+         
         </style>
       </head>
 
@@ -2332,7 +2360,12 @@ const Transactions = () => {
           <Space size={15}>
             {/* Print */}
             <PrinterOutlined
-              onClick={() => !disabled && printRecord(record)}
+              onClick={async () => {
+                if (disabled) return;
+
+                await printRecord(record);
+                handleReceiptPrint();
+              }}
               className={`!text-lg ${
                 disabled
                   ? "!text-gray-300 !cursor-not-allowed"
@@ -4015,14 +4048,13 @@ Details: ${record.details || "-"}
       </Modal>
 
       {/* Statement ref */}
-      <div className="hidden">
-        <img
-          src={logo}
-          alt="test logo"
-          style={{ width: "100px", height: "100px", objectFit: "contain" }}
-        />
+      <div
+        id="account-statement-print"
+        className="print-only-container"
+        ref={statementRef}
+      >
         {statementData && (
-          <div ref={statementRef} className="statement-print-root">
+          <div className="statement-print-root">
             <AccountStatement
               logo={logo}
               brand={myBrand}
@@ -4043,18 +4075,21 @@ Details: ${record.details || "-"}
       </div>
 
       {/* transaction record ref */}
-      <div style={{ display: "none" }}>
-        <div ref={receiptRef}>
-          {receiptData && (
+      <div
+        id="transaction-receipt-print"
+        className="receipt-print-container"
+        ref={receiptRef}
+      >
+        {receiptData && (
+          <div className="receipt-print-root">
             <TransactionReceipt
               logo={logo}
               brand={myBrand}
               branch={myBranch}
               transaction={receiptData.transaction}
-              exchangeRate={receiptData.transaction?.exchangeRate}
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </HomeLayout>
   );

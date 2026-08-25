@@ -11,53 +11,90 @@ const PrintLayout = ({
   return (
     <>
       <style>{`
+        /* ==================================================
+           PRINT LAYOUT
+        ================================================== */
+
         @media print {
 
           @page {
-  margin: 8mm 10mm 15mm 10mm;
-}
+            /*
+             * Do not force orientation.
+             * Chrome will provide the Portrait/Landscape
+             * option in the print window.
+             */
+            size: auto;
+            margin: 5mm;
+          }
+
+
+          /* ==================================================
+             PAGE
+          ================================================== */
 
           html,
           body {
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
-            overflow: visible !important;
-          }
+            margin: 0 !important;
+            padding: 0 !important;
 
-          /*
-           * PRINT ROOT
-           */
-          .print-layout {
             width: 100% !important;
             height: auto !important;
+
             min-height: 0 !important;
             max-height: none !important;
+
+            overflow: visible !important;
+
+            background: #ffffff !important;
+          }
+
+
+          /* ==================================================
+             PRINTABLE CONTENT MUST BE VISIBLE
+          ================================================== */
+
+          .print-layout,
+          .print-layout *,
+          .print-layout > * {
+            visibility: visible !important;
+          }
+
+
+          /* ==================================================
+             PRINT ROOT
+          ================================================== */
+
+          .print-layout {
+            width: 100% !important;
+
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+
+            margin: 0 auto !important;
+
+            padding-bottom: ${
+              landscape ? "10mm" : "5mm"
+            } !important;
 
             overflow: visible !important;
 
             box-sizing: border-box !important;
 
-            margin: 0 auto !important;
-
-            /*
-             * Bottom breathing room.
-             * Landscape gets a little more.
-             */
-            padding-bottom: ${landscape ? "15mm" : "5mm"} !important;
-
-            /*
-             * IMPORTANT:
-             * Do NOT force a page break here.
-             */
             page-break-after: auto !important;
             break-after: auto !important;
+
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+
+            background: #ffffff !important;
           }
 
-          /*
-           * The table must be allowed to grow
-           * beyond the first physical page.
-           */
+
+          /* ==================================================
+             TABLE CONTAINER
+          ================================================== */
+
           .print-table-container {
             width: 100% !important;
 
@@ -65,9 +102,9 @@ const PrintLayout = ({
             min-height: 0 !important;
             max-height: none !important;
 
-            overflow: visible !important;
-
             display: block !important;
+
+            overflow: visible !important;
 
             flex: none !important;
 
@@ -75,25 +112,33 @@ const PrintLayout = ({
             break-inside: auto !important;
           }
 
-          /*
-           * TABLE PAGINATION
-           */
+
+          /* ==================================================
+             TABLE
+          ================================================== */
+
           .print-table-container table {
             width: 100% !important;
+
             height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
 
-            overflow: visible !important;
+            margin: 0 !important;
 
             border-collapse: collapse !important;
+
+            overflow: visible !important;
 
             page-break-inside: auto !important;
             break-inside: auto !important;
           }
 
-          /*
-           * Repeat table header on every page.
-           */
+
+          /* ==================================================
+             REPEAT TABLE HEADER
+          ================================================== */
+
           .print-table-container thead {
             display: table-header-group !important;
           }
@@ -102,47 +147,114 @@ const PrintLayout = ({
             display: table-row-group !important;
           }
 
-          /*
-           * Don't split an individual transaction
-           * between two pages.
-           */
+
+          /* ==================================================
+             KEEP ROWS TOGETHER
+          ================================================== */
+
           .print-table-container tr {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
-          /*
-           * Keep table cells from creating
-           * unexpected clipping.
-           */
+
+          /* ==================================================
+             TABLE CELLS
+          ================================================== */
+
           .print-table-container th,
           .print-table-container td {
             overflow: visible !important;
           }
 
-          /*
-           * Never clip the statement.
-           */
-          .print-layout,
-          .print-layout > *,
-          .print-layout * {
+
+          /* ==================================================
+             BOTTOM SUMMARY
+          ================================================== */
+
+          .print-bottom-summary {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+
+            height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
+
+            overflow: visible !important;
+
+            visibility: visible !important;
           }
 
+
+          /* ==================================================
+             RECEIPT / REPORT FOOTER
+          ================================================== */
+
           /*
-           * Bottom totals must stay together.
+           * IMPORTANT:
+           * Do NOT use display:none here.
+           *
+           * Account Statement does not pass a footer,
+           * so nothing is rendered there.
+           *
+           * TransactionReceipt DOES pass a footer,
+           * so it remains visible.
            */
-          .print-bottom-summary {
+
+          .print-footer {
+            display: block !important;
+
+            visibility: visible !important;
+
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+
+            overflow: visible !important;
+
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
-          /*
-           * Footer is intentionally not used
-           * for the account statement.
-           */
-          .print-footer {
-            display: none !important;
+
+          .print-footer,
+          .print-footer * {
+            visibility: visible !important;
+          }
+
+
+          /* ==================================================
+             IMAGES / LOGOS
+          ================================================== */
+
+          .print-layout img {
+            max-width: 100% !important;
+            max-height: none !important;
+
+            visibility: visible !important;
+
+            overflow: visible !important;
+          }
+
+
+          /* ==================================================
+             REMOVE SCREEN SHADOWS
+          ================================================== */
+
+          .print-layout,
+          .print-layout * {
+            box-shadow: none !important;
+          }
+
+
+          /* ==================================================
+             PRINT COLORS
+          ================================================== */
+
+          .print-layout,
+          .print-layout * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
@@ -156,26 +268,37 @@ const PrintLayout = ({
           px-6
           py-5
 
-          ${landscape
-            ? "max-w-[297mm]"
-            : "max-w-[210mm]"}
+          ${
+            landscape
+              ? "max-w-[297mm]"
+              : "max-w-[210mm]"
+          }
 
-          ${compact
-            ? ""
-            : landscape
-            ? ""
-            : "min-h-[297mm]"}
+          ${
+            compact
+              ? ""
+              : landscape
+              ? ""
+              : "min-h-[297mm]"
+          }
         `}
         style={{
           boxSizing: "border-box",
           overflow: "visible",
+          background: "#ffffff",
         }}
       >
-        {/* HEADER */}
+
+        {/* ==================================================
+            HEADER
+        ================================================== */}
 
         {header}
 
-        {/* REPORT INFORMATION */}
+
+        {/* ==================================================
+            INFORMATION
+        ================================================== */}
 
         {info && (
           <div
@@ -189,7 +312,10 @@ const PrintLayout = ({
           </div>
         )}
 
-        {/* TOP SUMMARY */}
+
+        {/* ==================================================
+            TOP SUMMARY
+        ================================================== */}
 
         {summary && (
           <div
@@ -207,7 +333,10 @@ const PrintLayout = ({
           </div>
         )}
 
-        {/* TABLE */}
+
+        {/* ==================================================
+            TABLE
+        ================================================== */}
 
         {table && (
           <div
@@ -221,15 +350,20 @@ const PrintLayout = ({
           </div>
         )}
 
-        {/* BOTTOM SUMMARY */}
+
+        {/* ==================================================
+            BOTTOM SUMMARY
+        ================================================== */}
 
         {bottomSummary && (
           <div
             className={`
               print-bottom-summary
-              ${landscape
-                ? "mt-2 pt-2"
-                : "mt-3 pt-2"}
+              ${
+                landscape
+                  ? "mt-2 pt-2"
+                  : "mt-3 pt-2"
+              }
             `}
             style={{
               pageBreakInside: "avoid",
@@ -240,7 +374,10 @@ const PrintLayout = ({
           </div>
         )}
 
-        {/* FOOTER */}
+
+        {/* ==================================================
+            FOOTER
+        ================================================== */}
 
         {footer && (
           <div
@@ -248,11 +385,13 @@ const PrintLayout = ({
             style={{
               pageBreakInside: "avoid",
               breakInside: "avoid",
+              visibility: "visible",
             }}
           >
             {footer}
           </div>
         )}
+
       </div>
     </>
   );

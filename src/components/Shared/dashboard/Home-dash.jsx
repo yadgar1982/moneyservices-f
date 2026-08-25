@@ -79,10 +79,8 @@ const Dashboard = () => {
   const [customerStatementToDate, setCustomerStatementToDate] = useState(null);
   const [customerStatementData, setCustomerStatementData] = useState(null);
   // const [stName, setStName] = useState("");
-const [currencyBalanceModalOpen, setCurrencyBalanceModalOpen] = useState(false);
-
-
-
+  const [currencyBalanceModalOpen, setCurrencyBalanceModalOpen] =
+    useState(false);
 
   const { transactions } = useSelector((state) => state.transactions);
   const { users } = useSelector((state) => state.users);
@@ -2505,282 +2503,235 @@ const [currencyBalanceModalOpen, setCurrencyBalanceModalOpen] = useState(false);
 
   // export customer statement to excel
   const exportCustomerStatementToExcel = () => {
-  if (!stAcc) {
-    message.warning("Please select an account.");
-    return;
-  }
+    if (!stAcc) {
+      message.warning("Please select an account.");
+      return;
+    }
 
-  if (!customerStatementCurrency) {
-    message.warning("Please select a currency.");
-    return;
-  }
+    if (!customerStatementCurrency) {
+      message.warning("Please select a currency.");
+      return;
+    }
 
-  if (
-    customerStatementFromDate &&
-    customerStatementToDate &&
-    customerStatementFromDate.isAfter(customerStatementToDate, "day")
-  ) {
-    message.warning("From Date cannot be after To Date.");
-    return;
-  }
+    if (
+      customerStatementFromDate &&
+      customerStatementToDate &&
+      customerStatementFromDate.isAfter(customerStatementToDate, "day")
+    ) {
+      message.warning("From Date cannot be after To Date.");
+      return;
+    }
 
-  // ALL transactions for this account + currency
-  const accountTransactions = (transactions || [])
-    .filter(
-      (t) => String(t.accountNo || "") === String(stAcc),
-    )
-    .filter(
-      (t) =>
-        String(t.currency || "").toUpperCase() ===
-        String(customerStatementCurrency).toUpperCase(),
+    // ALL transactions for this account + currency
+    const accountTransactions = (transactions || [])
+      .filter((t) => String(t.accountNo || "") === String(stAcc))
+      .filter(
+        (t) =>
+          String(t.currency || "").toUpperCase() ===
+          String(customerStatementCurrency).toUpperCase(),
+      );
+
+    if (!accountTransactions.length) {
+      message.warning("No transactions found for this account and currency.");
+      return;
+    }
+
+    // CURRENT ACCOUNT TOTALS
+    let currentDebit = 0;
+    let currentCredit = 0;
+
+    accountTransactions.forEach((t) => {
+      const amount = Number(t.amount) || 0;
+
+      if (t.transactionType === "debit") {
+        currentDebit += amount;
+      }
+
+      if (t.transactionType === "credit") {
+        currentCredit += amount;
+      }
+    });
+
+    const currentBalance = currentCredit - currentDebit;
+
+    // TRANSACTIONS FOR SELECTED DATE RANGE
+    const filteredTransactions = accountTransactions
+      .filter(
+        (t) =>
+          !customerStatementFromDate ||
+          !dayjs(t.createdAt).isBefore(customerStatementFromDate, "day"),
+      )
+      .filter(
+        (t) =>
+          !customerStatementToDate ||
+          !dayjs(t.createdAt).isAfter(customerStatementToDate, "day"),
+      )
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    if (!filteredTransactions.length) {
+      message.warning("No transactions found for the selected date range.");
+      return;
+    }
+
+    // STATEMENT ROWS
+    const statementRows = [];
+    let runningBalance = 0;
+
+    filteredTransactions.forEach((t, index) => {
+      const amount = Number(t.amount) || 0;
+
+      if (t.transactionType === "credit") {
+        runningBalance += amount;
+      }
+
+      if (t.transactionType === "debit") {
+        runningBalance -= amount;
+      }
+
+      statementRows.push([
+        index + 1,
+        t.createdAt ? dayjs(t.createdAt).format("DD-MM-YYYY") : "-",
+        t.accountNo || "-",
+        t.transactionId || "-",
+        t.transactionNo || t.transactionNoId || t.transNo || "-",
+        t.details || "-",
+        t.transactionType || "-",
+        t.transactionType === "debit" ? amount : "",
+        t.transactionType === "credit" ? amount : "",
+        runningBalance,
+      ]);
+    });
+
+    // STATEMENT PERIOD TOTALS
+    const statementDebit = filteredTransactions
+      .filter((t) => t.transactionType === "debit")
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    const statementCredit = filteredTransactions
+      .filter((t) => t.transactionType === "credit")
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    const statementBalance = statementCredit - statementDebit;
+
+    // ACCOUNT HOLDER
+    const selectedCustomer = (users || []).find(
+      (user) => String(user.accountNo) === String(stAcc),
     );
 
-  if (!accountTransactions.length) {
-    message.warning("No transactions found for this account and currency.");
-    return;
-  }
+    const accountHolder =
+      selectedCustomer?.fullname || filteredTransactions[0]?.fullname || "-";
 
-  // CURRENT ACCOUNT TOTALS
-  let currentDebit = 0;
-  let currentCredit = 0;
+    // EXCEL DATA
+    const excelRows = [
+      ["CUSTOMER ACCOUNT STATEMENT"],
+      [],
 
-  accountTransactions.forEach((t) => {
-    const amount = Number(t.amount) || 0;
+      ["ACCOUNT INFORMATION"],
+      ["Account No", stAcc],
+      ["Account Holder", accountHolder],
+      ["Branch", myBranch || "-"],
+      ["Currency", customerStatementCurrency],
+      [
+        "From Date",
+        customerStatementFromDate
+          ? dayjs(customerStatementFromDate).format("DD-MM-YYYY")
+          : "All",
+      ],
+      [
+        "To Date",
+        customerStatementToDate
+          ? dayjs(customerStatementToDate).format("DD-MM-YYYY")
+          : "All",
+      ],
 
-    if (t.transactionType === "debit") {
-      currentDebit += amount;
-    }
+      [],
 
-    if (t.transactionType === "credit") {
-      currentCredit += amount;
-    }
-  });
+      ["CURRENT ACCOUNT TOTALS"],
+      ["Current Debit", currentDebit],
+      ["Current Credit", currentCredit],
+      ["Current Balance", currentBalance],
 
-  const currentBalance = currentCredit - currentDebit;
+      [],
 
-  // TRANSACTIONS FOR SELECTED DATE RANGE
-  const filteredTransactions = accountTransactions
-    .filter(
-      (t) =>
-        !customerStatementFromDate ||
-        !dayjs(t.createdAt).isBefore(
-          customerStatementFromDate,
-          "day",
-        ),
-    )
-    .filter(
-      (t) =>
-        !customerStatementToDate ||
-        !dayjs(t.createdAt).isAfter(
-          customerStatementToDate,
-          "day",
-        ),
-    )
-    .sort(
-      (a, b) =>
-        new Date(a.createdAt) - new Date(b.createdAt),
+      ["STATEMENT TOTALS"],
+      ["Statement Debit", statementDebit],
+      ["Statement Credit", statementCredit],
+      ["Statement Balance", statementBalance],
+
+      [],
+
+      [
+        "No",
+        "Date",
+        "Account No",
+        "Transaction ID",
+        "Transaction No",
+        "Description",
+        "Type",
+        "Debit",
+        "Credit",
+        "Balance",
+      ],
+
+      ...statementRows,
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
+
+    worksheet["!cols"] = [
+      { wch: 8 },
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 20 },
+      { wch: 35 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 18 },
+    ];
+
+    // MERGES
+    worksheet["!merges"] = [
+      {
+        s: { r: 0, c: 0 },
+        e: { r: 0, c: 9 },
+      },
+      {
+        s: { r: 2, c: 0 },
+        e: { r: 2, c: 9 },
+      },
+      {
+        s: { r: 10, c: 0 },
+        e: { r: 10, c: 9 },
+      },
+      {
+        s: { r: 15, c: 0 },
+        e: { r: 15, c: 9 },
+      },
+    ];
+
+    // BOLD LABELS
+    [1, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 21].forEach(
+      (rowNumber) => {
+        const cell = worksheet[`A${rowNumber}`];
+
+        if (cell) {
+          cell.s = {
+            font: {
+              bold: true,
+            },
+            alignment: {
+              horizontal: "left",
+              vertical: "center",
+            },
+          };
+        }
+      },
     );
 
-  if (!filteredTransactions.length) {
-    message.warning("No transactions found for the selected date range.");
-    return;
-  }
-
-  // STATEMENT ROWS
-  const statementRows = [];
-  let runningBalance = 0;
-
-  filteredTransactions.forEach((t, index) => {
-    const amount = Number(t.amount) || 0;
-
-    if (t.transactionType === "credit") {
-      runningBalance += amount;
-    }
-
-    if (t.transactionType === "debit") {
-      runningBalance -= amount;
-    }
-
-    statementRows.push([
-      index + 1,
-      t.createdAt
-        ? dayjs(t.createdAt).format("DD-MM-YYYY")
-        : "-",
-      t.accountNo || "-",
-      t.transactionId || "-",
-      t.transactionNo ||
-        t.transactionNoId ||
-        t.transNo ||
-        "-",
-      t.details || "-",
-      t.transactionType || "-",
-      t.transactionType === "debit" ? amount : "",
-      t.transactionType === "credit" ? amount : "",
-      runningBalance,
-    ]);
-  });
-
-  // STATEMENT PERIOD TOTALS
-  const statementDebit = filteredTransactions
-    .filter((t) => t.transactionType === "debit")
-    .reduce(
-      (sum, t) => sum + (Number(t.amount) || 0),
-      0,
-    );
-
-  const statementCredit = filteredTransactions
-    .filter((t) => t.transactionType === "credit")
-    .reduce(
-      (sum, t) => sum + (Number(t.amount) || 0),
-      0,
-    );
-
-  const statementBalance =
-    statementCredit - statementDebit;
-
-  // ACCOUNT HOLDER
-  const selectedCustomer = (users || []).find(
-    (user) =>
-      String(user.accountNo) === String(stAcc),
-  );
-
-  const accountHolder =
-    selectedCustomer?.fullname ||
-    filteredTransactions[0]?.fullname ||
-    "-";
-
-  // EXCEL DATA
-  const excelRows = [
-    ["CUSTOMER ACCOUNT STATEMENT"],
-    [],
-
-    ["ACCOUNT INFORMATION"],
-    ["Account No", stAcc],
-    ["Account Holder", accountHolder],
-    ["Branch", myBranch || "-"],
-    ["Currency", customerStatementCurrency],
-    [
-      "From Date",
-      customerStatementFromDate
-        ? dayjs(customerStatementFromDate).format(
-            "DD-MM-YYYY",
-          )
-        : "All",
-    ],
-    [
-      "To Date",
-      customerStatementToDate
-        ? dayjs(customerStatementToDate).format(
-            "DD-MM-YYYY",
-          )
-        : "All",
-    ],
-
-    [],
-
-    ["CURRENT ACCOUNT TOTALS"],
-    ["Current Debit", currentDebit],
-    ["Current Credit", currentCredit],
-    ["Current Balance", currentBalance],
-
-    [],
-
-    ["STATEMENT TOTALS"],
-    ["Statement Debit", statementDebit],
-    ["Statement Credit", statementCredit],
-    ["Statement Balance", statementBalance],
-
-    [],
-
-    [
-      "No",
-      "Date",
-      "Account No",
-      "Transaction ID",
-      "Transaction No",
-      "Description",
-      "Type",
-      "Debit",
-      "Credit",
-      "Balance",
-    ],
-
-    ...statementRows,
-  ];
-
-  const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
-
-  worksheet["!cols"] = [
-    { wch: 8 },
-    { wch: 14 },
-    { wch: 18 },
-    { wch: 24 },
-    { wch: 20 },
-    { wch: 35 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 18 },
-  ];
-
-  // MERGES
-  worksheet["!merges"] = [
-    {
-      s: { r: 0, c: 0 },
-      e: { r: 0, c: 9 },
-    },
-    {
-      s: { r: 2, c: 0 },
-      e: { r: 2, c: 9 },
-    },
-    {
-      s: { r: 10, c: 0 },
-      e: { r: 10, c: 9 },
-    },
-    {
-      s: { r: 15, c: 0 },
-      e: { r: 15, c: 9 },
-    },
-  ];
-
-  // BOLD LABELS
-  [
-    1,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9,
-    11,
-    12,
-    13,
-    14,
-    16,
-    17,
-    18,
-    19,
-    21,
-  ].forEach((rowNumber) => {
-    const cell = worksheet[`A${rowNumber}`];
-
-    if (cell) {
-      cell.s = {
-        font: {
-          bold: true,
-        },
-        alignment: {
-          horizontal: "left",
-          vertical: "center",
-        },
-      };
-    }
-  });
-
-  // LEFT ALIGN ACCOUNT VALUES
-  [4, 5, 6, 7, 8, 9].forEach(
-    (rowNumber) => {
+    // LEFT ALIGN ACCOUNT VALUES
+    [4, 5, 6, 7, 8, 9].forEach((rowNumber) => {
       const cell = worksheet[`B${rowNumber}`];
 
       if (cell) {
@@ -2791,45 +2742,38 @@ const [currencyBalanceModalOpen, setCurrencyBalanceModalOpen] = useState(false);
           },
         };
       }
-    },
-  );
-
-  // TRANSACTION HEADER
-  const transactionHeaderRow = 21;
-
-  for (let col = 0; col < 10; col++) {
-    const cellAddress = XLSX.utils.encode_cell({
-      r: transactionHeaderRow - 1,
-      c: col,
     });
 
-    if (worksheet[cellAddress]) {
-      worksheet[cellAddress].s = {
-        font: {
-          bold: true,
-        },
-        alignment: {
-          horizontal: "left",
-          vertical: "center",
-          wrapText: true,
-        },
-      };
-    }
-  }
+    // TRANSACTION HEADER
+    const transactionHeaderRow = 21;
 
-  // LEFT ALIGN TRANSACTION TEXT
-  for (
-    let row = transactionHeaderRow;
-    row <= excelRows.length;
-    row++
-  ) {
-    [0, 1, 2, 3, 4, 5, 6].forEach(
-      (col) => {
-        const cellAddress =
-          XLSX.utils.encode_cell({
-            r: row - 1,
-            c: col,
-          });
+    for (let col = 0; col < 10; col++) {
+      const cellAddress = XLSX.utils.encode_cell({
+        r: transactionHeaderRow - 1,
+        c: col,
+      });
+
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].s = {
+          font: {
+            bold: true,
+          },
+          alignment: {
+            horizontal: "left",
+            vertical: "center",
+            wrapText: true,
+          },
+        };
+      }
+    }
+
+    // LEFT ALIGN TRANSACTION TEXT
+    for (let row = transactionHeaderRow; row <= excelRows.length; row++) {
+      [0, 1, 2, 3, 4, 5, 6].forEach((col) => {
+        const cellAddress = XLSX.utils.encode_cell({
+          r: row - 1,
+          c: col,
+        });
 
         if (worksheet[cellAddress]) {
           worksheet[cellAddress].s = {
@@ -2839,62 +2783,45 @@ const [currencyBalanceModalOpen, setCurrencyBalanceModalOpen] = useState(false);
             },
           };
         }
-      },
-    );
-  }
+      });
+    }
 
-  // NUMBER FORMATTING
-  for (
-    let row = transactionHeaderRow;
-    row <= excelRows.length;
-    row++
-  ) {
-    [7, 8, 9].forEach((col) => {
-      const cellAddress =
-        XLSX.utils.encode_cell({
+    // NUMBER FORMATTING
+    for (let row = transactionHeaderRow; row <= excelRows.length; row++) {
+      [7, 8, 9].forEach((col) => {
+        const cellAddress = XLSX.utils.encode_cell({
           r: row - 1,
           c: col,
         });
 
-      if (worksheet[cellAddress]) {
-        worksheet[cellAddress].z =
-          "#,##0.00";
-      }
-    });
-  }
+        if (worksheet[cellAddress]) {
+          worksheet[cellAddress].z = "#,##0.00";
+        }
+      });
+    }
 
-  // SUMMARY NUMBER FORMATTING
-  [12, 13, 14, 17, 18, 19].forEach(
-    (rowNumber) => {
+    // SUMMARY NUMBER FORMATTING
+    [12, 13, 14, 17, 18, 19].forEach((rowNumber) => {
       const cell = worksheet[`B${rowNumber}`];
 
       if (cell) {
         cell.z = "#,##0.00";
       }
-    },
-  );
+    });
 
-  const workbook = XLSX.utils.book_new();
+    const workbook = XLSX.utils.book_new();
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    worksheet,
-    "Customer Statement",
-  );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Customer Statement");
 
-  const account = String(
-    stAcc || "account",
-  ).replace(/[^\w-]/g, "_");
+    const account = String(stAcc || "account").replace(/[^\w-]/g, "_");
 
-  const currency = String(
-    customerStatementCurrency || "currency",
-  ).replace(/[^\w-]/g, "_");
+    const currency = String(customerStatementCurrency || "currency").replace(
+      /[^\w-]/g,
+      "_",
+    );
 
-  XLSX.writeFile(
-    workbook,
-    `Customer-Statement-${account}-${currency}.xlsx`,
-  );
-};
+    XLSX.writeFile(workbook, `Customer-Statement-${account}-${currency}.xlsx`);
+  };
   // clearning form after statement
   const resetStatementForm = () => {
     setStAcc(null);
@@ -2904,63 +2831,59 @@ const [currencyBalanceModalOpen, setCurrencyBalanceModalOpen] = useState(false);
     setCustomerStatementData(null);
   };
 
+  // Currency Statement
+  const currencyBalanceData = useMemo(() => {
+    const balances = {};
 
+    (transactions || []).forEach((t) => {
+      const currency = String(t.currency || "")
+        .trim()
+        .toUpperCase();
 
-// Currency Statement
-const currencyBalanceData = useMemo(() => {
-  const balances = {};
+      if (!currency) return;
 
-  (transactions || []).forEach((t) => {
-    const currency = String(t.currency || "").trim().toUpperCase();
+      if (!balances[currency]) {
+        balances[currency] = {
+          currency,
+          debit: 0,
+          credit: 0,
+          balance: 0,
+        };
+      }
 
-    if (!currency) return;
+      const amount = Number(t.amount) || 0;
 
-    if (!balances[currency]) {
-      balances[currency] = {
-        currency,
-        debit: 0,
-        credit: 0,
-        balance: 0,
-      };
+      if (t.transactionType === "debit") {
+        balances[currency].debit += amount;
+      }
+
+      if (t.transactionType === "credit") {
+        balances[currency].credit += amount;
+      }
+
+      balances[currency].balance =
+        balances[currency].credit - balances[currency].debit;
+    });
+
+    return Object.values(balances);
+  }, [transactions]);
+
+  const printCurrencyBalance = () => {
+    if (!currencyBalanceData?.length) {
+      message.warning("No currency balance data available.");
+      return;
     }
 
-    const amount = Number(t.amount) || 0;
+    const printWindow = window.open("", "_blank", "width=1000,height=800");
 
-    if (t.transactionType === "debit") {
-      balances[currency].debit += amount;
+    if (!printWindow) {
+      message.error("Please allow pop-ups to print the currency balance.");
+      return;
     }
 
-    if (t.transactionType === "credit") {
-      balances[currency].credit += amount;
-    }
-
-    balances[currency].balance =
-      balances[currency].credit - balances[currency].debit;
-  });
-
-  return Object.values(balances);
-}, [transactions]);
-
-const printCurrencyBalance = () => {
-  if (!currencyBalanceData?.length) {
-    message.warning("No currency balance data available.");
-    return;
-  }
-
-  const printWindow = window.open(
-    "",
-    "_blank",
-    "width=1000,height=800",
-  );
-
-  if (!printWindow) {
-    message.error("Please allow pop-ups to print the currency balance.");
-    return;
-  }
-
-  const rows = currencyBalanceData
-    .map(
-      (item) => `
+    const rows = currencyBalanceData
+      .map(
+        (item) => `
         <tr>
           <td>${item.currency}</td>
           <td class="number">${Number(item.debit || 0).toLocaleString(
@@ -2977,18 +2900,19 @@ const printCurrencyBalance = () => {
               maximumFractionDigits: 2,
             },
           )}</td>
-          <td class="number balance">${Number(
-            item.balance || 0,
-          ).toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}</td>
+          <td class="number balance">${Number(item.balance || 0).toLocaleString(
+            undefined,
+            {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            },
+          )}</td>
         </tr>
       `,
-    )
-    .join("");
+      )
+      .join("");
 
-  printWindow.document.write(`
+    printWindow.document.write(`
     <!DOCTYPE html>
     <html>
       <head>
@@ -3128,17 +3052,17 @@ const printCurrencyBalance = () => {
     </html>
   `);
 
-  printWindow.document.close();
+    printWindow.document.close();
 
-  printWindow.onload = () => {
-    printWindow.focus();
-    printWindow.print();
-  };
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
 
-  printWindow.onafterprint = () => {
-    printWindow.close();
+    printWindow.onafterprint = () => {
+      printWindow.close();
+    };
   };
-};
   // greetings
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -3915,131 +3839,129 @@ const printCurrencyBalance = () => {
       </Modal>
       {/* Currency Modal */}
       <Modal
-  open={currencyBalanceModalOpen}
-  onCancel={() => setCurrencyBalanceModalOpen(false)}
-  footer={null}
-  centered
-  width={700}
-  closeIcon={
-    <span className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
-      ×
-    </span>
-  }
-  styles={{
-    content: {
-      padding: 0,
-      overflow: "hidden",
-      borderRadius: 16,
-      boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)",
-    },
-    body: { padding: 0 },
-  }}
->
-  <div className="bg-white">
-    <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
-      <div className="flex items-center gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-600 shadow-sm">
-          <BankOutlined className="text-lg text-white" />
+        open={currencyBalanceModalOpen}
+        onCancel={() => setCurrencyBalanceModalOpen(false)}
+        footer={null}
+        centered
+        width={700}
+        closeIcon={
+          <span className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+            ×
+          </span>
+        }
+        styles={{
+          content: {
+            padding: 0,
+            overflow: "hidden",
+            borderRadius: 16,
+            boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)",
+          },
+          body: { padding: 0 },
+        }}
+      >
+        <div className="bg-white">
+          <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-600 shadow-sm">
+                <BankOutlined className="text-lg text-white" />
+              </div>
+
+              <div>
+                <h2 className="m-0 text-lg font-semibold text-slate-800">
+                  Currency Balance
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Current debit, credit, and balance by currency
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-5">
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Currency
+                    </th>
+
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Total Debit
+                    </th>
+
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Total Credit
+                    </th>
+
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Current Balance
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {currencyBalanceData.length > 0 ? (
+                    currencyBalanceData.map((item) => (
+                      <tr
+                        key={item.currency}
+                        className="border-b border-slate-100 last:border-0"
+                      >
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-700">
+                          {item.currency}
+                        </td>
+
+                        <td className="px-4 py-3 text-right text-sm text-red-600">
+                          {item.debit.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+
+                        <td className="px-4 py-3 text-right text-sm text-emerald-600">
+                          {item.credit.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+
+                        <td className="px-4 py-3 text-right text-sm font-bold text-blue-600">
+                          {item.balance.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-4 py-8 text-center text-sm text-slate-400"
+                      >
+                        No currency transactions found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Button
+                type="primary"
+                size="large"
+                icon={<PrinterOutlined />}
+                onClick={printCurrencyBalance}
+                className="!h-11 !rounded-lg !border-0 !bg-blue-600 !font-medium hover:!bg-blue-700"
+              >
+                Print Currency Balance
+              </Button>
+            </div>
+          </div>
         </div>
-
-        <div>
-          <h2 className="m-0 text-lg font-semibold text-slate-800">
-            Currency Balance
-          </h2>
-
-          <p className="mt-1 text-xs text-slate-500">
-            Current debit, credit, and balance by currency
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <div className="px-6 py-5">
-      <div className="overflow-hidden rounded-xl border border-slate-200">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Currency
-              </th>
-
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Total Debit
-              </th>
-
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Total Credit
-              </th>
-
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Current Balance
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {currencyBalanceData.length > 0 ? (
-              currencyBalanceData.map((item) => (
-                <tr
-                  key={item.currency}
-                  className="border-b border-slate-100 last:border-0"
-                >
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-700">
-                    {item.currency}
-                  </td>
-
-                  <td className="px-4 py-3 text-right text-sm text-red-600">
-                    {item.debit.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-
-                  <td className="px-4 py-3 text-right text-sm text-emerald-600">
-                    {item.credit.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-
-                  <td className="px-4 py-3 text-right text-sm font-bold text-blue-600">
-                    {item.balance.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="px-4 py-8 text-center text-sm text-slate-400"
-                >
-                  No currency transactions found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Button
-  type="primary"
-  size="large"
-  icon={<PrinterOutlined />}
-  onClick={printCurrencyBalance}
-  className="!h-11 !rounded-lg !border-0 !bg-blue-600 !font-medium hover:!bg-blue-700"
->
-  Print Currency Balance
-</Button>
-
-       
-      </div>
-    </div>
-  </div>
-</Modal>
+      </Modal>
 
       {customerStatementData && (
         <div id="customer-statement-print">
