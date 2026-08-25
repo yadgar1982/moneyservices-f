@@ -81,6 +81,10 @@ const Dashboard = () => {
   // const [stName, setStName] = useState("");
   const [currencyBalanceModalOpen, setCurrencyBalanceModalOpen] =
     useState(false);
+  const [customerIdReportModalOpen, setCustomerIdReportModalOpen] =
+    useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [customerIdReport, setCustomerIdReport] = useState(null);
 
   const { transactions } = useSelector((state) => state.transactions);
   const { users } = useSelector((state) => state.users);
@@ -3063,6 +3067,118 @@ const Dashboard = () => {
       printWindow.close();
     };
   };
+
+  // CUSTOMER ID REPORT
+  const getCustomerIdAccountBalances = () => {
+    if (!selectedCustomerId) {
+      return [];
+    }
+
+    // 1. Find all accounts belonging to this Customer ID
+    const customerAccounts = (users || []).filter(
+      (user) =>
+        user.role === "customer" &&
+        String(user.customerId || "").trim() ===
+          String(selectedCustomerId).trim(),
+    );
+
+    if (!customerAccounts.length) {
+      message.warning("No accounts found for this Customer ID.");
+      return [];
+    }
+
+    // 2. Calculate balances for each account
+    return customerAccounts.map((customer) => {
+      const accountNo = String(customer.accountNo || "").trim();
+
+      // Transactions belonging to this account
+      const accountTransactions = (transactions || []).filter(
+        (transaction) =>
+          String(transaction.accountNo || "").trim() === accountNo,
+      );
+
+      const currencyBalances = {};
+
+      // 3. Calculate each currency separately
+      accountTransactions.forEach((transaction) => {
+        const currency = String(transaction.currency || "")
+          .trim()
+          .toUpperCase();
+
+        if (!currency) return;
+
+        const amount = Number(transaction.amount) || 0;
+
+        if (!currencyBalances[currency]) {
+          currencyBalances[currency] = {
+            debit: 0,
+            credit: 0,
+            balance: 0,
+          };
+        }
+
+        if (transaction.transactionType === "credit") {
+          currencyBalances[currency].credit += amount;
+          currencyBalances[currency].balance += amount;
+        }
+
+        if (transaction.transactionType === "debit") {
+          currencyBalances[currency].debit += amount;
+          currencyBalances[currency].balance -= amount;
+        }
+      });
+
+      return {
+        accountNo,
+        fullname: customer.fullname || "-",
+        profile: customer.profile || null,
+        currencyBalances,
+      };
+    });
+  };
+
+  // PREPARE CUSTOMER ID REPORT
+  const prepareCustomerIdReport = () => {
+    const accounts = getCustomerIdAccountBalances();
+
+    if (!accounts.length) {
+      return null;
+    }
+
+    // ==========================================
+    // TOTAL ALL CURRENCIES ACROSS ALL ACCOUNTS
+    // ==========================================
+    const totalCurrencyBalances = {};
+
+    accounts.forEach((account) => {
+      Object.entries(account.currencyBalances || {}).forEach(
+        ([currency, data]) => {
+          // Create the currency only when it actually exists
+          if (!totalCurrencyBalances[currency]) {
+            totalCurrencyBalances[currency] = {
+              debit: 0,
+              credit: 0,
+              balance: 0,
+            };
+          }
+
+          totalCurrencyBalances[currency].debit += Number(data.debit) || 0;
+
+          totalCurrencyBalances[currency].credit += Number(data.credit) || 0;
+
+          totalCurrencyBalances[currency].balance += Number(data.balance) || 0;
+        },
+      );
+    });
+
+    return {
+      customerId: selectedCustomerId,
+      customerName: accounts[0]?.fullname || "-",
+      accounts,
+      totalCurrencyBalances,
+    };
+  };
+
   // greetings
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -3314,68 +3430,97 @@ const Dashboard = () => {
                 </div>
               </div>
 
+              {/* ==================================================
+                    CUSTOMER ID REPORT
+                ================================================== */}
+
+              <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
+                <div className="!flex !items-start !gap-4">
+                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-violet-500/20 !bg-violet-500/10">
+                    <UserOutlined className="!text-2xl !text-violet-400" />
+                  </div>
+
+                  <div>
+                    <h3 className="!text-xl !font-bold !text-white">
+                      Customer ID Report
+                    </h3>
+
+                    <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
+                      View all accounts and currency balances for a customer.
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  icon={<UserOutlined />}
+                  onClick={() => setCustomerIdReportModalOpen(true)}
+                  className="!mt-4 !h-12 !rounded-xl !border-0 !bg-violet-600 !font-medium hover:!bg-violet-700"
+                >
+                  Customer ID Report
+                </Button>
+              </div>
               {/* CUSTOMER STATEMENT */}
-
-              <div className="!grid !grid-cols-1 !gap-5 xl:!grid-cols-2">
-                {/* Customer Account Statement */}
-                <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
-                  <div className="!flex !items-start !gap-4">
-                    <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-emerald-500/20 !bg-emerald-500/10">
-                      <FileTextOutlined className="!text-2xl !text-emerald-400" />
-                    </div>
-
-                    <div>
-                      <h3 className="!text-xl !font-bold !text-white">
-                        Customer Account Statement
-                      </h3>
-
-                      <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
-                        Select a customer and generate a transaction statement.
-                      </p>
-                    </div>
+              {/* Customer Account Statement */}
+              <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
+                <div className="!flex !items-start !gap-4">
+                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-emerald-500/20 !bg-emerald-500/10">
+                    <FileTextOutlined className="!text-2xl !text-emerald-400" />
                   </div>
 
-                  <Button
-                    type="primary"
-                    block
-                    size="large"
-                    icon={<FileTextOutlined />}
-                    onClick={() => setCustomerStatementModalOpen(true)}
-                    className="!mt-4 !h-12 !rounded-xl !border-0 !bg-blue-600 !font-medium hover:!bg-blue-700"
-                  >
-                    Generate Statement
-                  </Button>
+                  <div>
+                    <h3 className="!text-xl !font-bold !text-white">
+                      Customer Account Statement
+                    </h3>
+
+                    <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
+                      Select a customer and generate a transaction statement.
+                    </p>
+                  </div>
                 </div>
 
-                {/* Currency Balance Report */}
-                <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
-                  <div className="!flex !items-start !gap-4">
-                    <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-cyan-500/20 !bg-cyan-500/10">
-                      <BankOutlined className="!text-2xl !text-cyan-400" />
-                    </div>
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  icon={<FileTextOutlined />}
+                  onClick={() => setCustomerStatementModalOpen(true)}
+                  className="!mt-4 !h-12 !rounded-xl !border-0 !bg-blue-600 !font-medium hover:!bg-blue-700"
+                >
+                  Generate Statement
+                </Button>
+              </div>
 
-                    <div>
-                      <h3 className="!text-xl !font-bold !text-white">
-                        Currency Balance Report
-                      </h3>
-
-                      <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
-                        View and print current balances by currency.
-                      </p>
-                    </div>
+              {/* Currency Balance Report */}
+              <div className="!rounded-[30px] !border !border-white/10 !bg-[#162235] !p-6 !shadow-xl">
+                <div className="!flex !items-start !gap-4">
+                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-cyan-500/20 !bg-cyan-500/10">
+                    <BankOutlined className="!text-2xl !text-cyan-400" />
                   </div>
 
-                  <Button
-                    type="primary"
-                    block
-                    size="large"
-                    icon={<PrinterOutlined />}
-                    onClick={() => setCurrencyBalanceModalOpen(true)}
-                    className="!mt-4 !h-12 !rounded-xl !border-0 !bg-cyan-600 !font-medium hover:!bg-cyan-700"
-                  >
-                    Print Currency Balance
-                  </Button>
+                  <div>
+                    <h3 className="!text-xl !font-bold !text-white">
+                      Currency Balance Report
+                    </h3>
+
+                    <p className="!mt-1 !text-sm !leading-6 !text-slate-400">
+                      View and print current balances by currency.
+                    </p>
+                  </div>
                 </div>
+
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  icon={<PrinterOutlined />}
+                  onClick={() => setCurrencyBalanceModalOpen(true)}
+                  className="!mt-4 !h-12 !rounded-xl !border-0 !bg-cyan-600 !font-medium hover:!bg-cyan-700"
+                >
+                  Print Currency Balance
+                </Button>
               </div>
             </div>
           </div>
@@ -3724,9 +3869,7 @@ const Dashboard = () => {
                   setStName(option?.fullname || "");
                   setCustomerStatementCurrency(null);
                 }}
-                filterOption={(input, option) =>
-                  option?.label?.toLowerCase().includes(input.toLowerCase())
-                }
+                optionFilterProp="label"
                 className="statement-select w-full"
               />
             </div>
@@ -3960,6 +4103,312 @@ const Dashboard = () => {
               </Button>
             </div>
           </div>
+        </div>
+      </Modal>
+
+      {/* Customer Id modal */}
+      <Modal
+        open={customerIdReportModalOpen}
+        onCancel={() => {
+          setCustomerIdReportModalOpen(false);
+          setSelectedCustomerId(null);
+        }}
+        footer={null}
+        centered
+        width={500}
+        title="Customer ID Report"
+      >
+        <div className="py-3">
+          <p className="mb-4 text-sm text-slate-500">
+            Select a Customer ID to view all accounts and currency balances.
+          </p>
+
+          <Select
+            showSearch
+            allowClear
+            size="large"
+            className="w-full"
+            placeholder="Select Customer ID"
+            value={selectedCustomerId}
+            onChange={setSelectedCustomerId}
+            options={[
+              ...new Set(
+                (users || [])
+                  .filter((user) => user.role === "customer" && user.customerId)
+                  .map((user) => String(user.customerId)),
+              ),
+            ].map((customerId) => ({
+              value: customerId,
+              label: customerId,
+            }))}
+          />
+
+          <Button
+            type="primary"
+            block
+            size="large"
+            icon={<PrinterOutlined />}
+            className="mt-6 h-12"
+            disabled={!selectedCustomerId}
+            onClick={() => {
+              const report = prepareCustomerIdReport();
+
+              if (!report) {
+                return;
+              }
+
+              console.log("CUSTOMER ID REPORT:", report);
+
+              setCustomerIdReport(report);
+            }}
+          >
+            Generate Customer ID Report
+          </Button>
+
+          {customerIdReport && (
+  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    {/* =====================================================
+        CUSTOMER HEADER
+    ===================================================== */}
+    <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+      <div className="flex items-center gap-4">
+        <Avatar
+          size={58}
+          src={
+            customerIdReport?.accounts?.[0]?.profile
+              ? `${import.meta.env.VITE_ENDPOINT}${customerIdReport.accounts[0].profile}`
+              : undefined
+          }
+          icon={<UserOutlined />}
+          className="shrink-0 !bg-blue-600"
+        />
+
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Customer
+          </div>
+
+          <div className="text-base font-bold text-slate-800">
+            {customerIdReport?.customerName || "-"}
+          </div>
+
+          <div className="mt-0.5 text-xs font-semibold text-blue-600">
+            ID: {customerIdReport?.customerId || "-"}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* =====================================================
+        ACCOUNTS
+    ===================================================== */}
+    <div className="space-y-3 p-4">
+      {customerIdReport.accounts.map((account) => (
+        <div
+          key={account.accountNo}
+          className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+        >
+          {/* ACCOUNT HEADER */}
+          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Account Number
+              </div>
+
+              <div className="text-sm font-bold text-slate-700">
+                {account.accountNo}
+              </div>
+            </div>
+
+            <div className="rounded-md bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-600">
+              ACCOUNT
+            </div>
+          </div>
+
+          {/* ACCOUNT BALANCES */}
+          <div className="px-4 py-1">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Currency
+                  </th>
+
+                  <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Debit
+                  </th>
+
+                  <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Credit
+                  </th>
+
+                  <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Balance
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {Object.entries(account.currencyBalances || {}).map(
+                  ([currency, data]) => (
+                    <tr
+                      key={currency}
+                      className="border-b border-slate-50 last:border-0"
+                    >
+                      <td className="py-1.5 text-xs font-semibold text-slate-700">
+                        {currency}
+                      </td>
+
+                      <td className="py-1.5 text-right text-xs text-slate-600">
+                        {Number(data.debit).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+
+                      <td className="py-1.5 text-right text-xs text-green-600">
+                        {Number(data.credit).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+
+                      <td
+                        className={`py-1.5 text-right text-xs font-bold ${
+                          Number(data.balance) < 0
+                            ? "text-red-600"
+                            : "text-blue-700"
+                        }`}
+                      >
+                        {Number(data.balance).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                    </tr>
+                  ),
+                )}
+
+                {Object.keys(account.currencyBalances || {}).length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="py-3 text-center text-xs text-slate-400"
+                    >
+                      No transactions found for this account.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+
+      {/* =====================================================
+          TOTAL CUSTOMER BALANCE
+      ===================================================== */}
+      <div className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/40">
+        {/* TOTAL HEADER */}
+        <div className="flex items-center justify-between border-b border-blue-200 bg-blue-50 px-4 py-2.5">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-500">
+              Customer Summary
+            </div>
+
+            <div className="text-sm font-bold text-blue-800">
+              Total Customer Balance
+            </div>
+          </div>
+
+          <div className="rounded-md bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+            All Accounts
+          </div>
+        </div>
+
+        {/* TOTAL TABLE */}
+        <div className="px-4 py-1">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-blue-100">
+                <th className="py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Currency
+                </th>
+
+                <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Debit
+                </th>
+
+                <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Credit
+                </th>
+
+                <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Total Balance
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {Object.entries(
+                customerIdReport.totalCurrencyBalances || {},
+              ).map(([currency, data]) => (
+                <tr
+                  key={currency}
+                  className="border-b border-blue-100/70 last:border-0"
+                >
+                  <td className="py-1.5 text-xs font-bold text-slate-700">
+                    {currency}
+                  </td>
+
+                  <td className="py-1.5 text-right text-xs text-slate-600">
+                    {Number(data.debit).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
+
+                  <td className="py-1.5 text-right text-xs font-semibold text-green-600">
+                    {Number(data.credit).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
+
+                  <td
+                    className={`py-1.5 text-right text-xs font-bold ${
+                      Number(data.balance) < 0
+                        ? "text-red-600"
+                        : "text-blue-700"
+                    }`}
+                  >
+                    {Number(data.balance).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
+                </tr>
+              ))}
+
+              {Object.keys(
+                customerIdReport.totalCurrencyBalances || {},
+              ).length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="py-3 text-center text-xs text-slate-400"
+                  >
+                    No currency balances found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
         </div>
       </Modal>
 

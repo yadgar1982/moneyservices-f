@@ -51,7 +51,6 @@ const Accounts = () => {
   const [form] = Form.useForm();
   const [edit, setEdit] = useState(false);
   const [searchText, setSearchText] = useState("");
-
   const [appliedSearch, setAppliedSearch] = useState("");
   const httpReq = http();
   const dispatch = useDispatch();
@@ -100,7 +99,6 @@ const Accounts = () => {
         .includes(search)
     );
   });
- 
 
   // create Account
 
@@ -712,7 +710,6 @@ const Accounts = () => {
 
     const logoUrl = logo ? `${API_URL}${logo}` : "";
 
- 
     // GET BALANCES PER ACCOUNT
 
     const getBalancesByAccount = (accountNo) => {
@@ -1285,126 +1282,110 @@ const Accounts = () => {
 
   // export
   const exportAllAccountsToExcel = () => {
-  const getBalancesByAccount = (accountNo) => {
-    const balances = {};
+    const getBalancesByAccount = (accountNo) => {
+      const balances = {};
 
-    transactions.forEach((t) => {
-      if (Number(t.accountNo) !== Number(accountNo)) {
-        return;
-      }
+      transactions.forEach((t) => {
+        if (Number(t.accountNo) !== Number(accountNo)) {
+          return;
+        }
 
-      const currency = t.currency;
-      const amount = Number(t.amount) || 0;
+        const currency = t.currency;
+        const amount = Number(t.amount) || 0;
 
-      if (!currency) return;
+        if (!currency) return;
 
-      if (!balances[currency]) {
-        balances[currency] = 0;
-      }
+        if (!balances[currency]) {
+          balances[currency] = 0;
+        }
 
-      if (t.transactionType === "credit") {
-        balances[currency] += amount;
-      } else if (t.transactionType === "debit") {
-        balances[currency] -= amount;
-      }
-    });
-
-    return balances;
-  };
-
-  // GET ALL CURRENCIES
-  const currenciesList = [
-    ...new Set(
-      transactions
-        .map((t) => t.currency)
-        .filter(Boolean)
-    ),
-  ].sort();
-
-  // CREATE EXCEL DATA
-  const excelData = filteredUsers.map((user, index) => {
-    const balances = getBalancesByAccount(user.accountNo);
-
-    const row = {
-      "#": index + 1,
-      "Customer Name": user.fullname || "",
-      "Account Number": user.accountNo || "",
-      Email: user.email || "",
-      Mobile: user.mobile || "",
-      Country: user.country || "",
-      Address: user.address || "",
-    };
-
-    // Add every currency as its own column
-    currenciesList.forEach((currency) => {
-      row[currency] = Number(balances[currency] || 0);
-    });
-
-    return row;
-  });
-
-   // CREATE WORKSHEET
-  const worksheet = XLSX.utils.json_to_sheet(excelData);
-
-  // COLUMN WIDTHS
-  worksheet["!cols"] = [
-    { wch: 6 },
-    { wch: 25 },
-    { wch: 18 },
-    { wch: 30 },
-    { wch: 18 },
-    { wch: 15 },
-    { wch: 28 },
-
-    // Currency columns
-    ...currenciesList.map(() => ({
-      wch: 16,
-    })),
-  ];
-
-  // FORMAT CURRENCY CELLS
-  const range = XLSX.utils.decode_range(
-    worksheet["!ref"]
-  );
-
-  for (let row = 1; row <= range.e.r; row++) {
-    for (let col = 7; col <= range.e.c; col++) {
-      const cellAddress = XLSX.utils.encode_cell({
-        r: row,
-        c: col,
+        if (t.transactionType === "credit") {
+          balances[currency] += amount;
+        } else if (t.transactionType === "debit") {
+          balances[currency] -= amount;
+        }
       });
 
-      const cell = worksheet[cellAddress];
+      return balances;
+    };
 
-      if (cell && typeof cell.v === "number") {
-        cell.z = '#,##0.00';
+    // GET ALL CURRENCIES
+    const currenciesList = [
+      ...new Set(transactions.map((t) => t.currency).filter(Boolean)),
+    ].sort();
+
+    // CREATE EXCEL DATA
+    const excelData = filteredUsers.map((user, index) => {
+      const balances = getBalancesByAccount(user.accountNo);
+
+      const row = {
+        "#": index + 1,
+        "Customer Name": user.fullname || "",
+        "Account Number": user.accountNo || "",
+        Email: user.email || "",
+        Mobile: user.mobile || "",
+        Country: user.country || "",
+        Address: user.address || "",
+      };
+
+      // Add every currency as its own column
+      currenciesList.forEach((currency) => {
+        row[currency] = Number(balances[currency] || 0);
+      });
+
+      return row;
+    });
+
+    // CREATE WORKSHEET
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+    // COLUMN WIDTHS
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 25 },
+      { wch: 18 },
+      { wch: 30 },
+      { wch: 18 },
+      { wch: 15 },
+      { wch: 28 },
+
+      // Currency columns
+      ...currenciesList.map(() => ({
+        wch: 16,
+      })),
+    ];
+
+    // FORMAT CURRENCY CELLS
+    const range = XLSX.utils.decode_range(worksheet["!ref"]);
+
+    for (let row = 1; row <= range.e.r; row++) {
+      for (let col = 7; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({
+          r: row,
+          c: col,
+        });
+
+        const cell = worksheet[cellAddress];
+
+        if (cell && typeof cell.v === "number") {
+          cell.z = "#,##0.00";
+        }
       }
     }
-  }
 
-  // CREATE WORKBOOK
-   const workbook = XLSX.utils.book_new();
+    // CREATE WORKBOOK
+    const workbook = XLSX.utils.book_new();
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    worksheet,
-    "All Accounts"
-  );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "All Accounts");
 
-  // FILE NAME
-  const date = new Date()
-    .toISOString()
-    .slice(0, 10);
+    // FILE NAME
+    const date = new Date().toISOString().slice(0, 10);
 
-  const fileName = `All_Accounts_${date}.xlsx`;
+    const fileName = `All_Accounts_${date}.xlsx`;
 
-
-  // DOWNLOAD
-  XLSX.writeFile(
-    workbook,
-    fileName
-  );
-};
+    // DOWNLOAD
+    XLSX.writeFile(workbook, fileName);
+  };
   // data sourse
 
   const columns = [
@@ -1566,6 +1547,12 @@ const Accounts = () => {
                   <Input
                     placeholder="Enter full name"
                     className="!h-9 !rounded-md !border-slate-200 !text-sm hover:!border-blue-400 focus:!border-blue-500"
+                  />
+                </Form.Item>
+                <Form.Item name="customerId" label="Customer ID">
+                  <Input
+                    placeholder="Enter customer ID"
+                    className="!h-9 !rounded-md"
                   />
                 </Form.Item>
 
@@ -1767,19 +1754,19 @@ const Accounts = () => {
                 >
                   Print
                 </Button>
-               <Button
-                icon={<DownCircleOutlined />}
-                onClick={exportAllAccountsToExcel}
-                className="!h-8 !rounded-md !border-green-200 !px-3
+                <Button
+                  icon={<DownCircleOutlined />}
+                  onClick={exportAllAccountsToExcel}
+                  className="!h-8 !rounded-md !border-green-200 !px-3
                   !text-xs
                   !text-green-600
                   hover:!border-green-400
                   hover:!text-green-700
                   !font-bold
                 "
-              >
-                Excel
-              </Button>
+                >
+                  Excel
+                </Button>
               </div>
             </div>
           </div>
