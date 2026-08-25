@@ -3131,8 +3131,8 @@ const Dashboard = () => {
 
       return {
         accountNo,
-        fullname: customer.fullname || "-",
-        profile: customer.profile || null,
+        fullname: customer?.fullname || "-",
+        profile: customer?.profile || null,
         currencyBalances,
       };
     });
