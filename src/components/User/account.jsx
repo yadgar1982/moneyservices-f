@@ -43,9 +43,12 @@ const userInfo = JSON.parse(localStorage.getItem("userInfo"));
 
 const myUser = userInfo?.fullname;
 const myBranch = userInfo?.branch;
-const branding = JSON.parse(localStorage.getItem("branding"));
-const myBrand = branding.data?.[0];
-const logo = myBrand?.logo;
+const branding = JSON.parse(
+  localStorage.getItem("branding") || "null"
+);
+
+const brandingData = branding?.data?.[0];
+const logo = brandingData?.logo;
 
 const Accounts = () => {
   const [form] = Form.useForm();
