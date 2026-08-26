@@ -40,7 +40,6 @@ const HomeLayout = ({ children }) => {
     }
   }, []);
 
-  const userInfo = JSON.parse(localStorage.getItem("userInfo"));
 
   const nav = (e) => {
     navigate(`/${e.key}`);
@@ -97,11 +96,7 @@ const HomeLayout = ({ children }) => {
       label:<span  className="!text-!text-white !text-sm !font-semibold">Fees / Charges</span>,
     },
 
-    {
-      key: "report",
-      icon: <BookOutlined className="!text-[#022c22] !text-xl"/>,
-      label: <span  className="!text-!text-white !text-sm !font-semibold">Report</span>,
-    },
+   
   ];
 
   // logout func

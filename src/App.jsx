@@ -8,7 +8,6 @@ import "react-toastify/dist/ReactToastify.css";
 
 
 import Home from "./components/home";
-import Report from "./components/Shared/report/index";
 import Homedash from "./components/Shared/dashboard/Home-dash";
 import Transactions from "./components/User/transactions";
 import Register from "./components/Admin/register";
@@ -47,8 +46,7 @@ const App = () => {
 
             <Route path="/user-dash" element={<Homedash />} />
             <Route path="/transaction" element={<Transactions />} />
-            <Route path="/report" element={<Report />} />
-            <Route path="/account" element={<Accounts />} />
+               <Route path="/account" element={<Accounts />} />
             <Route path="/comissions" element={<Commissions/>}/>
           </Route>
 

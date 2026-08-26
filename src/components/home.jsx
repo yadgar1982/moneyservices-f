@@ -6,22 +6,13 @@ import {
   Button,
   Checkbox,
   Typography,
-  Spin,
-  Avatar,
-  Flex,
-  Progress,
   Modal,
-  message,
 } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   UserOutlined,
   SafetyCertificateOutlined,
-  GlobalOutlined,
-  DollarCircleOutlined,
-  ThunderboltOutlined,
   LockOutlined,
-  BankOutlined,
 } from "@ant-design/icons";
 import swal from "sweetalert";
 import Cookies from "universal-cookie";
@@ -48,15 +39,13 @@ const Login = () => {
   const [step, setStep] = useState(1);
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   const { data: brandingData } = useSWR("/api/branding/read", fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 10000,
   });
 
-  const logo = brandingData?.data[0]?.logo || "";
+ const myLogo = "/assets/logo.png";
   useEffect(() => {
     if (brandingData) {
       setBranding(brandingData.data);
@@ -273,9 +262,9 @@ const Login = () => {
           <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full bg-cyan-400/10 blur-3xl"></div>
           {/* Logo */}
 
-          <div className="flex flex-col items-center mb-8">
+          <div className="flex flex-col items-center mb-8 bg-slate-400 rounded-xl p-2">
             <img
-              src={import.meta.env.VITE_LOGO_URL}
+              src={myLogo}
               alt="Yadgar Tech"
               className="w-24 drop-shadow-2xl"
             />

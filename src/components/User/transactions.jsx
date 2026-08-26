@@ -132,7 +132,7 @@ const Transactions = () => {
 
   const myBrand = branding?.data?.[0];
 
-  const logo = myBrand?.logo
+  const logo = "/assets/logo.png"
     ? `${import.meta.env.VITE_ENDPOINT}${myBrand.logo}`
     : "";
 
@@ -221,6 +221,16 @@ const Transactions = () => {
     }
   `,
   });
+useEffect(() => {
+  if (!receiptData) return;
+
+  const timer = setTimeout(() => {
+    handleReceiptPrint();
+  }, 300);
+
+  return () => clearTimeout(timer);
+}, [receiptData, handleReceiptPrint]);
+
 
   // print statement
   const prepareStatement = (values, shouldPrint = true) => {
@@ -861,39 +871,40 @@ const Transactions = () => {
   //print transaction
 
   const printRecord = async (record) => {
-    const { transactionId } = record;
+  try {
+    const res = await http().get(
+      `/api/transaction/readbyid/${record.transactionId}`,
+    );
 
-    try {
-      const res = await http().get(
-        `/api/transaction/readbyid/${record.transactionId}`,
-      );
+    const allTransactions = res.data.data || [];
 
-      const allTransactions = res.data.data;
+    const debit = allTransactions.find(
+      (t) => t.transactionType === "debit",
+    );
 
-      const debit = allTransactions.find((t) => t.transactionType === "debit");
+    const credit = allTransactions.find(
+      (t) => t.transactionType === "credit",
+    );
 
-      const credit = allTransactions.find(
-        (t) => t.transactionType === "credit",
-      );
+    const base = debit || credit || record;
 
-      const base = debit || credit || record;
+    const receipt = {
+      transaction: {
+        ...base,
+        transactionNo: record.transactionNo,
+        transactionId: record.transactionId,
+        createdAt: record.createdAt,
+        isPass: record.isPass,
+        debit,
+        credit,
+      },
+    };
 
-      setReceiptData({
-        transaction: {
-          ...base,
-          transactionNo: record.transactionNo,
-          transactionId: record.transactionId,
-          createdAt: record.createdAt,
-          isPass: record.isPass,
-
-          debit,
-          credit,
-        },
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    setReceiptData(receipt);
+  } catch (err) {
+    console.error("Error loading transaction:", err);
+  }
+};
 
   const { data, terror } = SWR("/api/transaction/read", fetcher);
   const handleSearch = () => {

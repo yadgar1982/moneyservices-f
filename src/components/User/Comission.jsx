@@ -51,15 +51,10 @@ const Commissions = () => {
 
   //account statement states
   const [stAcc, setStAcc] = useState(null);
-  const [stCurrency, setStCurrency] = useState(null);
-  const [stName, setStName] = useState(null);
-  const [selectedTr, setSelectedTr] = useState("");
-  const [stCur, setStCur] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedCurrency, setSelectedCurrency] = useState("");
   const [resultText, setResultText] = useState("");
-  const [editTag, setEditTag] = useState("");
   const [searchText, setSearchText] = useState("");
 
   const dispatch = useDispatch();

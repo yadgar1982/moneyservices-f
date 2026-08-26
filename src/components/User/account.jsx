@@ -6,9 +6,7 @@ import {
   Button,
   Select,
   Upload,
-  Divider,
   Table,
-  Tag,
   Popconfirm,
   Avatar,
 } from "antd";
@@ -17,7 +15,6 @@ import {
   DeleteOutlined,
   DownCircleOutlined,
   EditOutlined,
-  FileExcelOutlined,
   PrinterOutlined,
   SearchOutlined,
   UploadOutlined,
@@ -32,6 +29,8 @@ import { fetchTransaction } from "../../redux/slices/transactionSlice";
 import { useDispatch, useSelector } from "react-redux";
 import SWR, { mutate } from "swr";
 import { fetchUsers } from "../../redux/slices/customerSlice";
+import { fetchBranch } from "../../redux/slices/branchSlice";
+ 
 
 const shutterSound = new Audio("./camera.mp3");
 shutterSound.volume = 0.2;
@@ -39,16 +38,13 @@ shutterSound.volume = 0.2;
 const { Option } = Select;
 
 //getting user from localStorage
-const userInfo = JSON.parse(localStorage.getItem("userInfo"));
-
-const myUser = userInfo?.fullname;
-const myBranch = userInfo?.branch;
-const branding = JSON.parse(
-  localStorage.getItem("branding") || "null"
+const myBrand = JSON.parse(
+  localStorage.getItem("branding") || "{}"
 );
 
-const brandingData = branding?.data?.[0];
-const logo = brandingData?.logo;
+const userInfo = JSON.parse(localStorage.getItem("userInfo"));
+
+const myLogo = "/assets/logo.png";
 
 const Accounts = () => {
   const [form] = Form.useForm();
@@ -57,13 +53,23 @@ const Accounts = () => {
   const [appliedSearch, setAppliedSearch] = useState("");
   const httpReq = http();
   const dispatch = useDispatch();
+
+  const { users, uLoading, uError } = useSelector(
+    (state) => state.users,
+  );
+
   const { transactions, loading, error } = useSelector(
     (state) => state.transactions,
+  );
+
+  const { branches, bLoading, bError } = useSelector(
+    (state) => state.branches,
   );
 
   useEffect(() => {
     dispatch(fetchTransaction());
     dispatch(fetchUsers());
+    dispatch(fetchBranch());
   }, []);
 
   const { data, terror } = SWR("/api/user/read", fetcher);
@@ -219,7 +225,6 @@ const Accounts = () => {
   // Print Account
 
   const printAccount = (record) => {
-    const logoUrl = logo ? `${API_URL}${logo}` : "";
     const getBalancesByAccount = (transactions = [], accountNo) => {
       const balances = {};
 
@@ -268,9 +273,6 @@ const Accounts = () => {
       )
       .join("");
 
-    console.log("BRANDING:", myBrand);
-    console.log("BRANDING DATA:", myBrand?.data?.[0]);
-    console.log("BRANDING LOGO:", myBrand?.data?.[0]?.logo);
 
     printWindow.document.write(`
     <!DOCTYPE html>
@@ -528,7 +530,7 @@ const Accounts = () => {
            <div class="header">
 
           <div class="logo">
-            <img src="${logoUrl}" alt="Company Logo" />
+            <img src="${myLogo}" alt="Company Logo" />
           </div>
 
           <h2>
@@ -701,83 +703,117 @@ const Accounts = () => {
     }, 1500);
   };
   // Print Account
-  const printallAccounts = () => {
-    const printWindow = window.open("", "", "width=1100,height=800");
+const printallAccounts = () => {
+  // ---------------------------------------------------------
+  // 1. Take safe snapshots of the current Redux data
+  // ---------------------------------------------------------
+  const accounts = Array.isArray(users)
+    ? users.filter((user) => user && user.accountNo != null)
+    : [];
 
-    if (!printWindow) {
-      alert("Popup blocked! Please allow popups for this website.");
-      return;
-    }
+  const transactionList = Array.isArray(transactions)
+    ? transactions.filter((transaction) => transaction)
+    : [];
 
-    // LOGO
+  // ---------------------------------------------------------
+  // 2. Open print window
+  // ---------------------------------------------------------
+  const printWindow = window.open(
+    "",
+    "",
+    "width=1100,height=800",
+  );
 
-    const logoUrl = logo ? `${API_URL}${logo}` : "";
+  if (!printWindow) {
+    alert("Popup blocked! Please allow popups for this website.");
+    return;
+  }
 
-    // GET BALANCES PER ACCOUNT
+  // ---------------------------------------------------------
+  // 3. Get balances for one account
+  // ---------------------------------------------------------
+  const getBalancesByAccount = (accountNo) => {
+    const balances = {};
 
-    const getBalancesByAccount = (accountNo) => {
-      const balances = {};
+    transactionList.forEach((t) => {
+      if (Number(t.accountNo) !== Number(accountNo)) {
+        return;
+      }
 
-      transactions.forEach((t) => {
-        if (Number(t.accountNo) !== Number(accountNo)) return;
+      const currency = t.currency;
+      const amount = Number(t.amount) || 0;
 
-        const currency = t.currency;
-        const amount = Number(t.amount) || 0;
+      if (!currency) {
+        return;
+      }
 
-        if (!currency) return;
+      if (!balances[currency]) {
+        balances[currency] = 0;
+      }
 
-        if (!balances[currency]) {
-          balances[currency] = 0;
-        }
+      if (t.transactionType === "credit") {
+        balances[currency] += amount;
+      }
 
-        if (t.transactionType === "credit") {
-          balances[currency] += amount;
-        }
+      if (t.transactionType === "debit") {
+        balances[currency] -= amount;
+      }
+    });
 
-        if (t.transactionType === "debit") {
-          balances[currency] -= amount;
-        }
-      });
+    return balances;
+  };
 
-      return balances;
-    };
+  // ---------------------------------------------------------
+  // 4. Format money
+  // ---------------------------------------------------------
+  const formatAmount = (value) =>
+    Number(value || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
-    // =========================
-    // FORMAT MONEY
-    // =========================
-    const formatAmount = (value) =>
-      Number(value || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+  // ---------------------------------------------------------
+  // 5. Generate account rows
+  // ---------------------------------------------------------
+  const rowsHTML = accounts
+    .map((user, index) => {
+      const accountNo = user.accountNo;
 
-    // =========================
-    // GENERATE ROWS
-    // =========================
-    const rowsHTML = filteredUsers
-      .map((user, index) => {
-        const balances = getBalancesByAccount(user.accountNo);
+      const balances = getBalancesByAccount(accountNo);
 
-        const balanceHTML =
-          Object.entries(balances)
-            .map(([currency, balance]) => {
-              const amountClass =
-                balance < 0 ? "balance-negative" : "balance-positive";
+      const balanceHTML =
+        Object.entries(balances)
+          .map(([currency, balance]) => {
+            const amountClass =
+              balance < 0
+                ? "balance-negative"
+                : "balance-positive";
 
-              return `
+            return `
               <div class="balance-item">
-                <span class="currency">${currency}</span>
+                <span class="currency">
+                  ${currency}
+                </span>
+
                 <span class="${amountClass}">
                   ${formatAmount(balance)}
                 </span>
               </div>
             `;
-            })
-            .join("") || `<span class="no-balance">No balance</span>`;
+          })
+          .join("") ||
+        `
+          <span class="no-balance">
+            No balance
+          </span>
+        `;
 
-        return `
+      return `
         <tr>
-          <td class="number">${index + 1}</td>
+
+          <td class="number">
+            ${index + 1}
+          </td>
 
           <td>
             <div class="customer-name">
@@ -787,7 +823,7 @@ const Accounts = () => {
 
           <td>
             <span class="account-number">
-              ${user.accountNo || "-"}
+              ${accountNo || "-"}
             </span>
           </td>
 
@@ -796,15 +832,21 @@ const Accounts = () => {
               ${balanceHTML}
             </div>
           </td>
+
         </tr>
       `;
-      })
-      .join("");
+    })
+    .join("");
 
-    // =========================
-    // PRINT DOCUMENT
-    // =========================
-    printWindow.document.write(`
+  // ---------------------------------------------------------
+  // 6. Company branding
+  // ---------------------------------------------------------
+  const brand = myBrand?.data?.[0] || {};
+
+  // ---------------------------------------------------------
+  // 7. Write print document
+  // ---------------------------------------------------------
+  printWindow.document.write(`
     <!DOCTYPE html>
 
     <html>
@@ -847,10 +889,6 @@ const Accounts = () => {
             overflow: hidden;
           }
 
-          /* =========================
-             HEADER
-          ========================= */
-
           .header {
             padding: 30px 35px 25px;
             text-align: center;
@@ -878,7 +916,6 @@ const Accounts = () => {
             color: #173b70;
             font-size: 24px;
             font-weight: 700;
-            letter-spacing: -0.3px;
           }
 
           .company-address {
@@ -909,10 +946,6 @@ const Accounts = () => {
             background: #2563eb;
             border-radius: 999px;
           }
-
-          /* =========================
-             REPORT META
-          ========================= */
 
           .meta {
             display: grid;
@@ -946,10 +979,6 @@ const Accounts = () => {
             font-weight: 600;
           }
 
-          /* =========================
-             TABLE
-          ========================= */
-
           .table-section {
             padding: 25px 30px;
           }
@@ -963,14 +992,16 @@ const Accounts = () => {
             border-radius: 8px;
           }
 
+          thead {
+            display: table-header-group;
+          }
+
           thead th {
             padding: 11px 12px;
             background: #173b70;
             color: #ffffff;
-            border-bottom: 1px solid #173b70;
             font-size: 10px;
             font-weight: 700;
-            letter-spacing: 0.5px;
             text-align: left;
             text-transform: uppercase;
           }
@@ -1012,10 +1043,6 @@ const Accounts = () => {
             font-weight: 600;
           }
 
-          /* =========================
-             BALANCES
-          ========================= */
-
           .balances {
             display: flex;
             flex-wrap: wrap;
@@ -1056,10 +1083,6 @@ const Accounts = () => {
             font-style: italic;
           }
 
-          /* =========================
-             FOOTER
-          ========================= */
-
           .footer {
             padding: 18px 30px;
             border-top: 1px solid #e2e8f0;
@@ -1072,10 +1095,6 @@ const Accounts = () => {
           .footer strong {
             color: #64748b;
           }
-
-          /* =========================
-             PRINT
-          ========================= */
 
           @media print {
 
@@ -1090,12 +1109,9 @@ const Accounts = () => {
               border-radius: 0;
             }
 
-            thead {
-              display: table-header-group;
-            }
-
             tr {
               page-break-inside: avoid;
+              break-inside: avoid;
             }
 
             .no-print {
@@ -1112,16 +1128,14 @@ const Accounts = () => {
 
         <div class="report">
 
-          <!-- HEADER -->
-
           <div class="header">
 
             ${
-              logoUrl
+              myLogo
                 ? `
                   <div class="logo-wrapper">
                     <img
-                      src="${logoUrl}"
+                      src="${myLogo}"
                       alt="Company Logo"
                     />
                   </div>
@@ -1130,17 +1144,25 @@ const Accounts = () => {
             }
 
             <h1 class="company-name">
-              ${myBrand?.companyName || "Company Name"}
+              ${brand.companyName || "Company Name"}
             </h1>
 
             <div class="company-address">
-              ${myBrand?.address || ""}
+              ${brand.address || ""}
             </div>
 
             <div class="company-contact">
-              ${myBrand?.email || ""}
-              ${myBrand?.email && myBrand?.mobile ? " • " : ""}
-              ${myBrand?.mobile || ""}
+
+              ${brand.email || ""}
+
+              ${
+                brand.email && brand.mobile
+                  ? " • "
+                  : ""
+              }
+
+              ${brand.mobile || ""}
+
             </div>
 
             <div class="report-title">
@@ -1151,21 +1173,22 @@ const Accounts = () => {
 
           </div>
 
-          <!-- META -->
-
           <div class="meta">
 
             <div class="meta-item">
+
               <span class="meta-label">
                 Total Customers
               </span>
 
               <span class="meta-value">
-                ${filteredUsers.length}
+                ${accounts.length}
               </span>
+
             </div>
 
             <div class="meta-item">
+
               <span class="meta-label">
                 Report Date
               </span>
@@ -1173,9 +1196,11 @@ const Accounts = () => {
               <span class="meta-value">
                 ${new Date().toLocaleDateString()}
               </span>
+
             </div>
 
             <div class="meta-item">
+
               <span class="meta-label">
                 Generated
               </span>
@@ -1183,11 +1208,10 @@ const Accounts = () => {
               <span class="meta-value">
                 ${new Date().toLocaleTimeString()}
               </span>
+
             </div>
 
           </div>
-
-          <!-- TABLE -->
 
           <div class="table-section">
 
@@ -1210,12 +1234,17 @@ const Accounts = () => {
                   rowsHTML ||
                   `
                     <tr>
+
                       <td
                         colspan="4"
-                        style="text-align:center;padding:30px;"
+                        style="
+                          text-align:center;
+                          padding:30px;
+                        "
                       >
                         No customer accounts found
                       </td>
+
                     </tr>
                   `
                 }
@@ -1226,8 +1255,6 @@ const Accounts = () => {
 
           </div>
 
-          <!-- FOOTER -->
-
           <div class="footer">
 
             Generated on
@@ -1236,8 +1263,9 @@ const Accounts = () => {
             <br />
 
             Powered by
+
             <strong>
-              ${myBrand?.companyName || "Your Company"}
+              ${brand.companyName || "Your Company"}
             </strong>
 
           </div>
@@ -1249,39 +1277,49 @@ const Accounts = () => {
     </html>
   `);
 
-    printWindow.document.close();
+  // ---------------------------------------------------------
+  // 8. Finish the document
+  // ---------------------------------------------------------
+  printWindow.document.close();
 
-    // Wait for the logo before printing
-    const images = printWindow.document.images;
+  // ---------------------------------------------------------
+  // 9. Wait for logo/images before printing
+  // ---------------------------------------------------------
+  const images = Array.from(printWindow.document.images);
 
-    if (images.length === 0) {
+  if (images.length === 0) {
+    setTimeout(() => {
       printWindow.focus();
       printWindow.print();
       printWindow.close();
-      return;
-    }
+    }, 100);
 
-    let loaded = 0;
+    return;
+  }
 
-    const finishPrint = () => {
-      loaded++;
+  let remainingImages = images.length;
 
-      if (loaded === images.length) {
+  const finishPrint = () => {
+    remainingImages -= 1;
+
+    if (remainingImages <= 0) {
+      setTimeout(() => {
         printWindow.focus();
         printWindow.print();
         printWindow.close();
-      }
-    };
-
-    Array.from(images).forEach((img) => {
-      if (img.complete) {
-        finishPrint();
-      } else {
-        img.onload = finishPrint;
-        img.onerror = finishPrint;
-      }
-    });
+      }, 100);
+    }
   };
+
+  images.forEach((img) => {
+    if (img.complete) {
+      finishPrint();
+    } else {
+      img.onload = finishPrint;
+      img.onerror = finishPrint;
+    }
+  });
+};
 
   // export
   const exportAllAccountsToExcel = () => {
@@ -1453,7 +1491,14 @@ const Accounts = () => {
       width: 60,
       render: (_, record) => (
         <PrinterOutlined
-          onClick={() => printAccount(record)}
+          onClick={() => {
+  if (!transactions || transactions.length === 0) {
+    message.warning("Transactions are still loading. Please wait a moment.");
+    return;
+  }
+
+  printAccount(record);
+}}
           className="!text-zinc-500 !text-xl !cursor-pointer  !p-2 rounded"
         />
       ),

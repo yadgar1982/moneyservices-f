@@ -50,7 +50,7 @@ import {
 } from "recharts";
 const API_URL = import.meta.env.VITE_API_URL;
 const myBrand = JSON.parse(localStorage.getItem("branding"));
-import myLogo from "../../../assetslogo.png"
+const myLogo = "/assets/logo.png"
 import HomeLayout from "../Layouts/HomeLayout";
 import { fetchTransaction } from "../../../redux/slices/transactionSlice";
 import { fetchUsers } from "../../../redux/slices/customerSlice";
