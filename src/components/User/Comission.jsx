@@ -76,9 +76,8 @@ const Commissions = () => {
     (state) => state.currencies,
   );
 
-  const userInfo = JSON.parse(localStorage.getItem("userInfo"));
-  const myUser = userInfo.fullname;
-  const myBranch = userInfo?.branch;
+  const userInfo = JSON.parse(localStorage.getItem("userInfo") || "null");
+  const myBranch = userInfo?.branch || "";
   const myBrand = JSON.parse(localStorage.getItem("branding"));
   const { users, uLoading, uError } = useSelector((state) => state.users);
   const { branches, bLoading, bError } = useSelector((state) => state.branches);
@@ -154,7 +153,7 @@ const Commissions = () => {
 
   // comissions details
   const today = new Date().toDateString();
-  const todayCommissions = comissions.filter(
+  const todayCommissions = comissions?.filter(
     (items) => new Date(items.createdAt).toDateString() === today,
   );
 
@@ -447,17 +446,11 @@ const Commissions = () => {
       result = result.filter((t) => {
         const transactionDate = dayjs(t.createdAt);
 
-        if (
-          fromDate &&
-          transactionDate.isBefore(dayjs(fromDate), "day")
-        ) {
+        if (fromDate && transactionDate.isBefore(dayjs(fromDate), "day")) {
           return false;
         }
 
-        if (
-          toDate &&
-          transactionDate.isAfter(dayjs(toDate), "day")
-        ) {
+        if (toDate && transactionDate.isAfter(dayjs(toDate), "day")) {
           return false;
         }
 
@@ -511,80 +504,70 @@ const Commissions = () => {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
 
-const getCurrentBalance = (accountNo, currency) => {
-  if (!currency) {
-    return 0;
-  }
+  const getCurrentBalance = (accountNo, currency) => {
+    if (!currency) {
+      return 0;
+    }
 
-  return comissions
-    .filter((transaction) => {
-      const sameCurrency =
-        String(transaction.currency || "").toUpperCase() ===
-        String(currency).toUpperCase();
+    return comissions
+      .filter((transaction) => {
+        const sameCurrency =
+          String(transaction.currency || "").toUpperCase() ===
+          String(currency).toUpperCase();
 
-      if (!sameCurrency) {
-        return false;
-      }
+        if (!sameCurrency) {
+          return false;
+        }
 
-      // If an account is selected,
-      // only calculate that account's balance.
-      if (
-        accountNo !== undefined &&
-        accountNo !== null &&
-        String(accountNo).trim() !== ""
-      ) {
-        return (
-          String(transaction.accountNo) ===
-          String(accountNo)
-        );
-      }
+        // If an account is selected,
+        // only calculate that account's balance.
+        if (
+          accountNo !== undefined &&
+          accountNo !== null &&
+          String(accountNo).trim() !== ""
+        ) {
+          return String(transaction.accountNo) === String(accountNo);
+        }
 
-      // No account selected,
-      // include all accounts for this currency.
-      return true;
-    })
-    .reduce((balance, transaction) => {
-      const credit =
-        Number(transaction.credit) || 0;
+        // No account selected,
+        // include all accounts for this currency.
+        return true;
+      })
+      .reduce((balance, transaction) => {
+        const credit = Number(transaction.credit) || 0;
 
-      const debit =
-        Number(transaction.debit) || 0;
+        const debit = Number(transaction.debit) || 0;
 
-      return balance + credit - debit;
-    }, 0);
-};
+        return balance + credit - debit;
+      }, 0);
+  };
 
   // PRINT ACCOUNT STATEMENT
   const printStatement = (values) => {
-  // Get transactions matching the selected filters
-  const result = getStatementFilteredData(values);
+    // Get transactions matching the selected filters
+    const result = getStatementFilteredData(values);
 
-  // Stop if there are no matching transactions
-  if (result.length === 0) {
-    setResultText("No data to display");
+    // Stop if there are no matching transactions
+    if (result.length === 0) {
+      setResultText("No data to display");
 
-    toast.error(
-      "No transactions found for the selected query."
-    );
+      toast.error("No transactions found for the selected query.");
 
-    return;
-  }
+      return;
+    }
 
-  setResultText("");
+    setResultText("");
 
-  // Build the statement rows
-  const rows = buildStatementRows(result);
+    // Build the statement rows
+    const rows = buildStatementRows(result);
 
-  // Calculate current balance.
-  // Account selected: account + currency.
-  // No account: currency across all accounts.
-  const currentBalance = getCurrentBalance(
-    values.accountNo,
-    values.currency
-  );
+    // Calculate current balance.
+    // Account selected: account + currency.
+    // No account: currency across all accounts.
+    const currentBalance = getCurrentBalance(values.accountNo, values.currency);
 
-  // Format current balance
-  const balanceHTML = `
+    // Format current balance
+    const balanceHTML = `
     <div class="balance-item">
       <span class="balance-currency">
         ${escapeHtml(values.currency || "")}
@@ -595,7 +578,6 @@ const getCurrentBalance = (accountNo, currency) => {
       </strong>
     </div>
   `;
-
 
     // Build the transaction table
     const rowsHTML = rows

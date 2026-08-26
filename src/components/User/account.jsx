@@ -41,7 +41,7 @@ const { Option } = Select;
 //getting user from localStorage
 const userInfo = JSON.parse(localStorage.getItem("userInfo"));
 
-const myUser = userInfo.fullname;
+const myUser = userInfo?.fullname;
 const myBranch = userInfo?.branch;
 const branding = JSON.parse(localStorage.getItem("branding"));
 const myBrand = branding.data?.[0];
