@@ -90,4 +90,163 @@
     color: #0369a1;
 }
 
-#customer-statement-print{display:none;}@media print{body *{visibility:hidden!important;}#customer-statement-print,#customer-statement-print *{visibility:visible!important;}#customer-statement-print{display:block!important;position:absolute;left:0;top:0;width:100%;margin:0;padding:0;}@page{size:A4 landscape;margin:10mm;}}
+/* ===========================
+   Customer Statement
+=========================== */
+
+#customer-statement-print {
+  display: none !important;
+}
+
+/* ===========================
+   Customer Statement Print
+=========================== */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm 5mm;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Hide normal Dashboard visually */
+  body {
+    overflow: visible !important;
+  }
+
+  body > * {
+    overflow: visible !important;
+  }
+
+  /* Do NOT use body * { display:none }.
+     It would also hide the statement's parent. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  #customer-statement-print,
+  #customer-statement-print * {
+    visibility: visible !important;
+  }
+
+  #customer-statement-print {
+    display: block !important;
+
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: #ffffff !important;
+    overflow: visible !important;
+
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    page-break-inside: auto !important;
+
+    break-before: auto !important;
+    break-after: auto !important;
+    break-inside: auto !important;
+  }
+
+  #customer-statement-print .print-layout {
+    width: 100% !important;
+    max-width: none !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: visible !important;
+
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    page-break-inside: auto !important;
+
+    break-before: auto !important;
+    break-after: auto !important;
+    break-inside: auto !important;
+  }
+
+  #customer-statement-print .print-table-container {
+    width: 100% !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: block !important;
+    overflow: visible !important;
+
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  #customer-statement-print table {
+    width: 100% !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+
+    border-collapse: collapse !important;
+
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  #customer-statement-print thead {
+    display: table-header-group !important;
+  }
+
+  #customer-statement-print tbody {
+    display: table-row-group !important;
+  }
+
+  #customer-statement-print tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #customer-statement-print th,
+  #customer-statement-print td {
+    overflow: visible !important;
+  }
+
+  #customer-statement-print img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  #customer-statement-print .print-bottom-summary,
+  #customer-statement-print .print-footer {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

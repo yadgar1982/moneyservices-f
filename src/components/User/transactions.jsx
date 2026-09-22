@@ -74,7 +74,7 @@ const { Option } = Select;
 const Transactions = () => {
   const statementRef = useRef(null);
   const receiptRef = useRef();
-
+  const [editingRecordId, setEditingRecordId] = useState(null);
   //states
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState("");
@@ -85,16 +85,20 @@ const Transactions = () => {
   const [capturedImage, setCapturedImage] = useState(null);
   const [signatureImage, setSignatureImage] = useState(null);
   const [edit, setEdit] = useState(false);
+  const [transactionIdRefresh, setTransactionIdRefresh] = useState(0);
   const [webcamActive, setWebcamActive] = useState(true);
   const [scannedDoc, setScannedDoc] = useState(null);
   const [toAccount, setToAccount] = useState(null);
   const [trId, setTrId] = useState(null);
-  const [calc, setCalc] = useState(false);
+  const [calc, setCalc] = useState(true);
   const [amount, setAmount] = useState(null);
   const [rate, setRate] = useState(null);
+
+  const [commissionFee, setCommissionFee] = useState(0);
+  const [amountAfterCommission, setAmountAfterCommission] = useState(0);
+  const [convertedAmount, setConvertedAmount] = useState(0);
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
-  const validationConfirmed = useRef(false);
 
   // data search for main table
   const [showIsPassed, setShowIsPassed] = useState(false);
@@ -221,16 +225,15 @@ const Transactions = () => {
     }
   `,
   });
-useEffect(() => {
-  if (!receiptData) return;
+  useEffect(() => {
+    if (!receiptData) return;
 
-  const timer = setTimeout(() => {
-    handleReceiptPrint();
-  }, 300);
+    const timer = setTimeout(() => {
+      handleReceiptPrint();
+    }, 300);
 
-  return () => clearTimeout(timer);
-}, [receiptData, handleReceiptPrint]);
-
+    return () => clearTimeout(timer);
+  }, [receiptData, handleReceiptPrint]);
 
   // print statement
   const prepareStatement = (values, shouldPrint = true) => {
@@ -389,6 +392,8 @@ useEffect(() => {
           t.transactionNoId ||
           t.transNo ||
           "-",
+        // Transfer Number
+        transferNo: t.transferNo || "-",
 
         // Transaction Type
         transactionType: t.transactionType || "-",
@@ -505,8 +510,6 @@ useEffect(() => {
 
     return preparedData;
   };
-
-  // Export professional account statement to Excel
   const exportStatementToExcel = (values) => {
     const preparedData = prepareStatement(values, false);
 
@@ -525,16 +528,19 @@ useEffect(() => {
       statementTotals,
     } = preparedData;
 
-    // Company information
+    // =========================================================
+    // COMPANY INFORMATION
+    // =========================================================
+
     const companyName = myBrand?.companyName || "Money Services";
-
     const companyEmail = myBrand?.email || "";
-
     const companyMobile = myBrand?.mobile || "";
-
     const companyAddress = myBrand?.address || "";
 
-    // Format date
+    // =========================================================
+    // FORMAT DATE
+    // =========================================================
+
     const formatDate = (date) => {
       if (!date) {
         return "";
@@ -543,7 +549,10 @@ useEffect(() => {
       return dayjs(date).format("DD-MM-YYYY");
     };
 
-    // Statement period
+    // =========================================================
+    // STATEMENT PERIOD
+    // =========================================================
+
     const statementPeriod =
       fromDate || toDate
         ? `${fromDate ? formatDate(fromDate) : "Beginning"} - ${
@@ -551,40 +560,63 @@ useEffect(() => {
           }`
         : "All Dates";
 
-    // Format number
+    // =========================================================
+    // FORMAT NUMBER
+    // =========================================================
+
     const amount = (value) => Number(value || 0);
 
-    // Transaction rows
-    const transactionRows = rows.map((row) => [
-      row.no,
+    // =========================================================
+    // TRANSACTION ROWS
+    // =========================================================
 
-      row.date,
+    const transactionRows = rows.map((row, index) => [
+      // #
+      row.no || index + 1,
 
-      row.accountNo || "-",
+      // Date
+      row.date || "",
 
+      // Account No
+      row.accountNo ?? "-",
+
+      // Transfer No
+      row.transferNo ?? "-",
+
+      // Description
       row.description || "-",
 
-      row.credit === "" ? "" : amount(row.credit),
+      // Credit
+      row.credit === "" || row.credit == null ? "" : amount(row.credit),
 
-      row.debit === "" ? "" : amount(row.debit),
+      // Debit
+      row.debit === "" || row.debit == null ? "" : amount(row.debit),
 
+      // Balance
       amount(row.balance),
     ]);
 
-    // Excel content
+    // =========================================================
+    // EXCEL CONTENT
+    // =========================================================
+
     const worksheetData = [
       // Company
       [companyName],
 
+      // Contact
       [[companyEmail, companyMobile].filter(Boolean).join("  |  ")],
 
+      // Address
       [companyAddress],
 
+      // Spacer
       [],
 
       // Report title
       ["ACCOUNT STATEMENT"],
 
+      // Spacer
       [],
 
       // Account information
@@ -594,6 +626,7 @@ useEffect(() => {
         "",
         "Currency",
         currency || "-",
+        "",
         "",
         "",
       ],
@@ -606,8 +639,10 @@ useEffect(() => {
         statementPeriod,
         "",
         "",
+        "",
       ],
 
+      // Spacer
       [],
 
       // Current balance
@@ -616,15 +651,26 @@ useEffect(() => {
         "",
         "",
         "",
+        "",
         amount(currentBalance),
         currency || "",
         "",
       ],
 
+      // Spacer
       [],
 
       // Table header
-      ["#", "Date", "Account No", "Description", "Credit", "Debit", "Balance"],
+      [
+        "#",
+        "Date",
+        "Account No",
+        "Transfer No",
+        "Description",
+        "Credit",
+        "Debit",
+        "Balance",
+      ],
 
       // Transactions
       ...transactionRows,
@@ -637,103 +683,126 @@ useEffect(() => {
         "",
         "",
         "",
+        "",
         "STATEMENT TOTALS",
         amount(statementTotals?.credit || 0),
         amount(statementTotals?.debit || 0),
         "",
       ],
 
+      // Spacer
       [],
+
+      // Generated
       ["Generated", dayjs().format("DD-MM-YYYY HH:mm")],
 
+      // Powered by
       ["Powered by", companyName],
     ];
 
-    // Create worksheet
+    // =========================================================
+    // CREATE WORKSHEET
+    // =========================================================
+
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
-    // Merge company header
+    // =========================================================
+    // MERGES
+    // =========================================================
+
     worksheet["!merges"] = [
       // Company name
       {
         s: { r: 0, c: 0 },
-        e: { r: 0, c: 6 },
+        e: { r: 0, c: 7 },
       },
 
       // Contact
       {
         s: { r: 1, c: 0 },
-        e: { r: 1, c: 6 },
+        e: { r: 1, c: 7 },
       },
 
       // Address
       {
         s: { r: 2, c: 0 },
-        e: { r: 2, c: 6 },
+        e: { r: 2, c: 7 },
       },
 
       // Title
       {
         s: { r: 4, c: 0 },
-        e: { r: 4, c: 6 },
+        e: { r: 4, c: 7 },
       },
 
-      // Account information
+      // Account number value
       {
         s: { r: 6, c: 1 },
         e: { r: 6, c: 2 },
       },
 
+      // Currency value
       {
         s: { r: 6, c: 4 },
-        e: { r: 6, c: 6 },
+        e: { r: 6, c: 7 },
       },
 
+      // Account holder value
       {
         s: { r: 7, c: 1 },
         e: { r: 7, c: 2 },
       },
 
+      // Statement period value
       {
         s: { r: 7, c: 4 },
-        e: { r: 7, c: 6 },
+        e: { r: 7, c: 7 },
       },
 
-      // Current balance
+      // Current balance label
       {
         s: { r: 9, c: 0 },
-        e: { r: 9, c: 3 },
+        e: { r: 9, c: 4 },
       },
 
+      // Current balance value
       {
-        s: { r: 9, c: 4 },
-        e: { r: 9, c: 6 },
+        s: { r: 9, c: 5 },
+        e: { r: 9, c: 7 },
       },
 
       // Generated footer
       {
         s: { r: worksheetData.length - 2, c: 1 },
-        e: { r: worksheetData.length - 2, c: 6 },
+        e: { r: worksheetData.length - 2, c: 7 },
       },
 
+      // Powered by footer
       {
         s: { r: worksheetData.length - 1, c: 1 },
-        e: { r: worksheetData.length - 1, c: 6 },
+        e: { r: worksheetData.length - 1, c: 7 },
       },
     ];
 
-    // Professional column widths
+    // =========================================================
+    // COLUMN WIDTHS
+    // =========================================================
+
     worksheet["!cols"] = [
-      { wch: 7 },
-      { wch: 15 },
-      { wch: 16 },
-      { wch: 65 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 18 },
+      { wch: 7 }, // A - #
+      { wch: 15 }, // B - Date
+      { wch: 16 }, // C - Account No
+      { wch: 18 }, // D - Transfer No
+      { wch: 55 }, // E - Description
+      { wch: 18 }, // F - Credit
+      { wch: 18 }, // G - Debit
+      { wch: 18 }, // H - Balance
     ];
 
-    // Row heights
+    // =========================================================
+    // ROW HEIGHTS
+    // =========================================================
+
     worksheet["!rows"] = [
       { hpt: 30 }, // Company
       { hpt: 20 }, // Contact
@@ -749,58 +818,70 @@ useEffect(() => {
       { hpt: 28 }, // Table header
     ];
 
-    // Number format for transaction rows
+    // =========================================================
+    // TRANSACTION NUMBER FORMATS
+    // =========================================================
+
     const transactionStartRow = 12;
+
     const transactionEndRow = transactionStartRow + transactionRows.length - 1;
 
-    for (let row = transactionStartRow; row <= transactionEndRow; row++) {
-      // Credit
-      const creditCell = XLSX.utils.encode_cell({
-        r: row,
-        c: 4,
-      });
+    if (transactionRows.length > 0) {
+      for (let row = transactionStartRow; row <= transactionEndRow; row++) {
+        // Credit - F
+        const creditCell = XLSX.utils.encode_cell({
+          r: row,
+          c: 5,
+        });
 
-      // Debit
-      const debitCell = XLSX.utils.encode_cell({
-        r: row,
-        c: 5,
-      });
+        // Debit - G
+        const debitCell = XLSX.utils.encode_cell({
+          r: row,
+          c: 6,
+        });
 
-      // Balance
-      const balanceCell = XLSX.utils.encode_cell({
-        r: row,
-        c: 6,
-      });
+        // Balance - H
+        const balanceCell = XLSX.utils.encode_cell({
+          r: row,
+          c: 7,
+        });
 
-      if (worksheet[creditCell]) {
-        worksheet[creditCell].z = "#,##0.00";
-      }
+        if (worksheet[creditCell]) {
+          worksheet[creditCell].z = "#,##0.00";
+        }
 
-      if (worksheet[debitCell]) {
-        worksheet[debitCell].z = "#,##0.00";
-      }
+        if (worksheet[debitCell]) {
+          worksheet[debitCell].z = "#,##0.00";
+        }
 
-      if (worksheet[balanceCell]) {
-        worksheet[balanceCell].z = "#,##0.00";
+        if (worksheet[balanceCell]) {
+          worksheet[balanceCell].z = "#,##0.00";
+        }
       }
     }
 
-    // Current balance number format
-    if (worksheet["E10"]) {
-      worksheet["E10"].z = "#,##0.00";
+    // =========================================================
+    // CURRENT BALANCE FORMAT
+    // =========================================================
+
+    if (worksheet["F10"]) {
+      worksheet["F10"].z = "#,##0.00";
     }
 
-    // Statement totals number format
+    // =========================================================
+    // STATEMENT TOTALS
+    // =========================================================
+
     const totalsRow = transactionEndRow + 2;
 
     const totalCreditCell = XLSX.utils.encode_cell({
       r: totalsRow,
-      c: 4,
+      c: 5,
     });
 
     const totalDebitCell = XLSX.utils.encode_cell({
       r: totalsRow,
-      c: 5,
+      c: 6,
     });
 
     if (worksheet[totalCreditCell]) {
@@ -811,18 +892,29 @@ useEffect(() => {
       worksheet[totalDebitCell].z = "#,##0.00";
     }
 
-    // Freeze the transaction header
+    // =========================================================
+    // FREEZE TRANSACTION HEADER
+    // =========================================================
+
     worksheet["!freeze"] = {
       xSplit: 0,
       ySplit: 12,
     };
 
-    // Enable Excel filters on transactions
-    worksheet["!autofilter"] = {
-      ref: `A12:G${transactionEndRow + 1}`,
-    };
+    // =========================================================
+    // EXCEL FILTER
+    // =========================================================
 
-    // Print settings
+    if (transactionRows.length > 0) {
+      worksheet["!autofilter"] = {
+        ref: `A12:H${transactionEndRow + 1}`,
+      };
+    }
+
+    // =========================================================
+    // PRINT SETTINGS
+    // =========================================================
+
     worksheet["!pageSetup"] = {
       orientation: "landscape",
       paperSize: 9,
@@ -830,7 +922,10 @@ useEffect(() => {
       fitToHeight: 0,
     };
 
-    // Page margins
+    // =========================================================
+    // PAGE MARGINS
+    // =========================================================
+
     worksheet["!margins"] = {
       left: 0.3,
       right: 0.3,
@@ -840,7 +935,10 @@ useEffect(() => {
       footer: 0.2,
     };
 
-    // Create workbook
+    // =========================================================
+    // CREATE WORKBOOK
+    // =========================================================
+
     const workbook = XLSX.utils.book_new();
 
     // Workbook properties
@@ -856,7 +954,10 @@ useEffect(() => {
     // Add worksheet
     XLSX.utils.book_append_sheet(workbook, worksheet, "Account Statement");
 
-    // Professional filename
+    // =========================================================
+    // FILE NAME
+    // =========================================================
+
     const accountPart = account ? `Account-${account}` : "All-Accounts";
 
     const currencyPart = currency || "All-Currencies";
@@ -865,46 +966,45 @@ useEffect(() => {
       "YYYY-MM-DD-HHmm",
     )}.xlsx`;
 
-    // Export
+    // =========================================================
+    // EXPORT
+    // =========================================================
+
     XLSX.writeFile(workbook, fileName);
   };
-  //print transaction
-
   const printRecord = async (record) => {
-  try {
-    const res = await http().get(
-      `/api/transaction/readbyid/${record.transactionId}`,
-    );
+    try {
+      const res = await http().get(
+        `/api/transaction/readbyid/${record.transactionId}`,
+      );
 
-    const allTransactions = res.data.data || [];
+      const allTransactions = res.data.data || [];
 
-    const debit = allTransactions.find(
-      (t) => t.transactionType === "debit",
-    );
+      const debit = allTransactions.find((t) => t.transactionType === "debit");
 
-    const credit = allTransactions.find(
-      (t) => t.transactionType === "credit",
-    );
+      const credit = allTransactions.find(
+        (t) => t.transactionType === "credit",
+      );
 
-    const base = debit || credit || record;
+      const base = debit || credit || record;
 
-    const receipt = {
-      transaction: {
-        ...base,
-        transactionNo: record.transactionNo,
-        transactionId: record.transactionId,
-        createdAt: record.createdAt,
-        isPass: record.isPass,
-        debit,
-        credit,
-      },
-    };
+      const receipt = {
+        transaction: {
+          ...base,
+          transactionNo: record.transactionNo,
+          transactionId: record.transactionId,
+          createdAt: record.createdAt,
+          isPass: record.isPass,
+          debit,
+          credit,
+        },
+      };
 
-    setReceiptData(receipt);
-  } catch (err) {
-    console.error("Error loading transaction:", err);
-  }
-};
+      setReceiptData(receipt);
+    } catch (err) {
+      console.error("Error loading transaction:", err);
+    }
+  };
 
   const { data, terror } = SWR("/api/transaction/read", fetcher);
   const handleSearch = () => {
@@ -928,13 +1028,7 @@ useEffect(() => {
 
   // end of table datasource
 
-  useEffect(() => {
-    const amt = amount || 0;
-    const r = rate || 1;
-
-    const f_Amount = amt * r;
-    form.setFieldsValue({ finalAmount: f_Amount });
-  }, [amount, rate, form]);
+  // calculation of final amount after coission and exchange rate
 
   const sigCanvas = useRef({});
   const webcamRef = useRef(null);
@@ -1174,153 +1268,116 @@ useEffect(() => {
   };
 
   // Create transaction
-
   useEffect(() => {
-    const safeRate = rate || 1;
-    const computedAmt = calc ? amount / safeRate : amount * safeRate;
+    const originalAmount = Number(amount || 0);
+    const commission = Number(commissionFee || 0);
+    const safeRate = Number(rate || 1);
 
-    // Update the form field
-    form.setFieldsValue({ finalAmount: Number(computedAmt.toFixed(2)) });
-  }, [amount, rate, calc, form]); // dependencies
+    const netAmount = Math.max(originalAmount - commission, 0);
 
-  // Create Transaction Id
+    const computedAmt = calc ? netAmount / safeRate : netAmount * safeRate;
+
+    const finalAmount = Number(computedAmt.toFixed(2));
+
+    console.log("========== CALCULATION ==========");
+    console.log("Original Amount:", originalAmount);
+    console.log("Commission:", commission);
+    console.log("Net Amount:", netAmount);
+    console.log("Rate:", safeRate);
+    console.log("Calc:", calc);
+    console.log("Final Amount:", finalAmount);
+
+    form.setFieldsValue({
+      amountAfterCommission: netAmount,
+      finalAmount,
+    });
+  }, [amount, commissionFee, rate, calc, form]);
+
+
   const loadTransactionId = async () => {
     try {
       const res = await http().get("/api/transaction/next-id");
 
-      form.setFieldsValue({
-        transactionId: res.data.transactionId,
-      });
+      const newTransactionId = res.data?.transactionId;
+
+      console.log("NEW TRANSACTION ID:", newTransactionId);
+
+      if (newTransactionId) {
+        form.setFieldsValue({
+          transactionId: newTransactionId,
+        });
+      }
     } catch (err) {
-      console.error(err);
+      console.error("LOAD TRANSACTION ID ERROR:", err?.response?.data || err);
     }
   };
 
   useEffect(() => {
-    loadTransactionId();
-  }, []);
+    const timer = setTimeout(() => {
+      loadTransactionId();
+    }, 100);
 
-  // Trnasaction creattion, update and delete functions
+    return () => clearTimeout(timer);
+  }, [transactionIdRefresh]);
+
+  // Submit and Update Transaction
   const onFinish = async (values) => {
     try {
       const { _id, ...rest } = values;
 
-      // CUSTOMER CURRENCY / BALANCE VALIDATION
-      if (!validationConfirmed.current) {
-        const selectedCustomerCurrency = customerCurrencies.find(
-          (item) => item.currency === selectedCurrency,
-        );
-
-        // Currency does not exist for this customer
-        if (!selectedCustomerCurrency) {
-          Modal.confirm({
-            title: "Currency not found",
-            content: (
-              <div>
-                <p>
-                  This customer does not have a{" "}
-                  <strong>{selectedCurrency}</strong> balance.
-                </p>
-
-                <p>Do you want to continue anyway?</p>
-              </div>
-            ),
-            okText: "Yes, Continue",
-            cancelText: "No",
-
-            onOk: () => {
-              validationConfirmed.current = true;
-              form.submit();
-            },
-          });
-
-          return;
-        }
-
-        // Amount exceeds customer's balance
-        if (Number(rest.amount) > Number(selectedCustomerCurrency.balance)) {
-          Modal.confirm({
-            title: "Insufficient Balance",
-            content: (
-              <div>
-                <p>
-                  Customer's <strong>{selectedCurrency}</strong> balance is{" "}
-                  <strong>
-                    {Number(selectedCustomerCurrency.balance).toLocaleString(
-                      undefined,
-                      {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      },
-                    )}
-                  </strong>
-                  .
-                </p>
-
-                <p>
-                  Transaction amount is{" "}
-                  <strong>
-                    {Number(rest.amount).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </strong>
-                  .
-                </p>
-
-                <p>
-                  The amount exceeds the customer's balance.
-                  <br />
-                  Do you want to continue anyway?
-                </p>
-              </div>
-            ),
-            okText: "Yes, Continue",
-            cancelText: "No",
-
-            onOk: () => {
-              validationConfirmed.current = true;
-              form.submit();
-            },
-          });
-
-          return;
-        }
-      }
+      // ==========================================
+      // COMMISSION
+      // ==========================================
+      const commission = Number(rest.comission || 0);
+      const hasCommission = commission > 0;
 
       const commissionData = {
         fullname: rest.fullname,
         user: myUser,
         branch: myBranch,
         accountNo: Number(rest.accountNo),
-        currency: rest.comission_currency,
-        credit: Number(rest.comission),
+
+        // Commission uses source currency
+        currency: selectedCurrency,
+
+        credit: commission,
         debit: 0,
+
         transactionId: rest.transactionId,
         transactionNo: rest.transactionNo,
         transactionType: rest.transaction,
         transferNo: rest.transferNo,
+
         details: `Service fee for ${values.transaction} ${values.transactionId} by ${values.fullname}`,
       };
 
-      // Helper function to build FormData
+      // ==========================================
+      // BUILD FORM DATA
+      // ==========================================
       const buildFormData = (data) => {
         const fd = new FormData();
 
         Object.entries(data).forEach(([key, value]) => {
           if (
-            // !["documents", "image", "signature", "exchangeRate"].includes(key)
             !["documents", "image", "signature", "exchangeRate"].includes(key)
           ) {
             fd.append(key, value);
           }
         });
 
-        if (scannedDoc) fd.append("documents", scannedDoc);
-        if (capturedImage) fd.append("image", capturedImage);
-        if (signatureImage) fd.append("signature", signatureImage);
+        if (scannedDoc) {
+          fd.append("documents", scannedDoc);
+        }
 
-        // Append exchangeRate ONLY ONCE
+        if (capturedImage) {
+          fd.append("image", capturedImage);
+        }
+
+        if (signatureImage) {
+          fd.append("signature", signatureImage);
+        }
+
+        // Exchange rate
         fd.append("exchangeRate", rate || 1);
 
         fd.append("isPass", "false");
@@ -1328,78 +1385,249 @@ useEffect(() => {
         return fd;
       };
 
-      //  NORMAL CREDIT OR DEBIT
+      // ==========================================
+      // NORMAL CREDIT / DEBIT
+      // ==========================================
       if (transactionType !== "transfer" && transactionType !== "exchange") {
+        const originalAmount = Number(rest.amount || 0);
+
+        const transactionAmount = hasCommission
+          ? originalAmount - commission
+          : originalAmount;
+
         const formData = buildFormData({
           ...rest,
+
           user: myUser,
           branch: myBranch,
+
+          amount: transactionAmount,
+          finalAmount: transactionAmount,
         });
 
         await http().post("/api/transaction/create", formData);
       }
-      //  TRANSFER → CREATE TWO ENTRIES
+
+      // ==========================================
+      // TRANSFER / EXCHANGE
+      // ==========================================
       if (
         (transactionType === "transfer" || transactionType === "exchange") &&
         toAccount
       ) {
-        const originalAmount = Number(rest.amount);
-        const convertedAmount = Number(rest.finalAmount);
+        const originalAmount = Number(rest.amount || 0);
 
-        const details =
-          rest.details?.trim() ||
-          (transactionType === "exchange"
-            ? `${selectedCurrency} ${originalAmount} exchange from ${rest.fullname} to ${toAccount.fullname} at exchange rate ${rest.exchangeRate}`
-            : `${selectedCurrency} ${originalAmount} transfer from ${rest.fullname} to ${toAccount.fullname}`);
+        // IMPORTANT:
+        // Use the EXACT amount calculated and displayed
+        // in the Exchanged Amt field.
+        const exchangedAmount = Number(rest.finalAmount || 0);
 
-        // Debit
-        const debitData = buildFormData({
-          ...rest,
-          user: myUser,
-          branch: myBranch,
-          transactionType: "debit",
-          transaction: transactionType,
-          amount: originalAmount,
-          finalAmount: convertedAmount,
-          currency: selectedCurrency,
-          toFullname: toAccount.fullname,
-          details,
-        });
+        // ========================================
+        // TRANSFER
+        // ========================================
+        if (transactionType === "transfer") {
+          // Debit = FULL original amount
+          const debitAmount = originalAmount;
 
-        // Credit
-        const creditData = buildFormData({
-          ...rest,
-          user: myUser,
-          branch: myBranch,
-          accountNo: toAccount.accountNo,
-          fullname: toAccount.fullname,
-          toFullname: toAccount.fullname,
-          currency: selectedToCurrency,
-          transactionType: "credit",
-          transaction: transactionType,
-          amount: convertedAmount,
-          finalAmount: convertedAmount,
-          details,
-        });
+          // Credit = calculated Exchanged Amt
+          const creditAmount = exchangedAmount;
 
-        await http().post("/api/transaction/create", debitData);
-        await http().post("/api/transaction/create", creditData);
+          // ----------------------------------------
+          // DEBIT DETAILS
+          // ----------------------------------------
+          let debitDetails =
+            rest.details?.trim() ||
+            `${selectedCurrency} ${originalAmount} transfer from ${rest.fullname} to ${toAccount.fullname}`;
+
+          if (hasCommission) {
+            debitDetails += ` | Commission Fee: ${commission.toLocaleString(
+              undefined,
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              },
+            )} ${selectedCurrency}`;
+          }
+
+          // ----------------------------------------
+          // CREDIT DETAILS
+          // ----------------------------------------
+          const creditDetails =
+            rest.details?.trim() ||
+            `${selectedCurrency} ${creditAmount} transfer from ${rest.fullname} to ${toAccount.fullname}`;
+
+          // ========================================
+          // DEBIT
+          // ========================================
+          const debitData = buildFormData({
+            ...rest,
+
+            user: myUser,
+            branch: myBranch,
+
+            transactionType: "debit",
+            transaction: "transfer",
+
+            // FULL ORIGINAL AMOUNT
+            amount: debitAmount,
+            finalAmount: debitAmount,
+
+            currency: selectedCurrency,
+
+            toFullname: toAccount.fullname,
+
+            details: debitDetails,
+          });
+
+          // ========================================
+          // CREDIT
+          // ========================================
+          const creditData = buildFormData({
+            ...rest,
+
+            user: myUser,
+            branch: myBranch,
+
+            accountNo: toAccount.accountNo,
+            fullname: toAccount.fullname,
+            toFullname: toAccount.fullname,
+
+            currency: selectedToCurrency,
+
+            transactionType: "credit",
+            transaction: "transfer",
+
+            // EXACT EXCHANGED AMOUNT
+            amount: creditAmount,
+            finalAmount: creditAmount,
+
+            details: creditDetails,
+          });
+
+          // Create debit
+          await http().post("/api/transaction/create", debitData);
+
+          // Create credit
+          await http().post("/api/transaction/create", creditData);
+        }
+
+        // ========================================
+        // EXCHANGE
+        // ========================================
+        if (transactionType === "exchange") {
+          // Debit = FULL ORIGINAL AMOUNT
+          const debitAmount = originalAmount;
+
+          // Credit = EXACT EXCHANGED AMOUNT
+          const creditAmount = exchangedAmount;
+
+          // ----------------------------------------
+          // COMMISSION TEXT
+          // ----------------------------------------
+          const commissionText = hasCommission
+            ? ` | Commission Fee: ${commission.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} ${selectedCurrency}`
+            : "";
+
+          // ----------------------------------------
+          // DEBIT DETAILS
+          // ----------------------------------------
+          const debitDetails =
+            (rest.details?.trim() ||
+              `${selectedCurrency} ${originalAmount} exchange from ${rest.fullname} to ${toAccount.fullname} at exchange rate ${rest.exchangeRate}`) +
+            commissionText;
+
+          // ----------------------------------------
+          // CREDIT DETAILS
+          // ----------------------------------------
+          const creditDetails =
+            (rest.details?.trim() ||
+              `${selectedCurrency} ${originalAmount} exchange from ${rest.fullname} to ${toAccount.fullname} at exchange rate ${rest.exchangeRate}`) +
+            commissionText;
+
+          // ========================================
+          // DEBIT
+          // ========================================
+          const debitData = buildFormData({
+            ...rest,
+
+            user: myUser,
+            branch: myBranch,
+
+            transactionType: "debit",
+            transaction: "exchange",
+
+            // FULL ORIGINAL AMOUNT
+            amount: debitAmount,
+            finalAmount: debitAmount,
+
+            currency: selectedCurrency,
+
+            toFullname: toAccount.fullname,
+
+            details: debitDetails,
+          });
+
+          // ========================================
+          // CREDIT
+          // ========================================
+          const creditData = buildFormData({
+            ...rest,
+
+            user: myUser,
+            branch: myBranch,
+
+            accountNo: toAccount.accountNo,
+            fullname: toAccount.fullname,
+            toFullname: toAccount.fullname,
+
+            currency: selectedToCurrency,
+
+            transactionType: "credit",
+            transaction: "exchange",
+
+            // EXACT EXCHANGED AMOUNT
+            amount: creditAmount,
+            finalAmount: creditAmount,
+
+            details: creditDetails,
+          });
+
+          // Create debit
+          await http().post("/api/transaction/create", debitData);
+
+          // Create credit
+          await http().post("/api/transaction/create", creditData);
+        }
       }
-      if (Number(rest.comission) > 0) {
+
+      // ==========================================
+      // CREATE COMMISSION RECORD
+      // ==========================================
+      if (hasCommission) {
         await http().post("/api/comission/create", commissionData);
       }
 
+      // ==========================================
+      // REFRESH
+      // ==========================================
       mutate("/api/transaction/read");
 
       toast.success("Transaction created successfully!");
+
+      // ==========================================
+      // RESET
+      // ==========================================
       form.resetFields();
+
       setRate(1);
-      validationConfirmed.current = false;
-      // Get the next transaction ID
-      await loadTransactionId();
       setCapturedImage(null);
       setSignatureImage(null);
       setSelectedAccount(null);
+
+      await loadTransactionId();
     } catch (err) {
       console.error(err);
       toast.error("Failed to create transaction!");
@@ -1409,7 +1637,9 @@ useEffect(() => {
   const handleEdit = async (record) => {
     let parent = document.activeElement;
 
-    // Scroll to top
+    // ==========================================
+    // SCROLL TO TOP
+    // ==========================================
     while (parent) {
       const overflowY = window.getComputedStyle(parent).overflowY;
 
@@ -1424,7 +1654,9 @@ useEffect(() => {
       parent = parent.parentElement;
     }
 
-    // Get commission
+    // ==========================================
+    // GET COMMISSION
+    // ==========================================
     let comission = 0;
     let comissionCurrency = "";
 
@@ -1436,28 +1668,41 @@ useEffect(() => {
       comission = Number(res.data.data.credit || 0);
       comissionCurrency = res.data.data.currency || "";
     } catch (err) {
-      console.error(err);
+      console.error("Commission error:", err);
     }
 
+    // ==========================================
+    // EDIT STATE
+    // ==========================================
     setTrId(record.transactionId);
+    setEditingRecordId(record._id);
     setEdit(true);
 
+    // ==========================================
+    // IMPORTANT
+    // transaction = transfer / exchange
+    // transactionType = debit / credit
+    // ==========================================
     setSelectedCurrency(record.currency);
     setRate(record.exchangeRate);
     setAmount(record.amount);
-    setTransactionType(record.transaction);
+    setCommissionFee(comission);
+    setCalc(true);
 
-    form.setFieldsValue({
-      fullname: record.fullname,
-      accountNo: record.accountNo,
-      currency: record.currency,
-    });
+    // FIX:
+    // Do NOT use record.transaction here.
+    setTransactionType(record.transactionType);
+
+    // ==========================================
+    // FIND CREDIT RECORD
+    // ==========================================
+    let creditTransaction = null;
 
     if (
       record.transaction === "transfer" ||
       record.transaction === "exchange"
     ) {
-      const creditTransaction = transactions.find(
+      creditTransaction = transactions.find(
         (item) =>
           item.transactionId === record.transactionId &&
           item.transactionType === "credit",
@@ -1477,28 +1722,65 @@ useEffect(() => {
         });
       }
     }
+
+    // ==========================================
+    // SET FORM VALUES
+    // ==========================================
     form.setFieldsValue({
       _id: record._id,
+
       transactionId: record.transactionId,
       transactionNo: record.transactionNo,
+
+      // transfer / exchange
       transaction: record.transaction,
+
+      // debit / credit
       transactionType: record.transactionType,
-      transferNo: record.transferNo,
-      details: record.details,
-      isPass: record.isPass,
+
+      fullname: record.fullname,
+      accountNo: record.accountNo,
+
+      currency: record.currency,
+
       amount: record.amount,
 
       exchangeRate: record.exchangeRate,
 
       to: record.to,
 
-      comission,
+      transferNo: record.transferNo,
+      details: record.details,
+      isPass: record.isPass,
+
+      comission: comission,
       comission_currency: comissionCurrency,
     });
+
+    // ==========================================
+    // DEBUG
+    // ==========================================
+    console.log("========== HANDLE EDIT ==========");
+    console.log("Record ID:", record._id);
+    console.log("Transaction ID:", record.transactionId);
+    console.log("Transaction:", record.transaction);
+    console.log("Transaction Type:", record.transactionType);
+    console.log("Amount:", record.amount);
+    console.log("Final Amount:", record.finalAmount);
+    console.log("Currency:", record.currency);
+
+    if (creditTransaction) {
+      console.log("========== CREDIT RECORD ==========");
+      console.log("Credit ID:", creditTransaction._id);
+      console.log("Credit Amount:", creditTransaction.amount);
+      console.log("Credit Final Amount:", creditTransaction.finalAmount);
+      console.log("Credit Currency:", creditTransaction.currency);
+    }
 
     setEditTag("Please fill in all empty input fields carefully.");
   };
 
+  // on update
   const onUpdate = async (values) => {
     try {
       if (!trId) {
@@ -1506,13 +1788,21 @@ useEffect(() => {
         return;
       }
 
-      const originalAmount = Number(values.amount);
-      const convertedAmount = Number(values.finalAmount);
+      // ==========================================
+      // AMOUNTS
+      // ==========================================
+      const originalAmount = Number(values.amount || 0);
+      const commission = Number(values.comission || 0);
 
+      // Already calculated by existing calculation logic
+      const exchangedAmount = Number(values.finalAmount || 0);
+
+      // ==========================================
+      // BUILD FORM DATA
+      // ==========================================
       const buildFormData = (data) => {
         const fd = new FormData();
 
-        // Append normal fields
         Object.entries(data).forEach(([key, value]) => {
           if (
             !["image", "signature", "document", "exchangeRate"].includes(key)
@@ -1521,81 +1811,182 @@ useEffect(() => {
           }
         });
 
-        // Append files ONLY if they exist
-        if (scannedDoc) fd.append("document", scannedDoc);
-        if (capturedImage) fd.append("image", capturedImage);
-        if (signatureImage) fd.append("signature", signatureImage);
+        if (scannedDoc) {
+          fd.append("document", scannedDoc);
+        }
 
-        // Always append exchangeRate
+        if (capturedImage) {
+          fd.append("image", capturedImage);
+        }
+
+        if (signatureImage) {
+          fd.append("signature", signatureImage);
+        }
+
         fd.append("exchangeRate", values.exchangeRate || 1);
 
         return fd;
       };
 
-      //  Normalize transfer/exchange
-      let payload = { ...values, user: myUser, branch: myBranch };
-
+      // ==========================================
+      // NORMAL TRANSACTION
+      // DO NOT CHANGE THIS LOGIC
+      // ==========================================
       if (
-        values.transaction === "transfer" ||
-        values.transaction === "exchange"
+        values.transaction !== "transfer" &&
+        values.transaction !== "exchange"
       ) {
-        payload = {
+        const normalFinalAmount = originalAmount - commission;
+
+        const payload = {
           ...values,
 
-          // receiver account
-          to: toAccount?.accountNo,
+          user: myUser,
+          branch: myBranch,
 
-          // temporary receiver fullname for backend
-          receiverFullname: toAccount?.fullname,
+          amount: normalFinalAmount,
+          finalAmount: normalFinalAmount,
+        };
 
+        const formData = buildFormData(payload);
+
+        await http().put(`/api/transaction/update/${trId}`, formData);
+      }
+
+      // ==========================================
+      // TRANSFER / EXCHANGE
+      // UPDATE BOTH SIDES
+      // ==========================================
+      else {
+        // ========================================
+        // DEBIT
+        // ========================================
+        const debitPayload = {
+          ...values,
+
+          user: myUser,
+          branch: myBranch,
+
+          transactionType: "debit",
+          transaction: values.transaction,
+
+          // ORIGINAL AMOUNT
           amount: originalAmount,
-          finalAmount: convertedAmount,
+          finalAmount: originalAmount,
+
+          currency: selectedCurrency,
+
+          to: toAccount?.accountNo,
+          toFullname: toAccount?.fullname,
 
           fromCurrency: selectedCurrency,
           toCurrency: selectedToCurrency,
+
+          // Commission is separate
+          comission: 0,
         };
+
+        const debitFormData = buildFormData(debitPayload);
+
+        await http().put(`/api/transaction/update/${trId}`, debitFormData);
+
+        // ========================================
+        // CREDIT
+        // ========================================
+        const creditPayload = {
+          ...values,
+
+          user: myUser,
+          branch: myBranch,
+
+          transactionType: "credit",
+          transaction: values.transaction,
+
+          accountNo: toAccount?.accountNo,
+          fullname: toAccount?.fullname,
+          toFullname: toAccount?.fullname,
+
+          // EXACT EXCHANGED AMOUNT
+          amount: exchangedAmount,
+          finalAmount: exchangedAmount,
+
+          currency: selectedToCurrency,
+
+          to: toAccount?.accountNo,
+
+          fromCurrency: selectedCurrency,
+          toCurrency: selectedToCurrency,
+
+          // Commission handled separately
+          comission: 0,
+        };
+
+        const creditFormData = buildFormData(creditPayload);
+
+        await http().put(`/api/transaction/update/${trId}`, creditFormData);
+
+        console.log("========== CREDIT UPDATE SENT ==========");
       }
 
-      const formData = buildFormData(payload);
+      // ==========================================
+      // UPDATE COMMISSION
+      // ==========================================
+      if (commission > 0) {
+        const commissionData = {
+          fullname: values.fullname,
+          user: myUser,
+          branch: myBranch,
+          accountNo: Number(values.accountNo),
 
-      const commissionData = {
-        fullname: values.fullname,
-        user: myUser,
-        branch: myBranch,
-        accountNo: Number(values.accountNo),
-        currency: values.comission_currency,
-        credit: Number(values.comission),
-        debit: 0,
-        transactionId: values.transactionId,
-        transactionNo: values.transactionNo,
-        transactionType: values.transaction,
-        transferNo: values.transferNo,
-        details: `Service fee for ${values.transaction} ${values.transactionId} by ${values.fullname}`,
-      };
+          currency: selectedCurrency,
 
-      await http().put(`/api/transaction/update/${trId}`, formData);
-      if (Number(values.comission) > 0) {
+          credit: commission,
+          debit: 0,
+
+          transactionId: values.transactionId,
+          transactionNo: values.transactionNo,
+          transactionType: values.transaction,
+          transferNo: values.transferNo,
+
+          details:
+            `Service fee for ${values.transaction} ` +
+            `${values.transactionId} by ${values.fullname}`,
+        };
+
         await http().put(
           `/api/comission/update/${values.transactionId}`,
           commissionData,
         );
       }
+
+      // ==========================================
+      // REFRESH
+      // ==========================================
       mutate("/api/transaction/read");
 
       toast.success("Transaction updated successfully!");
+
       form.resetFields();
+
       setCapturedImage(null);
       setSignatureImage(null);
       setScannedDoc(null);
     } catch (err) {
+      console.error("========== UPDATE ERROR ==========");
+
       console.error(err);
+
+      console.error("Update error response:", err?.response?.data);
+
       toast.error("Failed to update transaction!");
     }
+
     setEditTag(" ");
     setEdit(false);
   };
 
-  //Delete transaction
+  // Delete transaction
+
   const onDelete = async (transactionId) => {
     try {
       // Delete transaction
@@ -1693,33 +2084,59 @@ useEffect(() => {
         maximumFractionDigits: 2,
       });
 
-    const rowsHTML = rows
-      .map(
-        (record, index) => `
-        <tr>
-          <td>${index + 1}</td>
-          <td>${record.accountNo || "-"}</td>
-          <td>
-            ${
-              record.createdAt
-                ? dayjs(record.createdAt).format("DD-MM-YYYY")
-                : "-"
-            }
-          </td>
-          <td>${record.fullname || "-"}</td>
-          <td>${record.transactionId || "-"}</td>
-          <td>${record.transactionNo || "-"}</td>
-          <td>${record.details || "-"}</td>
-          <td>${record.transactionType || "-"}</td>
-          <td>${record.exchangeRate || "-"}</td>
-          <td>${record.currency || "-"}</td>
-          <td class="amount">
-            ${formatAmount(record.amount)}
-          </td>
-        </tr>
-      `,
-      )
-      .join("");
+const rowsHTML = rows
+  .map((record, index) => {
+    const amount = Number(record.amount || 0);
+
+    const credit =
+      record.transactionType === "credit"
+        ? formatAmount(amount)
+        : "";
+
+    const debit =
+      record.transactionType === "debit"
+        ? formatAmount(amount)
+        : "";
+
+    return `
+      <tr>
+        <td>${index + 1}</td>
+
+        <td>${record.accountNo || "-"}</td>
+
+        <td>
+          ${
+            record.createdAt
+              ? dayjs(record.createdAt).format("DD-MM-YYYY")
+              : "-"
+          }
+        </td>
+
+        <td>${record.fullname || "-"}</td>
+
+        <td>${record.transactionId || "-"}</td>
+
+        <td>${record.transactionNo || "-"}</td>
+
+        <td>${record.details || "-"}</td>
+
+        <td>${record.exchangeRate || "-"}</td>
+
+        <td>${record.currency || "-"}</td>
+
+        <!-- CREDIT -->
+        <td class="amount credit">
+          ${credit}
+        </td>
+
+        <!-- DEBIT -->
+        <td class="amount debit">
+          ${debit}
+        </td>
+      </tr>
+    `;
+  })
+  .join("");
 
     const totalCredit = rows.reduce(
       (sum, row) =>
@@ -1938,10 +2355,10 @@ useEffect(() => {
                 <th>Transaction ID</th>
                 <th>Transaction No</th>
                 <th>Details</th>
-                <th>Type</th>
                 <th>Ex-Rate</th>
                 <th>Currency</th>
-                <th>Amount</th>
+                <th>Credit</th>
+                <th>Debit</th>
               </tr>
             </thead>
 
@@ -1973,248 +2390,405 @@ useEffect(() => {
 
   // EXPORT TRANSACTION HISTORY TO EXCEL
   const exportTransactionHistoryToExcel = () => {
-    const rows = getHistoryData();
+  const rows = getHistoryData();
 
-    if (!rows.length) {
-      message.warning("No transactions found to export.");
-      return;
-    }
+  if (!rows.length) {
+    message.warning("No transactions found to export.");
+    return;
+  }
 
-    const tabNames = {
-      1: "Transactions",
-      2: "Transfers",
-      3: "Exchanges",
-    };
+  const tabNames = {
+    1: "Transactions",
+    2: "Transfers",
+    3: "Exchanges",
+  };
 
-    const reportType = tabNames[activeHistoryTab] || "Transactions";
+  const reportType = tabNames[activeHistoryTab] || "Transactions";
 
-    const companyName = myBrand?.companyName || "Money Services";
+  const companyName = myBrand?.companyName || "Money Services";
+  const companyAddress = myBrand?.address || "";
+  const companyMobile = myBrand?.mobile || "";
+  const companyEmail = myBrand?.email || "";
 
-    const companyAddress = myBrand?.address || "";
+  // =========================================================
+  // WORKSHEET DATA
+  // =========================================================
 
-    const companyMobile = myBrand?.mobile || "";
+  const worksheetData = [
+    // Company
+    [companyName],
 
-    const companyEmail = myBrand?.email || "";
+    // Contact
+    [[companyEmail, companyMobile].filter(Boolean).join(" | ")],
 
-    const worksheetData = [
-      [companyName],
+    // Address
+    [companyAddress],
 
-      [[companyEmail, companyMobile].filter(Boolean).join(" | ")],
+    [],
 
-      [companyAddress],
+    // Report title
+    [`${reportType.toUpperCase()} TRANSACTION HISTORY`],
 
-      [],
+    [],
 
-      [`${reportType.toUpperCase()} TRANSACTION HISTORY`],
+    // Report information
+    [
+      "Report Type",
+      reportType,
+      "",
+      "From",
+      fromDate
+        ? dayjs(fromDate).format("DD-MM-YYYY")
+        : "Beginning",
+      "",
+      "To",
+      toDate
+        ? dayjs(toDate).format("DD-MM-YYYY")
+        : "Present",
+    ],
 
-      [],
+    [],
 
-      [
-        "Report Type",
-        reportType,
-        "",
-        "From",
-        fromDate ? dayjs(fromDate).format("DD-MM-YYYY") : "Beginning",
-        "",
-        "To",
-        toDate ? dayjs(toDate).format("DD-MM-YYYY") : "Present",
-      ],
+    // =======================================================
+    // TABLE HEADER
+    // =======================================================
 
-      [],
+    [
+      "#",
+      "Account No",
+      "Date",
+      "Customer",
+      "Transaction ID",
+      "Transaction No",
+      "Transfer No",
+      "Details",
+      "Exchange Rate",
+      "Currency",
+      "Credit",
+      "Debit",
+      "Status",
+    ],
 
-      [
-        "#",
-        "Account No",
-        "Date",
-        "Customer",
-        "Transaction ID",
-        "Transaction No",
-        "Transfer No",
-        "Details",
-        "Transaction Type",
-        "Exchange Rate",
-        "Currency",
-        "Amount",
-        "Status",
-      ],
+    // =======================================================
+    // TRANSACTIONS
+    // =======================================================
 
-      ...rows.map((record, index) => [
+    ...rows.map((record, index) => {
+      const amount = Number(record.amount || 0);
+
+      const credit =
+        record.transactionType === "credit"
+          ? amount
+          : "";
+
+      const debit =
+        record.transactionType === "debit"
+          ? amount
+          : "";
+
+      return [
+        // #
         index + 1,
 
+        // Account No
         record.accountNo || "-",
 
-        record.createdAt ? dayjs(record.createdAt).format("DD-MM-YYYY") : "-",
+        // Date
+        record.createdAt
+          ? dayjs(record.createdAt).format("DD-MM-YYYY")
+          : "-",
 
+        // Customer
         record.fullname || "-",
 
+        // Transaction ID
         record.transactionId || "-",
 
+        // Transaction No
         record.transactionNo || "-",
 
+        // Transfer No
         record.transferNo || "-",
 
+        // Details
         record.details || "-",
 
-        record.transactionType || "-",
-
+        // Exchange Rate
         Number(record.exchangeRate || 0),
 
+        // Currency
         record.currency || "-",
 
-        Number(record.amount || 0),
+        // Credit
+        credit,
 
-        record.isPass === "true" ? "Passed" : "Pending",
-      ]),
+        // Debit
+        debit,
 
-      [],
+        // Status
+        record.isPass === "true"
+          ? "Passed"
+          : "Pending",
+      ];
+    }),
 
-      ["", "", "", "", "", "", "", "TOTAL RECORDS", rows.length],
+    [],
 
-      [
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "TOTAL CREDIT",
-        rows
-          .filter((r) => r.transactionType === "credit")
-          .reduce((sum, r) => sum + Number(r.amount || 0), 0),
-      ],
+    // =======================================================
+    // TOTAL RECORDS
+    // =======================================================
 
-      [
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "TOTAL DEBIT",
-        rows
-          .filter((r) => r.transactionType === "debit")
-          .reduce((sum, r) => sum + Number(r.amount || 0), 0),
-      ],
-    ];
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "TOTAL RECORDS",
+      rows.length,
+    ],
 
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    // =======================================================
+    // TOTAL CREDIT
+    // =======================================================
 
-    // Merge company header
-    worksheet["!merges"] = [
-      {
-        s: { r: 0, c: 0 },
-        e: { r: 0, c: 12 },
-      },
-      {
-        s: { r: 1, c: 0 },
-        e: { r: 1, c: 12 },
-      },
-      {
-        s: { r: 2, c: 0 },
-        e: { r: 2, c: 12 },
-      },
-      {
-        s: { r: 4, c: 0 },
-        e: { r: 4, c: 12 },
-      },
-    ];
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "TOTAL CREDIT",
+      rows
+        .filter(
+          (r) => r.transactionType === "credit"
+        )
+        .reduce(
+          (sum, r) =>
+            sum + Number(r.amount || 0),
+          0,
+        ),
+    ],
 
-    // Column widths
-    worksheet["!cols"] = [
-      { wch: 7 },
-      { wch: 15 },
-      { wch: 14 },
-      { wch: 25 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 50 },
-      { wch: 18 },
-      { wch: 15 },
-      { wch: 12 },
-      { wch: 18 },
-      { wch: 12 },
-    ];
+    // =======================================================
+    // TOTAL DEBIT
+    // =======================================================
 
-    // Freeze transaction header
-    worksheet["!freeze"] = {
-      xSplit: 0,
-      ySplit: 9,
-    };
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "TOTAL DEBIT",
+      rows
+        .filter(
+          (r) => r.transactionType === "debit"
+        )
+        .reduce(
+          (sum, r) =>
+            sum + Number(r.amount || 0),
+          0,
+        ),
+    ],
+  ];
 
-    // Excel filter
-    worksheet["!autofilter"] = {
-      ref: `A9:M${9 + rows.length}`,
-    };
+  // =========================================================
+  // CREATE WORKSHEET
+  // =========================================================
 
-    // Number formatting
-    const transactionStartRow = 9;
+  const worksheet =
+    XLSX.utils.aoa_to_sheet(worksheetData);
 
-    rows.forEach((_, index) => {
-      const rowNumber = transactionStartRow + index;
+  // =========================================================
+  // MERGE COMPANY HEADER
+  // =========================================================
 
-      const amountCell = XLSX.utils.encode_cell({
+  worksheet["!merges"] = [
+    {
+      s: { r: 0, c: 0 },
+      e: { r: 0, c: 12 },
+    },
+
+    {
+      s: { r: 1, c: 0 },
+      e: { r: 1, c: 12 },
+    },
+
+    {
+      s: { r: 2, c: 0 },
+      e: { r: 2, c: 12 },
+    },
+
+    {
+      s: { r: 4, c: 0 },
+      e: { r: 4, c: 12 },
+    },
+  ];
+
+  // =========================================================
+  // COLUMN WIDTHS
+  // =========================================================
+
+  worksheet["!cols"] = [
+    { wch: 7 },   // A - #
+    { wch: 15 },  // B - Account No
+    { wch: 14 },  // C - Date
+    { wch: 25 },  // D - Customer
+    { wch: 18 },  // E - Transaction ID
+    { wch: 18 },  // F - Transaction No
+    { wch: 18 },  // G - Transfer No
+    { wch: 50 },  // H - Details
+    { wch: 18 },  // I - Exchange Rate
+    { wch: 15 },  // J - Currency
+    { wch: 18 },  // K - Credit
+    { wch: 18 },  // L - Debit
+    { wch: 12 },  // M - Status
+  ];
+
+  // =========================================================
+  // FREEZE TRANSACTION HEADER
+  // =========================================================
+
+  worksheet["!freeze"] = {
+    xSplit: 0,
+    ySplit: 9,
+  };
+
+  // =========================================================
+  // EXCEL FILTER
+  // =========================================================
+
+  worksheet["!autofilter"] = {
+    ref: `A9:M${9 + rows.length}`,
+  };
+
+  // =========================================================
+  // NUMBER FORMATTING
+  // =========================================================
+
+  const transactionStartRow = 9;
+
+  rows.forEach((_, index) => {
+    const rowNumber =
+      transactionStartRow + index;
+
+    // Exchange Rate - I
+    const exchangeCell =
+      XLSX.utils.encode_cell({
+        r: rowNumber,
+        c: 8,
+      });
+
+    // Credit - K
+    const creditCell =
+      XLSX.utils.encode_cell({
+        r: rowNumber,
+        c: 10,
+      });
+
+    // Debit - L
+    const debitCell =
+      XLSX.utils.encode_cell({
         r: rowNumber,
         c: 11,
       });
 
-      const exchangeCell = XLSX.utils.encode_cell({
-        r: rowNumber,
-        c: 9,
-      });
+    if (worksheet[exchangeCell]) {
+      worksheet[exchangeCell].z =
+        "#,##0.0000";
+    }
 
-      if (worksheet[amountCell]) {
-        worksheet[amountCell].z = "#,##0.00";
-      }
+    if (worksheet[creditCell]) {
+      worksheet[creditCell].z =
+        "#,##0.00";
+    }
 
-      if (worksheet[exchangeCell]) {
-        worksheet[exchangeCell].z = "#,##0.0000";
-      }
-    });
+    if (worksheet[debitCell]) {
+      worksheet[debitCell].z =
+        "#,##0.00";
+    }
+  });
 
-    // Page setup
-    worksheet["!pageSetup"] = {
-      orientation: "landscape",
-      paperSize: 9,
-      fitToWidth: 1,
-      fitToHeight: 0,
-    };
+  // =========================================================
+  // PAGE SETUP
+  // =========================================================
 
-    worksheet["!margins"] = {
-      left: 0.3,
-      right: 0.3,
-      top: 0.5,
-      bottom: 0.5,
-      header: 0.2,
-      footer: 0.2,
-    };
-
-    const workbook = XLSX.utils.book_new();
-
-    workbook.Props = {
-      Title: `${reportType} Transaction History`,
-      Subject: "Transaction History",
-      Author: companyName,
-      Company: companyName,
-      Category: "Transactions",
-    };
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      reportType.substring(0, 31),
-    );
-
-    const fileName = `${reportType}_Transaction_History_${dayjs().format(
-      "YYYY-MM-DD_HH-mm",
-    )}.xlsx`;
-
-    XLSX.writeFile(workbook, fileName);
-
-    message.success(`${reportType} transaction history exported successfully.`);
+  worksheet["!pageSetup"] = {
+    orientation: "landscape",
+    paperSize: 9,
+    fitToWidth: 1,
+    fitToHeight: 0,
   };
+
+  // =========================================================
+  // PAGE MARGINS
+  // =========================================================
+
+  worksheet["!margins"] = {
+    left: 0.3,
+    right: 0.3,
+    top: 0.5,
+    bottom: 0.5,
+    header: 0.2,
+    footer: 0.2,
+  };
+
+  // =========================================================
+  // CREATE WORKBOOK
+  // =========================================================
+
+  const workbook = XLSX.utils.book_new();
+
+  // =========================================================
+  // WORKBOOK PROPERTIES
+  // =========================================================
+
+  workbook.Props = {
+    Title: `${reportType} Transaction History`,
+    Subject: "Transaction History",
+    Author: companyName,
+    Company: companyName,
+    Category: "Transactions",
+  };
+
+  // =========================================================
+  // ADD WORKSHEET
+  // =========================================================
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    reportType.substring(0, 31),
+  );
+
+  // =========================================================
+  // FILE NAME
+  // =========================================================
+
+  const fileName = `${reportType}_Transaction_History_${dayjs().format(
+    "YYYY-MM-DD_HH-mm",
+  )}.xlsx`;
+
+  // =========================================================
+  // EXPORT
+  // =========================================================
+
+  XLSX.writeFile(
+    workbook,
+    fileName,
+  );
+
+  message.success(
+    `${reportType} transaction history exported successfully.`,
+  );
+};
 
   // color for currencies
   const getCurrencyColor = (currency) => {
@@ -2411,7 +2985,10 @@ useEffect(() => {
         const disabled = shouldDisable(record, data);
         return (
           <EditOutlined
-            onClick={() => !disabled && handleEdit(record)}
+            onClick={() => {
+              console.log("EDIT BUTTON RECORD:", record);
+              handleEdit(record);
+            }}
             className={`!text-xl  rounded ${
               disabled
                 ? "!text-gray-300 !cursor-not-allowed"
@@ -2511,29 +3088,52 @@ useEffect(() => {
 
   // reset fields
   const resetFields = () => {
+    // Reset Ant Design form
     form.resetFields();
 
+    // Reset edit mode
     setEdit(false);
     setTrId(null);
 
+    // Reset currencies
     setSelectedCurrency("");
     setSelectedToCurrency("");
 
+    // Reset transaction state
     setTransactionType("");
     setAmount(0);
     setRate(0);
 
+    // Reset destination account
     setToAccount({
       accountNo: "",
       fullname: "",
     });
 
-    setComission(0);
-    setComissionCurrency("");
+    // Reset commission
+    setCommissionFee(0);
 
+    // Reset edit tag
     setEditTag("");
-  };
 
+    // Reset other form-related states
+    setAmountAfterCommission(0);
+    setConvertedAmount(0);
+
+    // Reset uploaded files
+    setCapturedImage(null);
+    setSignatureImage(null);
+    setScannedDoc(null);
+
+    // Reset editing record
+    setEditingRecordId(null);
+
+    // Refresh transaction data
+    dispatch(fetchTransaction());
+
+    // Trigger new Transaction ID
+    setTransactionIdRefresh((prev) => prev + 1);
+  };
   // send to Whatsapp
   const sendToWhatsApp = (record) => {
     const customer = users.find(
@@ -2583,153 +3183,135 @@ Details: ${record.details || "-"}
   // value validation
   const handleAmountChange = (value) => {
     setAmount(value);
+  };
+  const handleAmountBlur = () => {
+    // =========================
+    // EMPTY AMOUNT
+    // =========================
+    if (amount === null || amount === undefined || amount === "") {
+      return;
+    }
 
-    // Credit and Debit → always allow
+    const enteredAmount = Number(amount);
+
+    // =========================
+    // ZERO / NEGATIVE
+    // =========================
+    // Allow 0 and negative amounts.
+    // Do NOT show balance alert.
+    if (enteredAmount <= 0) {
+      return;
+    }
+
+    // =========================
+    // CREDIT / DEBIT
+    // =========================
+    // Credit and Debit do not need
+    // balance validation.
     if (!["transfer", "exchange"].includes(transactionType)) {
       return;
     }
 
-    // Empty amount
-    if (value === null || value === undefined || value === "") {
-      return;
-    }
-
+    // =========================
+    // FIND CUSTOMER CURRENCY
+    // =========================
     const customerCurrency = customerCurrencies.find(
       (item) => item.currency === selectedCurrency,
     );
 
-    // No currency/balance record → let the currency validation handle it
+    // No currency/balance record
     if (!customerCurrency) {
       return;
     }
 
     const availableBalance = Number(customerCurrency.balance || 0);
-    const enteredAmount = Number(value);
 
-    // Amount is within available balance
+    // =========================
+    // AMOUNT IS WITHIN BALANCE
+    // =========================
     if (enteredAmount <= availableBalance) {
       return;
     }
 
     // =========================
-    // EXCHANGE → BLOCK
+    // INSUFFICIENT BALANCE
     // =========================
-    if (transactionType === "exchange") {
-      Modal.error({
-        title: "Insufficient Balance",
-        content: (
-          <div className="py-2">
-            <p className="text-sm text-slate-600">
-              The exchange amount exceeds the customer's available balance.
-            </p>
 
-            <div className="mt-3 rounded-md bg-slate-50 p-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Available Balance</span>
+    const actionName = transactionType === "exchange" ? "exchange" : "transfer";
 
-                <strong>
-                  {availableBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  {selectedCurrency}
-                </strong>
-              </div>
+    const amountLabel =
+      transactionType === "exchange" ? "Exchange Amount" : "Transfer Amount";
 
-              <div className="mt-1 flex justify-between text-sm">
-                <span className="text-slate-500">Requested Amount</span>
+    Modal.confirm({
+      title: "Insufficient Balance",
 
-                <strong className="text-red-600">
-                  {enteredAmount.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  {selectedCurrency}
-                </strong>
-              </div>
+      content: (
+        <div className="py-2">
+          <p className="text-sm text-slate-600">
+            The {actionName} amount exceeds the customer's available balance.
+          </p>
+
+          <div className="mt-3 rounded-md bg-slate-50 p-3">
+            {/* Available Balance */}
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Available Balance</span>
+
+              <strong>
+                {availableBalance.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {selectedCurrency}
+              </strong>
             </div>
 
-            <p className="mt-3 mb-0 font-medium text-red-600">
-              Exchange cannot be completed.
-            </p>
-          </div>
-        ),
-        okText: "OK",
-      });
+            {/* Requested Amount */}
+            <div className="mt-1 flex justify-between text-sm">
+              <span className="text-slate-500">{amountLabel}</span>
 
-      setAmount(null);
-
-      form.setFieldsValue({
-        amount: null,
-      });
-
-      return;
-    }
-
-    // =========================
-    // TRANSFER → CONFIRM
-    // =========================
-    if (transactionType === "transfer") {
-      Modal.confirm({
-        title: "Insufficient Balance",
-        content: (
-          <div className="py-2">
-            <p className="text-sm text-slate-600">
-              The transfer amount exceeds the customer's available balance.
-            </p>
-
-            <div className="mt-3 rounded-md bg-slate-50 p-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Available Balance</span>
-
-                <strong>
-                  {availableBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  {selectedCurrency}
-                </strong>
-              </div>
-
-              <div className="mt-1 flex justify-between text-sm">
-                <span className="text-slate-500">Transfer Amount</span>
-
-                <strong className="text-red-600">
-                  {enteredAmount.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  {selectedCurrency}
-                </strong>
-              </div>
+              <strong className="text-red-600">
+                {enteredAmount.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {selectedCurrency}
+              </strong>
             </div>
-
-            <p className="mt-3 mb-0 text-sm text-slate-500">
-              Do you want to continue with this transfer?
-            </p>
           </div>
-        ),
-        width: 400,
-        okText: "Continue",
-        cancelText: "Cancel",
 
-        onOk: () => {
-          setAmount(enteredAmount);
+          <p className="mt-3 mb-0 text-sm text-slate-500">
+            Do you want to continue with this {actionName}?
+          </p>
+        </div>
+      ),
 
-          form.setFieldsValue({
-            amount: enteredAmount,
-          });
-        },
+      width: 400,
 
-        onCancel: () => {
-          setAmount(null);
+      okText: "Continue",
+      cancelText: "Cancel",
 
-          form.setFieldsValue({
-            amount: null,
-          });
-        },
-      });
-    }
+      // =========================
+      // CONTINUE
+      // =========================
+      onOk: () => {
+        setAmount(enteredAmount);
+
+        form.setFieldsValue({
+          amount: enteredAmount,
+        });
+      },
+
+      // =========================
+      // CANCEL
+      // =========================
+      onCancel: () => {
+        setAmount(null);
+
+        form.setFieldsValue({
+          amount: null,
+        });
+      },
+    });
   };
 
   // Curency Validation
@@ -3133,6 +3715,17 @@ Details: ${record.details || "-"}
                       placeholder="Amount"
                       className="!w-full !rounded-sm !font-semibold"
                       onChange={handleAmountChange}
+                      onBlur={handleAmountBlur}
+                      precision={2}
+                      formatter={(value) =>
+                        value !== undefined && value !== null && value !== ""
+                          ? Number(value).toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                          : ""
+                      }
+                      parser={(value) => value?.replace(/,/g, "")}
                     />
                   </Form.Item>
 
@@ -3240,6 +3833,22 @@ Details: ${record.details || "-"}
                     </>
                   )}
 
+                  {/* Comission */}
+                  <Form.Item
+                    name="comission"
+                    label={
+                      <span className="font-semibold text-slate-700">
+                        Commission Fee
+                      </span>
+                    }
+                    className="xl-col-span-1"
+                  >
+                    <InputNumber
+                      placeholder="Fee"
+                      className="!w-full !rounded-sm"
+                      onChange={(value) => setCommissionFee(Number(value || 0))}
+                    />
+                  </Form.Item>
                   {/* Exchange */}
                   <Form.Item
                     name="exchangeRate"
@@ -3265,23 +3874,34 @@ Details: ${record.details || "-"}
 
                   {/* ex amt */}
 
-                  <Form.Item
-                    name="finalAmount"
-                    className="!mb-0"
-                    label={
-                      <span className="font-semibold text-slate-700">
-                        Exchanged Amt
-                      </span>
-                    }
-                  >
-                    <InputNumber
-                      disabled
-                      controls={false}
-                      formatter={(value) => `${Number(value || 0).toFixed(2)}`}
-                      parser={(value) => parseFloat(value)}
-                      className="!w-full final-amount-input"
-                    />
-                  </Form.Item>
+                 <Form.Item
+  name="finalAmount"
+  className="!mb-0"
+  label={
+    <span className="font-semibold text-slate-700">
+      Exchanged Amt
+    </span>
+  }
+>
+  <InputNumber
+    disabled
+    controls={false}
+    value={convertedAmount}
+    formatter={(value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+        ? Math.round(Number(value)).toLocaleString("en-US", {
+            maximumFractionDigits: 0,
+          })
+        : ""
+    }
+    parser={(value) =>
+      parseFloat(value?.replace(/,/g, "")) || 0
+    }
+    className="!w-full final-amount-input"
+  />
+</Form.Item>
 
                   {/* transaction id */}
                   <Form.Item
@@ -3329,45 +3949,6 @@ Details: ${record.details || "-"}
                     className="xl:col-span-1"
                   >
                     <Input placeholder="Transfer No" className="!rounded-sm" />
-                  </Form.Item>
-
-                  {/* Comission */}
-                  <Form.Item
-                    name="comission"
-                    label={
-                      <span className="font-semibold text-slate-700">
-                        Commission Fee
-                      </span>
-                    }
-                    className="xl-col-span-1"
-                  >
-                    <InputNumber
-                      placeholder="Fee"
-                      className="!w-full !rounded-sm"
-                      onChange={(value) => setComission(value)}
-                    />
-                  </Form.Item>
-                  {/* currency */}
-                  <Form.Item
-                    name="comission_currency"
-                    label={
-                      <span className="font-semibold text-slate-700">
-                        Currency
-                      </span>
-                    }
-                    className="!mb-0"
-                  >
-                    <Select
-                      placeholder="Currency"
-                      onChange={(val) => setComissionCurrency(val)}
-                      className="!rounded-sm"
-                    >
-                      {currencies.map((c) => (
-                        <Select.Option key={c.currency} value={c.currency}>
-                          {c.currency}
-                        </Select.Option>
-                      ))}
-                    </Select>
                   </Form.Item>
                 </div>
                 {/* Notes */}
@@ -4080,6 +4661,7 @@ Details: ${record.details || "-"}
               statementTotals={statementData.statementTotals}
               statementBalance={statementData.statementBalance}
               rows={statementData.rows}
+              transferNo={statementData.rows?.map((row) => row.transferNo)}
             />
           </div>
         )}

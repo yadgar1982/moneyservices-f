@@ -36,74 +36,31 @@
 
 
 /* ==================================================
-   PRINT CONTAINER
+   ACCOUNT STATEMENT PRINT CONTAINER
 ================================================== */
 
-/*
-   Statement is rendered normally by React,
-   but kept outside the visible Transactions page.
-
-   IMPORTANT:
-   Do NOT use display: none.
-*/
-
 .print-only-container {
-    position: fixed !important;
-
-    left: -100000px !important;
-    top: 0 !important;
-
-    width: 100% !important;
-    max-width: none !important;
-
-    display: block !important;
-    visibility: visible !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    background: #ffffff !important;
-
-    overflow: visible !important;
+    display: none !important;
 }
 
 .statement-print-root {
-    width: 100% !important;
-    max-width: none !important;
-
-    background: #ffffff !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    overflow: visible !important;
+    display: none !important;
 }
 
 
 /* ==================================================
-   PRINT
+   ACCOUNT STATEMENT PRINT
 ================================================== */
 
 @media print {
 
-    /*
-       IMPORTANT:
-       Do NOT specify portrait or landscape here.
-
-       "auto" allows the browser/printer to determine
-       the page orientation.
-    */
-
+    /* PAGE */
     @page {
-        size: auto;
-        margin: 5mm;
+        size: A4 landscape;
+        margin: 8mm 5mm;
     }
 
-
-    /* ----------------------------------------------
-       PAGE
-    ---------------------------------------------- */
-
+    /* BODY */
     html,
     body {
         margin: 0 !important;
@@ -111,50 +68,35 @@
 
         width: 100% !important;
         height: auto !important;
-
         min-height: 0 !important;
-        max-height: none !important;
-
-        overflow: visible !important;
 
         background: #ffffff !important;
     }
 
 
-    /* ----------------------------------------------
-       HIDE NORMAL TRANSACTIONS PAGE
-    ---------------------------------------------- */
-
-    body * {
+    /* HIDE NORMAL APPLICATION */
+    body > * {
         visibility: hidden !important;
     }
 
 
-    /* ----------------------------------------------
-       SHOW ONLY STATEMENT
-    ---------------------------------------------- */
-
+    /* SHOW ONLY STATEMENT */
     .print-only-container,
     .print-only-container * {
         visibility: visible !important;
     }
 
 
-    /* ----------------------------------------------
-       PRINT CONTAINER
-    ---------------------------------------------- */
-
+    /* STATEMENT CONTAINER */
     .print-only-container {
+        display: block !important;
+
         position: absolute !important;
 
         left: 0 !important;
         top: 0 !important;
 
         width: 100% !important;
-        max-width: none !important;
-
-        display: block !important;
-        visibility: visible !important;
 
         height: auto !important;
         min-height: 0 !important;
@@ -166,18 +108,21 @@
         overflow: visible !important;
 
         background: #ffffff !important;
+
+        page-break-before: auto !important;
+        page-break-after: auto !important;
+        break-before: auto !important;
+        break-after: auto !important;
     }
 
 
-    /* ----------------------------------------------
-       STATEMENT ROOT
-    ---------------------------------------------- */
-
+    /* STATEMENT ROOT */
     .statement-print-root {
+        display: block !important;
+
         position: static !important;
 
         width: 100% !important;
-        max-width: none !important;
 
         height: auto !important;
         min-height: 0 !important;
@@ -188,7 +133,10 @@
 
         overflow: visible !important;
 
+        page-break-before: auto !important;
         page-break-after: auto !important;
+
+        break-before: auto !important;
         break-after: auto !important;
 
         page-break-inside: auto !important;
@@ -196,24 +144,10 @@
     }
 
 
-    /* ----------------------------------------------
-       NEVER CLIP STATEMENT
-    ---------------------------------------------- */
-
-    .statement-print-root,
-    .statement-print-root > *,
-    .statement-print-root * {
-        max-height: none !important;
-        overflow: visible !important;
-    }
-
-
-    /* ----------------------------------------------
-       PRINT LAYOUT
-    ---------------------------------------------- */
-
+    /* PRINT LAYOUT */
     .print-layout {
         width: 100% !important;
+
         max-width: none !important;
 
         height: auto !important;
@@ -227,7 +161,10 @@
 
         box-sizing: border-box !important;
 
+        page-break-before: auto !important;
         page-break-after: auto !important;
+
+        break-before: auto !important;
         break-after: auto !important;
 
         page-break-inside: auto !important;
@@ -235,10 +172,7 @@
     }
 
 
-    /* ----------------------------------------------
-       TABLE CONTAINER
-    ---------------------------------------------- */
-
+    /* TABLE CONTAINER */
     .print-table-container {
         width: 100% !important;
 
@@ -248,19 +182,17 @@
 
         display: block !important;
 
-        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
 
-        flex: none !important;
+        overflow: visible !important;
 
         page-break-inside: auto !important;
         break-inside: auto !important;
     }
 
 
-    /* ----------------------------------------------
-       TABLE
-    ---------------------------------------------- */
-
+    /* TABLE */
     .print-table-container table {
         width: 100% !important;
 
@@ -272,17 +204,12 @@
 
         border-collapse: collapse !important;
 
-        overflow: visible !important;
-
         page-break-inside: auto !important;
         break-inside: auto !important;
     }
 
 
-    /* ----------------------------------------------
-       REPEAT TABLE HEADER
-    ---------------------------------------------- */
-
+    /* REPEAT HEADER */
     .print-table-container thead {
         display: table-header-group !important;
     }
@@ -292,90 +219,46 @@
     }
 
 
-    /* ----------------------------------------------
-       KEEP TRANSACTION ROW TOGETHER
-    ---------------------------------------------- */
-
+    /* KEEP EACH ROW TOGETHER */
     .print-table-container tr {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
     }
 
 
-    /* ----------------------------------------------
-       TABLE CELLS
-    ---------------------------------------------- */
-
+    /* CELLS */
     .print-table-container th,
     .print-table-container td {
         overflow: visible !important;
     }
 
 
-    /* ----------------------------------------------
-       TOP SUMMARY
-    ---------------------------------------------- */
-
-    .print-layout > div {
-        max-height: none !important;
-        overflow: visible !important;
-    }
-
-
-    /* ----------------------------------------------
-       BOTTOM SUMMARY
-    ---------------------------------------------- */
-
-    .print-bottom-summary {
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-
-        height: auto !important;
-        min-height: 0 !important;
-        max-height: none !important;
-
-        overflow: visible !important;
-    }
-
-
-    /* ----------------------------------------------
-       FOOTER
-    ---------------------------------------------- */
-
-    .print-footer {
-        display: none !important;
-    }
-
-
-    /* ----------------------------------------------
-       IMAGES / LOGOS
-    ---------------------------------------------- */
-
+    /* IMAGES */
     .print-layout img {
         max-width: 100% !important;
-        max-height: none !important;
-
-        overflow: visible !important;
+        height: auto !important;
     }
 
 
-    /* ----------------------------------------------
-       REMOVE SCREEN SHADOWS
-    ---------------------------------------------- */
-
+    /* REMOVE SHADOWS */
     .print-layout,
     .print-layout * {
         box-shadow: none !important;
     }
 
 
-    /* ----------------------------------------------
-       PRINT COLORS
-    ---------------------------------------------- */
-
+    /* PRINT COLORS */
     body {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+    }
+
+
+    /* NEVER PRINT RECEIPT WITH STATEMENT */
+    .receipt-print-container,
+    .receipt-print-container * {
+        display: none !important;
+        visibility: hidden !important;
     }
 }
 

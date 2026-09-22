@@ -3,7 +3,6 @@ import dayjs from "dayjs";
 import PrintLayout from "../print/PrintLayout";
 import PrintHeader from "../print/PrintHeader";
 import PrintInfo from "../print/PrintInfo";
-import PrintSummary from "../print/PrintSummary";
 import PrintTable from "../print/PrintTable";
 
 const AccountStatement = ({
@@ -15,15 +14,10 @@ const AccountStatement = ({
   currency,
   fromDate,
   toDate,
-  overallTotals,
   currentBalance,
   statementTotals,
   statementBalance,
   rows,
-
-  // IMPORTANT:
-  // Parent can now tell this component
-  // whether the statement is landscape.
   landscape = false,
 }) => {
   const formatAmount = (value) => {
@@ -42,93 +36,124 @@ const AccountStatement = ({
       width: 40,
       align: "center",
     },
+
     {
       title: "Date",
       dataIndex: "date",
-      width: 300,
+      width: 140,
+      render: (value) => (
+        <span
+          style={{
+            display: "inline-block",
+            minWidth: "90px",
+            whiteSpace: "nowrap",
+            wordBreak: "normal",
+            overflowWrap: "normal",
+          }}
+        >
+          {value}
+        </span>
+      ),
     },
+
     {
-      title: "Transaction-Id",
+      title: (
+        <span style={{ whiteSpace: "nowrap" }}>
+          Transaction ID
+        </span>
+      ),
       dataIndex: "transactionId",
-      width: 150,
+      width: 180,
+      onHeaderCell: () => ({
+        style: {
+          whiteSpace: "nowrap",
+        },
+      }),
+      render: (value) => (
+        <span style={{ whiteSpace: "nowrap" }}>
+          {value || "-"}
+        </span>
+      ),
     },
+
+    {
+      title: (
+        <span style={{ whiteSpace: "nowrap" }}>
+          Transfer No
+        </span>
+      ),
+      dataIndex: "transferNo",
+      width: 150,
+      align: "center",
+      onHeaderCell: () => ({
+        style: {
+          whiteSpace: "nowrap",
+        },
+      }),
+      render: (value) => (
+        <span style={{ whiteSpace: "nowrap" }}>
+          {value || "-"}
+        </span>
+      ),
+    },
+
     {
       title: "Description",
       dataIndex: "description",
-      width: 250,
+      width: 220,
     },
-   {
-  title: "Debit",
-  dataIndex: "debit",
-  width: 100,
-  align: "right",
-  render: (value) =>
-    value !== "" && value !== null && value !== undefined
-      ? Number(value).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      : "",
-},
 
-{
-  title: "Credit",
-  dataIndex: "credit",
-  width: 100,
-  align: "right",
-  render: (value) =>
-    value !== "" && value !== null && value !== undefined
-      ? Number(value).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      : "",
-},
-
-{
-  title: "Balance",
-  dataIndex: "balance",
-  width: 120,
-  align: "right",
-  render: (value) =>
-    value !== "" && value !== null && value !== undefined
-      ? Number(value).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      : "",
-},
-  ];
-
-  const topSummary = [
     {
-      title: "Total Debit",
-      value: formatAmount(overallTotals?.debit),
-      className: "text-black-600",
+      title: "Debit",
+      dataIndex: "debit",
+      width: 100,
+      align: "right",
+      render: (value) =>
+        value !== "" &&
+        value !== null &&
+        value !== undefined
+          ? Number(value).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "",
     },
+
     {
-      title: "Total Credit",
-      value: formatAmount(overallTotals?.credit),
-      className: "text-green-600",
+      title: "Credit",
+      dataIndex: "credit",
+      width: 100,
+      align: "right",
+      render: (value) =>
+        value !== "" &&
+        value !== null &&
+        value !== undefined
+          ? Number(value).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "",
     },
+
     {
-      title: "Current Balance",
-      value: formatAmount(currentBalance),
-      className:
-        Number(currentBalance) < 0
-          ? "text-red-600"
-          : "text-slate-700",
+      title: "Balance",
+      dataIndex: "balance",
+      width: 120,
+      align: "right",
+      render: (value) =>
+        value !== "" &&
+        value !== null &&
+        value !== undefined
+          ? Number(value).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "",
     },
   ];
 
   return (
     <PrintLayout
-      /*
-       * THIS WAS MISSING.
-       *
-       * Now PrintLayout knows whether
-       * this statement is landscape.
-       */
       landscape={landscape}
 
       header={
@@ -147,18 +172,22 @@ const AccountStatement = ({
               label: "Account Holder",
               value: accountHolder,
             },
+
             {
               label: "Account Number",
               value: account,
             },
+
             {
               label: "Currency",
               value: currency || "All",
             },
+
             {
               label: "Branch",
               value: branch,
             },
+
             {
               label: "Statement Period",
               value: `${
@@ -171,43 +200,75 @@ const AccountStatement = ({
                   : "-"
               }`,
             },
+
             {
               label: "Printed On",
-              value: dayjs().format("DD/MM/YYYY hh:mm A"),
+              value: dayjs().format(
+                "DD/MM/YYYY hh:mm A"
+              ),
             },
           ]}
         />
       }
 
       summary={
-        <PrintSummary
-          variant="top"
-          items={topSummary}
-        />
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            justifyContent: "flex-start",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 2px",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "12px",
+              color: "#64748b",
+              fontWeight: 500,
+            }}
+          >
+            Balance:
+          </span>
+
+          <span
+            style={{
+              fontSize: "18px",
+              fontWeight: 700,
+              color:
+                Number(currentBalance) < 0
+                  ? "#dc2626"
+                  : "#334155",
+            }}
+          >
+            {formatAmount(currentBalance)}
+          </span>
+        </div>
       }
 
       table={
         <PrintTable
           columns={columns}
           data={rows}
+
           footerRow={{
             debit: formatAmount(
               statementTotals?.debit
             ),
+
             credit: formatAmount(
               statementTotals?.credit
             ),
+
             balance: formatAmount(
               statementBalance
             ),
           }}
+      
         />
       }
 
-      /*
-       * You said you do NOT need anything
-       * in the footer.
-       */
       footer={null}
     />
   );

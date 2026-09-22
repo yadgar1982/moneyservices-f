@@ -4,7 +4,11 @@ const PrintTable = ({
   footerRow,
 }) => {
   const getNumericValue = (value) => {
-    if (value === null || value === undefined || value === "") {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
       return 0;
     }
 
@@ -18,12 +22,23 @@ const PrintTable = ({
   };
 
   return (
-    <table className="w-full border-collapse text-sm">
+    <table
+      className="print-statement-table w-full border-collapse text-sm"
+      style={{
+        width: "100%",
+        height: "auto",
+        tableLayout: "auto",
+      }}
+    >
       <thead>
         <tr className="bg-emerald-700 text-white">
           {columns.map((column, index) => (
             <th
               key={index}
+              style={{
+                width: column.width,
+                whiteSpace: "nowrap",
+              }}
               className="border border-gray-300 px-3 py-2 text-left"
             >
               {column.title}
@@ -39,7 +54,8 @@ const PrintTable = ({
             className="even:bg-gray-50"
           >
             {columns.map((column, colIndex) => {
-              const value = row[column.dataIndex];
+              const value =
+                row[column.dataIndex];
 
               const isBalance =
                 column.dataIndex === "balance";
@@ -47,6 +63,10 @@ const PrintTable = ({
               return (
                 <td
                   key={colIndex}
+                  style={{
+                    width: column.width,
+                    verticalAlign: "top",
+                  }}
                   className={`border border-gray-300 px-3 py-2 ${
                     column.align === "right"
                       ? "text-right"

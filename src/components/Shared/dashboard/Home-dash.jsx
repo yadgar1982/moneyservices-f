@@ -2415,27 +2415,17 @@ const Dashboard = () => {
 
       statementRows.push({
         no: index + 1,
-
         date: t.createdAt ? dayjs(t.createdAt).format("DD-MM-YYYY") : "-",
-
         accountNo: t.accountNo || "-",
-
         transactionId: t.transactionId || "-",
-
         transactionNo: t.transactionNo || t.transactionNoId || t.transNo || "-",
-
+        transferNo: t.transferNo || "-",
         description: t.details || "-",
-
         transactionType: t.transactionType || "-",
-
         debit: t.transactionType === "debit" ? amount : "",
-
         credit: t.transactionType === "credit" ? amount : "",
-
         balance: runningBalance,
-
         currency: t.currency || "-",
-
         fullname: t.fullname || "-",
       });
     });
@@ -2466,13 +2456,9 @@ const Dashboard = () => {
       accountHolder,
 
       branch: myBranch,
-
       currency: customerStatementCurrency,
-
       fromDate: customerStatementFromDate || null,
-
       toDate: customerStatementToDate || null,
-
       rows: statementRows,
 
       // CURRENT ACCOUNT TOTALS
@@ -2510,7 +2496,7 @@ const Dashboard = () => {
     }, 300);
   };
 
-  // export customer statement to excel
+  // export customer statement to excel 
   const exportCustomerStatementToExcel = () => {
     if (!stAcc) {
       message.warning("Please select an account.");
