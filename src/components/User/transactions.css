@@ -254,12 +254,7 @@
     }
 
 
-    /* NEVER PRINT RECEIPT WITH STATEMENT */
-    .receipt-print-container,
-    .receipt-print-container * {
-        display: none !important;
-        visibility: hidden !important;
-    }
+  
 }
 
 .receipt-print-container {
