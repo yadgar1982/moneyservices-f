@@ -51,6 +51,7 @@ import {
   MessageOutlined,
   CalendarOutlined,
 } from "@ant-design/icons";
+import { ArrowLeftRight } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import Webcam from "react-webcam";
 import { toast } from "react-toastify";
@@ -66,6 +67,7 @@ import { fetchUsers } from "../../redux/slices/customerSlice";
 import { fetchCurrency } from "../../redux/slices/currencySlice";
 import { fetchBranch } from "../../redux/slices/branchSlice";
 import dayjs from "dayjs";
+
 const shutterSound = new Audio("./camera.mp3");
 shutterSound.volume = 0.2;
 
@@ -78,6 +80,7 @@ const Transactions = () => {
   //states
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState("");
+  const [exdCurrency, setExdCurrency] = useState("");
   const [selectedToCurrency, setSelectedToCurrency] = useState("");
   const [form] = Form.useForm();
   const [statementForm] = Form.useForm();
@@ -90,16 +93,17 @@ const Transactions = () => {
   const [scannedDoc, setScannedDoc] = useState(null);
   const [toAccount, setToAccount] = useState(null);
   const [trId, setTrId] = useState(null);
-  const [calc, setCalc] = useState(true);
-  const [amount, setAmount] = useState(null);
-  const [rate, setRate] = useState(null);
+  const [calc, setCalc] = useState(false);
+  const [amount, setAmount] = useState(0);
+  const [finalAmount, setFinalAmount] = useState(0);
+  const [rate, setRate] = useState(0);
 
   const [commissionFee, setCommissionFee] = useState(0);
   const [amountAfterCommission, setAmountAfterCommission] = useState(0);
   const [convertedAmount, setConvertedAmount] = useState(0);
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
-
+  const [isSearching, setIsSearching] = useState(false);
   // data search for main table
   const [showIsPassed, setShowIsPassed] = useState(false);
 
@@ -123,9 +127,9 @@ const Transactions = () => {
   const dispatch = useDispatch();
 
   //getting data from redux
-  const { transactions, loading, error } = useSelector(
-    (state) => state.transactions,
-  );
+  // const { transactions, loading, error } = useSelector(
+  //   (state) => state.transactions,
+  // );
 
   //getting user from localStorage
   const userInfo = JSON.parse(localStorage.getItem("userInfo"));
@@ -141,8 +145,6 @@ const Transactions = () => {
     ? `${import.meta.env.VITE_ENDPOINT}${myBrand.logo}`
     : "";
 
-  console.log("TRANSACTION LOGO:", logo);
-
   // Redux
   const { users, uLoading, uError } = useSelector((state) => state.users);
   const { currencies, cLoading, cError } = useSelector(
@@ -150,8 +152,17 @@ const Transactions = () => {
   );
   const { branches, bLoading, bError } = useSelector((state) => state.branches);
 
+  // Get transactions using SWR for real- time updates
+  const {
+    data: transactionResponse,
+    error,
+    isLoading: loading,
+  } = SWR("/api/transaction/read", fetcher);
+
+  const transactions = transactionResponse?.data || [];
+
   useEffect(() => {
-    dispatch(fetchTransaction());
+    // dispatch(fetchTransaction());
     dispatch(fetchUsers());
     dispatch(fetchCurrency());
     dispatch(fetchBranch());
@@ -215,47 +226,433 @@ const Transactions = () => {
   // handle print receipt
 
   // HANDLE TRANSACTION RECEIPT PRINTING ONLY
-  const handleReceiptPrint = useReactToPrint({
-    contentRef: receiptRef,
-    documentTitle: "Transaction Receipt",
-    pageStyle: `
-      @page {
-        size: auto;
-        margin: 5mm;
-      }
 
-      @media print {
-        html,
+  const handleReceiptPrint = () => {
+    const t = receiptData?.transaction;
+
+    if (!t) {
+      toast.error("No receipt data available!");
+      return;
+    }
+
+    const debit = t.debit || (t.transactionType === "debit" ? t : null);
+    const credit = t.credit || (t.transactionType === "credit" ? t : null);
+
+    const sender = debit || t;
+    const receiver = credit;
+
+    const escapeHTML = (value) =>
+      String(value ?? "-").replace(
+        /[&<>"']/g,
+        (char) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[char],
+      );
+
+    const money = (value) =>
+      Number(value || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+    const isTransfer =
+      t.transaction === "transfer" || t.transaction === "exchange";
+
+    const title =
+      t.transaction === "exchange"
+        ? "EXCHANGE RECEIPT"
+        : isTransfer
+          ? "TRANSFER RECEIPT"
+          : "TRANSACTION RECEIPT";
+
+    const status =
+      t.isPass === true || t.isPass === "true" ? "APPROVED" : "PENDING";
+
+    const senderAmount = Number(sender?.amount || t.amount || 0);
+    const receiverAmount = Number(receiver?.amount || t.finalAmount || 0);
+
+    const senderCurrency = sender?.currency || t.currency || "";
+    const receiverCurrency = receiver?.currency || "";
+
+    const printWindow = window.open("", "_blank", "width=900,height=750");
+
+    if (!printWindow) {
+      toast.error("Please allow pop-ups to print the receipt.");
+      return;
+    }
+
+    printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${escapeHTML(title)}</title>
+
+      <style>
+        @page {
+          size: A5 portrait;
+          margin: 0;
+        }
+
+        * {
+          box-sizing: border-box;
+        }
+
         body {
-          margin: 0 !important;
-          padding: 0 !important;
-          height: auto !important;
-          background: #fff !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+          margin: 0;
+          padding: 8mm;
+          font-family: Arial, Helvetica, sans-serif;
+          color: #1e293b;
+          background: white;
+          font-size: 11px;
         }
 
-        #transaction-receipt-print {
-          display: block !important;
-          visibility: visible !important;
-          position: static !important;
-          left: auto !important;
-          width: 100% !important;
-          height: auto !important;
-          overflow: visible !important;
+        .receipt {
+          width: 100%;
+          margin: auto;
         }
 
-        #transaction-receipt-print .receipt-print-root {
-          display: block !important;
-          visibility: visible !important;
-          position: static !important;
-          width: 100% !important;
-          height: auto !important;
-          overflow: visible !important;
+        .header {
+          text-align: center;
+          border-bottom: 2px solid #173b73;
+          padding-bottom: 14px;
         }
-      }
-    `,
-  });
+
+        .logo {
+          width: 65px;
+          height: 55px;
+          object-fit: contain;
+          margin-bottom: 5px;
+        }
+
+        .company {
+          font-size: 22px;
+          color: #173b73;
+          font-weight: 800;
+          margin: 3px 0;
+        }
+
+        .company-info {
+          color: #64748b;
+          font-size: 10px;
+          line-height: 1.6;
+        }
+
+        .heading {
+          font-size: 16px;
+          font-weight: 800;
+          letter-spacing: 3px;
+          color: #173b73;
+          margin-top: 13px;
+        }
+
+        .reference {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 11px 20px;
+          padding: 16px 0;
+          border-bottom: 1px solid #cbd5e1;
+        }
+
+        .field {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .label {
+          color: #64748b;
+        }
+
+        .value {
+          font-weight: bold;
+          text-align: right;
+          overflow-wrap: anywhere;
+        }
+
+        .section {
+          margin-top: 17px;
+        }
+
+        .section-title {
+          font-size: 10px;
+          font-weight: bold;
+          color: #173b73;
+          letter-spacing: 1px;
+          border-bottom: 1px solid #cbd5e1;
+          padding-bottom: 7px;
+          margin-bottom: 10px;
+        }
+
+        .accounts {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+
+        .account {
+          border: 1px solid #dbe3ef;
+          border-radius: 5px;
+          padding: 11px;
+          background: #f8fafc;
+        }
+
+        .account-title {
+          font-weight: bold;
+          color: #173b73;
+          margin-bottom: 12px;
+          font-size: 10px;
+        }
+
+        .account .field {
+          margin-bottom: 10px;
+          font-size: 10px;
+        }
+
+        .amount-box {
+          margin-top: 17px;
+          padding: 13px;
+          background: #f1f5f9;
+          border-left: 4px solid #173b73;
+        }
+
+        .amount-label {
+          color: #64748b;
+          font-size: 9px;
+          font-weight: bold;
+          letter-spacing: 1px;
+        }
+
+        .amount {
+          font-size: 20px;
+          font-weight: 800;
+          color: #173b73;
+          margin-top: 6px;
+        }
+
+        .description {
+          border: 1px solid #dbe3ef;
+          padding: 12px;
+          min-height: 45px;
+          line-height: 1.6;
+          overflow-wrap: anywhere;
+        }
+
+        .signatures {
+          display: flex;
+          justify-content: space-between;
+          gap: 25px;
+          margin-top: 35px;
+        }
+
+        .signature {
+          width: 45%;
+          padding-top: 25px;
+          border-bottom: 1px solid #94a3b8;
+          font-size: 9px;
+          font-weight: bold;
+        }
+
+        .footer {
+          text-align: center;
+          border-top: 1px solid #cbd5e1;
+          margin-top: 25px;
+          padding-top: 12px;
+          color: #64748b;
+          font-size: 9px;
+          line-height: 1.7;
+        }
+
+        @media print {
+          body {
+            padding: 8mm;
+          }
+
+          .account,
+          .amount-box {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="receipt">
+
+        <div class="header">
+          ${logo ? `<img class="logo" src="${escapeHTML(logo)}" />` : ""}
+
+          <div class="company">
+            ${escapeHTML(myBrand?.companyName || "Money Services")}
+          </div>
+
+          <div class="company-info">
+            ${escapeHTML(myBrand?.address || "")}
+            ${myBrand?.address && myBranch ? " • " : ""}
+            ${escapeHTML(myBranch || "")}
+            ${myBranch ? " Branch" : ""}
+
+            <br />
+
+            ${escapeHTML(myBrand?.mobile || "")}
+            ${myBrand?.mobile && myBrand?.email ? " | " : ""}
+            ${escapeHTML(myBrand?.email || "")}
+          </div>
+
+          <div class="heading">${title}</div>
+        </div>
+
+        <div class="reference">
+          <div class="field">
+            <span class="label">Transaction No.</span>
+            <span class="value">${escapeHTML(t.transactionNo || "-")}</span>
+          </div>
+
+          <div class="field">
+            <span class="label">Date</span>
+            <span class="value">
+              ${escapeHTML(dayjs(t.createdAt).format("DD MMM YYYY, hh:mm A"))}
+            </span>
+          </div>
+
+          <div class="field">
+            <span class="label">Reference ID</span>
+            <span class="value">${escapeHTML(t.transactionId)}</span>
+          </div>
+
+          <div class="field">
+            <span class="label">Status</span>
+            <span class="value" style="color:${status === "APPROVED" ? "#15803d" : "#d97706"}">
+              ${status}
+            </span>
+          </div>
+
+          <div class="field">
+            <span class="label">Exchange Rate</span>
+            <span class="value">${escapeHTML(t.exchangeRate || "-")}</span>
+          </div>
+
+          <div class="field">
+            <span class="label">Type</span>
+            <span class="value">${escapeHTML(t.transaction?.toUpperCase())}</span>
+          </div>
+        </div>
+
+        ${
+          isTransfer
+            ? `
+          <div class="section">
+            <div class="section-title">ACCOUNT INFORMATION</div>
+
+            <div class="accounts">
+              <div class="account">
+                <div class="account-title">SENDER ACCOUNT</div>
+
+                <div class="field">
+                  <span class="label">Name</span>
+                  <span class="value">${escapeHTML(sender?.fullname || t.fullname)}</span>
+                </div>
+
+                <div class="field">
+                  <span class="label">Account No.</span>
+                  <span class="value">${escapeHTML(sender?.accountNo || t.accountNo)}</span>
+                </div>
+
+                <div class="field">
+                  <span class="label">Amount</span>
+                  <span class="value">${money(senderAmount)} ${escapeHTML(senderCurrency)}</span>
+                </div>
+              </div>
+
+              <div class="account">
+                <div class="account-title">BENEFICIARY ACCOUNT</div>
+
+                <div class="field">
+                  <span class="label">Name</span>
+                  <span class="value">${escapeHTML(receiver?.fullname || t.toFullname || "-")}</span>
+                </div>
+
+                <div class="field">
+                  <span class="label">Account No.</span>
+                  <span class="value">${escapeHTML(receiver?.accountNo || t.to || "-")}</span>
+                </div>
+
+                <div class="field">
+                  <span class="label">Amount Received</span>
+                  <span class="value">${money(receiverAmount)} ${escapeHTML(receiverCurrency)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+            : `
+          <div class="section">
+            <div class="section-title">CUSTOMER INFORMATION</div>
+
+            <div class="field">
+              <span class="label">Customer Name</span>
+              <span class="value">${escapeHTML(t.fullname)}</span>
+            </div>
+
+            <div class="field" style="margin-top:10px">
+              <span class="label">Account Number</span>
+              <span class="value">${escapeHTML(t.accountNo)}</span>
+            </div>
+          </div>
+        `
+        }
+
+        <div class="amount-box">
+          <div class="amount-label">
+            ${isTransfer ? "SENDER AMOUNT" : "TRANSACTION AMOUNT"}
+          </div>
+
+          <div class="amount">
+            ${money(senderAmount)} ${escapeHTML(senderCurrency)}
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">TRANSACTION DETAILS</div>
+          <div class="description">
+            ${escapeHTML(t.details || "No additional details")}
+          </div>
+        </div>
+
+        <div class="signatures">
+          <div class="signature">Account Holder Signature</div>
+          <div class="signature">Authorized Signature</div>
+        </div>
+
+        <div class="footer">
+          <strong>Thank you for choosing ${escapeHTML(myBrand?.companyName || "our service")}</strong>
+          <br />
+          Please keep this receipt for your records.
+        </div>
+
+      </div>
+    </body>
+    </html>
+  `);
+
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      const images = Array.from(printWindow.document.images);
+
+      Promise.all(images.map((img) => img.decode().catch(() => {}))).then(
+        () => {
+          printWindow.focus();
+          printWindow.print();
+        },
+      );
+    };
+  };
 
   useEffect(() => {
     if (!receiptData || !receiptRef.current) return;
@@ -1300,39 +1697,131 @@ const Transactions = () => {
 
   // Create transaction
 
-  useEffect(() => {
-    const originalAmount = Number(amount || 0);
-    const commission = Number(commissionFee || 0);
-    const safeRate = Number(rate || 1);
+  // Get amount after commission
 
-    const netAmount = Math.max(originalAmount - commission, 0);
+  //   const getNetAmount = (grossAmount) => {
+  //   if (edit && transactionType !== "transfer" && transactionType !== "exchange") {
+  //     return Number(grossAmount || 0);
+  //   }
 
-    if (!Number.isFinite(safeRate) || safeRate <= 0) {
+  //   const commission = Number(form.getFieldValue("comission") ?? 0);
+
+  //   return Math.max(Number(grossAmount || 0) - commission, 0);
+  // };
+
+  const getNetAmount = (grossAmount) => {
+    const commission = Number(
+      form.getFieldValue("comission") ?? commissionFee ?? 0,
+    );
+
+    return Math.max(Number(grossAmount || 0) - commission, 0);
+  };
+
+  // Amount + Rate = Exchanged Amount
+  const calculateExchangedAmount = (
+    grossAmount,
+    exchangeRate,
+    direction = calc,
+  ) => {
+    const netAmount = getNetAmount(grossAmount);
+    const safeRate = Number(exchangeRate || 0);
+
+    if (netAmount <= 0) return;
+
+    if (safeRate <= 0) {
+      const sameAmount = Number(grossAmount || 0);
+
+      setConvertedAmount(sameAmount);
+      setFinalAmount(sameAmount);
+
       form.setFieldsValue({
         amountAfterCommission: netAmount,
-        finalAmount: 0,
+        finalAmount: sameAmount,
       });
+
       return;
     }
 
-    const computedAmt = calc ? netAmount / safeRate : netAmount * safeRate;
+    const result = direction ? netAmount / safeRate : netAmount * safeRate;
 
-    const finalAmount = Math.round(computedAmt);
+    const rounded = Number(result.toFixed(2));
+
+    setConvertedAmount(rounded);
+    setFinalAmount(rounded);
 
     form.setFieldsValue({
       amountAfterCommission: netAmount,
-      finalAmount,
+      finalAmount: rounded,
     });
-  }, [amount, commissionFee, rate, calc, form]);
+  };
 
+  // Amount + Exchanged Amount = Exchange Rate
+  const calculateExchangeRate = (grossAmount, exchangedAmount) => {
+    const netAmount = getNetAmount(grossAmount);
+    const exchanged = Number(exchangedAmount || 0);
+
+    if (netAmount <= 0 || exchanged <= 0) return;
+
+    const calculatedRate = calc ? netAmount / exchanged : exchanged / netAmount;
+
+    const roundedRate = Number(calculatedRate.toFixed(6));
+
+    setRate(roundedRate);
+    form.setFieldValue("exchangeRate", roundedRate);
+  };
+
+  // Rate + Exchanged Amount = Amount
+  const calculateOriginalAmount = (exchangedAmount, exchangeRate) => {
+    const exchanged = Number(exchangedAmount || 0);
+    const safeRate = Number(exchangeRate || 0);
+
+    if (exchanged <= 0 || safeRate <= 0) return;
+
+    const netAmount = calc ? exchanged * safeRate : exchanged / safeRate;
+
+    const commission = Number(
+      form.getFieldValue("comission") || commissionFee || 0,
+    );
+    const grossAmount = Number((netAmount + commission).toFixed(2));
+
+    setAmount(grossAmount);
+
+    form.setFieldsValue({
+      amount: grossAmount,
+      amountAfterCommission: netAmount,
+    });
+  };
+
+  // Manually changing exchanged amount
+  const handleFinalAmountChange = (value) => {
+    if (value === null || value === undefined || value === "") {
+      setConvertedAmount(0);
+      setFinalAmount(0);
+      form.setFieldValue("finalAmount", null);
+      return;
+    }
+
+    const exchanged = Number(value);
+
+    setConvertedAmount(exchanged);
+    setFinalAmount(exchanged);
+
+    const originalAmount = Number(form.getFieldValue("amount") || 0);
+    const currentRate = Number(form.getFieldValue("exchangeRate") || 0);
+
+    if (originalAmount > 0) {
+      calculateExchangeRate(originalAmount, exchanged);
+    } else if (currentRate > 0) {
+      calculateOriginalAmount(exchanged, currentRate);
+    }
+  };
+
+  // Load TransactionId
   const loadTransactionId = async () => {
     try {
       const res = await http().get("/api/transaction/next-id");
 
       const newTransactionId = res.data?.transactionId;
-
-      console.log("NEW TRANSACTION ID:", newTransactionId);
-
       if (newTransactionId) {
         form.setFieldsValue({
           transactionId: newTransactionId,
@@ -1382,6 +1871,29 @@ const Transactions = () => {
         details: `Service fee for ${values.transaction} ${values.transactionId} by ${values.fullname}`,
       };
 
+      // Vualt Data
+      const originalAmount = Number(rest.amount || 0);
+      const vaultAmount = Math.max(0, originalAmount - commission);
+
+      const vualtData = {
+        fullname: rest.fullname,
+        user: myUser,
+        branch: myBranch,
+        accountNo: String(rest.accountNo),
+        currency: selectedCurrency,
+
+        // Amount after commission deduction
+        credit: rest.transactionType === "debit" ? 0 : vaultAmount,
+        debit: rest.transactionType === "debit" ? vaultAmount : 0,
+
+        transactionId: rest.transactionId,
+        transactionNo: rest.transactionNo,
+        transactionType: rest.transaction,
+        transferNo: rest.transferNo,
+
+        details:
+          rest.details || `Amount after commission for ${rest.transactionId}`,
+      };
       // ==========================================
       // BUILD FORM DATA
       // ==========================================
@@ -1390,7 +1902,13 @@ const Transactions = () => {
 
         Object.entries(data).forEach(([key, value]) => {
           if (
-            !["documents", "image", "signature", "exchangeRate"].includes(key)
+            ![
+              "documents",
+              "image",
+              "signature",
+              "exchangeRate",
+              "finalAmount",
+            ].includes(key)
           ) {
             fd.append(key, value);
           }
@@ -1419,21 +1937,20 @@ const Transactions = () => {
       // ==========================================
       // NORMAL CREDIT / DEBIT
       // ==========================================
-      if (transactionType !== "transfer" && transactionType !== "exchange") {
-        const originalAmount = Number(rest.amount || 0);
 
-        const transactionAmount = hasCommission
-          ? originalAmount - commission
-          : originalAmount;
+      if (transactionType !== "transfer" && transactionType !== "exchange") {
+        const calculatedAmount = Number(rest.finalAmount ?? 0);
+
+        const { finalAmount, ...restValues } = rest;
 
         const formData = buildFormData({
-          ...rest,
-
+          ...restValues,
           user: myUser,
           branch: myBranch,
-
-          amount: transactionAmount,
-          finalAmount: transactionAmount,
+          currency: exdCurrency,
+          amount: calculatedAmount,
+          finalAmount: calculatedAmount,
+          vaultAmount: Math.max(0, calculatedAmount - commission),
         });
 
         await http().post("/api/transaction/create", formData);
@@ -1502,7 +2019,7 @@ const Transactions = () => {
             // FULL ORIGINAL AMOUNT
             amount: debitAmount,
             finalAmount: debitAmount,
-
+            vaultAmount: Math.max(0, debitAmount - commission),
             currency: selectedCurrency,
 
             toFullname: toAccount.fullname,
@@ -1536,14 +2053,14 @@ const Transactions = () => {
             // EXACT EXCHANGED AMOUNT
             amount: creditAmount,
             finalAmount: creditAmount,
-
+            vaultAmount: Math.max(0, creditAmount - commission),
             details: creditDetails,
           });
 
-          // Create debit
+          // Create debit transaction
           await http().post("/api/transaction/create", debitData);
 
-          // Create credit
+          // Create credit transaction
           await http().post("/api/transaction/create", creditData);
         }
 
@@ -1598,7 +2115,7 @@ const Transactions = () => {
             // FULL ORIGINAL AMOUNT
             amount: debitAmount,
             finalAmount: debitAmount,
-
+            vaultAmount: Math.max(0, debitAmount - commission),
             currency: selectedCurrency,
 
             toFullname: toAccount.fullname,
@@ -1620,7 +2137,7 @@ const Transactions = () => {
             toFullname: toAccount.fullname,
 
             currency: selectedToCurrency,
-
+            vaultAmount: Math.max(0, originalAmount - commission),
             transactionType: "credit",
             transaction: "exchange",
 
@@ -1631,10 +2148,12 @@ const Transactions = () => {
             details: creditDetails,
           });
 
-          // Create debit
+          console.log("DEBIT FORM DATA:", [...debitData.entries()]);
+          // Create debit transaction
           await http().post("/api/transaction/create", debitData);
 
-          // Create credit
+          // Create credit transaction
+          console.log("CREDIT FORM DATA:", [...creditData.entries()]);
           await http().post("/api/transaction/create", creditData);
         }
       }
@@ -1642,10 +2161,14 @@ const Transactions = () => {
       // ==========================================
       // CREATE COMMISSION RECORD
       // ==========================================
-      if (hasCommission) {
-        await http().post("/api/comission/create", commissionData);
-      }
+      await http().post("/api/comission/create", commissionData);
 
+      // ==========================================
+      // CREATE VUALT RECORD
+      // ==========================================
+      if (transactionType !== "transfer" && transactionType !== "exchange") {
+        await http().post("/api/vault/create", vualtData);
+      }
       // ==========================================
       // REFRESH
       // ==========================================
@@ -1665,131 +2188,15 @@ const Transactions = () => {
 
       await loadTransactionId();
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to create transaction!");
+      console.error("Create transaction error:", err);
+      console.error("Backend error details:", err?.response?.data);
+      console.error("HTTP status:", err?.response?.status);
+
+      toast.error(
+        err?.response?.data?.message || "Failed to create transaction!",
+      );
     }
   };
-
-  // const handleEdit = async (record) => {
-  //   let parent = document.activeElement;
-
-  //   // ==========================================
-  //   // SCROLL TO TOP
-  //   // ==========================================
-  //   while (parent) {
-  //     const overflowY = window.getComputedStyle(parent).overflowY;
-
-  //     if (overflowY === "auto" || overflowY === "scroll") {
-  //       parent.scrollTo({
-  //         top: 0,
-  //         behavior: "smooth",
-  //       });
-  //       break;
-  //     }
-
-  //     parent = parent.parentElement;
-  //   }
-
-  //   // ==========================================
-  //   // GET COMMISSION
-  //   // ==========================================
-  //   let comission = 0;
-  //   let comissionCurrency = "";
-
-  //   try {
-  //     const res = await http().get(
-  //       `/api/comission/readbyid/${record.transactionId}`,
-  //     );
-
-  //     comission = Number(res.data.data.credit || 0);
-  //     comissionCurrency = res.data.data.currency || "";
-  //   } catch (err) {
-  //     console.error("Commission error:", err);
-  //   }
-
-  //   // ==========================================
-  //   // EDIT STATE
-  //   // ==========================================
-  //   setTrId(record.transactionId);
-  //   setEditingRecordId(record._id);
-  //   setEdit(true);
-
-  //   // ==========================================
-  //   // IMPORTANT
-  //   // transaction = transfer / exchange
-  //   // transactionType = debit / credit
-  //   // ==========================================
-  //   setSelectedCurrency(record.currency);
-  //   setRate(record.exchangeRate);
-  //   setAmount(record.amount);
-  //   setCommissionFee(comission);
-  //   setCalc(true);
-
-  //   // FIX:
-  //   // Do NOT use record.transaction here.
-  //   setTransactionType(record.transactionType);
-
-  //   // ==========================================
-  //   // FIND CREDIT RECORD
-  //   // ==========================================
-  //   let creditTransaction = null;
-
-  //   if (
-  //     record.transaction === "transfer" ||
-  //     record.transaction === "exchange"
-  //   ) {
-  //     creditTransaction = transactions.find(
-  //       (item) =>
-  //         item.transactionId === record.transactionId &&
-  //         item.transactionType === "credit",
-  //     );
-
-  //     if (creditTransaction) {
-  //       setToAccount({
-  //         accountNo: creditTransaction.accountNo,
-  //         fullname: creditTransaction.fullname,
-  //       });
-
-  //       setSelectedToCurrency(creditTransaction.currency);
-
-  //       form.setFieldsValue({
-  //         to: creditTransaction.accountNo,
-  //         tocurrency: creditTransaction.currency,
-  //       });
-  //     }
-  //   }
-
-  //   // ==========================================
-  //   // SET FORM VALUES
-  //   // ==========================================
-  //   form.setFieldsValue({
-  //     _id: record._id,
-
-  //     transactionId: record.transactionId,
-  //     transactionNo: record.transactionNo,
-  //     transferNo2: creditTransaction?.transferNo || "",
-  //     // transfer / exchange
-  //     transaction: record.transaction,
-
-  //     // debit / credit
-  //     transactionType: record.transactionType,
-  //     fullname: record.fullname,
-  //     accountNo: record.accountNo,
-  //     currency: record.currency,
-  //     amount: record.amount,
-  //     exchangeRate: record.exchangeRate,
-  //     to: record.to,
-  //     transferNo: record.transferNo,
-  //     details: record.details,
-  //     isPass: record.isPass,
-  //     comission: comission,
-  //     comission_currency: comissionCurrency,
-  //   });
-
-  //   }
-
-  //   setEditTag("Please fill in all empty input fields carefully.");
-  // };
 
   const handleEdit = async (record) => {
     let parent = document.activeElement;
@@ -1809,6 +2216,9 @@ const Transactions = () => {
       parent = parent.parentElement;
     }
 
+    const isTransferOrExchange =
+      record.transaction === "transfer" || record.transaction === "exchange";
+
     // GET COMMISSION
     let comission = 0;
     let comissionCurrency = "";
@@ -1818,32 +2228,43 @@ const Transactions = () => {
         `/api/comission/readbyid/${record.transactionId}`,
       );
 
-      comission = Number(res.data.data.credit || 0);
-      comissionCurrency = res.data.data.currency || "";
+      console.log("COMMISSION API RESPONSE:", res.data);
+
+      comission = Number(res?.data?.data?.credit || 0);
+      comissionCurrency = res?.data?.data?.currency || "";
+
+      console.log("COMMISSION CURRENCY:", comissionCurrency);
     } catch (err) {
       console.error("Commission error:", err);
     }
 
-    // EDIT STATE
-    setTrId(record.transactionId);
-    setEditingRecordId(record._id);
-    setEdit(true);
+    // GET VAULT AMOUNT FOR NORMAL TRANSACTIONS ONLY
+    let vaultAmount = 0;
 
-    setSelectedCurrency(record.currency);
-    setRate(record.exchangeRate);
-    setAmount(record.amount);
-    setCommissionFee(comission);
-    setCalc(true);
+    if (!isTransferOrExchange) {
+      try {
+        const vault = await http().get(
+          `/api/vault/readbyid/${record.transactionId}`,
+        );
 
-    setTransactionType(record.transactionType);
+        const vaultData = vault?.data?.data;
 
-    // FIND CREDIT RECORD
+        vaultAmount = Number(
+          vaultData?.credit > 0
+            ? vaultData.credit
+            : vaultData?.debit > 0
+              ? vaultData.debit
+              : 0,
+        );
+      } catch (err) {
+        console.error("Vault error:", err);
+      }
+    }
+
+    // FIND CREDIT RECORD FOR TRANSFER / EXCHANGE
     let creditTransaction = null;
 
-    if (
-      record.transaction === "transfer" ||
-      record.transaction === "exchange"
-    ) {
+    if (isTransferOrExchange) {
       creditTransaction = transactions.find(
         (item) =>
           item.transactionId === record.transactionId &&
@@ -1865,6 +2286,55 @@ const Transactions = () => {
       }
     }
 
+    // GET ORIGINAL AMOUNT
+    const originalAmount = isTransferOrExchange
+      ? Number(record.amount || 0)
+      : vaultAmount;
+
+    // GET EXCHANGED AMOUNT
+    // const exchangedAmount = isTransferOrExchange
+    //   ? Number(creditTransaction?.amount || 0)
+    //   : Number(
+    //       record.finalAmount ??
+    //         (calc
+    //           ? originalAmount / Number(record.exchangeRate || 1)
+    //           : originalAmount * Number(record.exchangeRate || 1)),
+    //     );
+
+    // GET EXCHANGED AMOUNT
+    const netAmount = Math.max(originalAmount - comission, 0);
+    const exchangeRate = Number(record.exchangeRate || 1);
+
+    const exchangedAmount = isTransferOrExchange
+      ? Number(creditTransaction?.amount || 0)
+      : Number(
+          (calc ? netAmount / exchangeRate : netAmount * exchangeRate).toFixed(
+            2,
+          ),
+        );
+
+    // EDIT STATE
+    setTrId(record.transactionId);
+    setEditingRecordId(record._id);
+    setEdit(true);
+
+    setSelectedCurrency(record.currency);
+    setRate(record.exchangeRate);
+    setAmount(originalAmount);
+    setCommissionFee(comission);
+
+    // setCalc(true);
+    console.log("EDIT CALC DIRECTION:", calc);
+
+    setTransactionType(record.transactionType);
+
+    const editCurrency =
+      record.transaction === "transaction"
+        ? comissionCurrency || record.currency
+        : record.currency;
+
+    setSelectedCurrency(editCurrency);
+
     // SET FORM VALUES
     form.setFieldsValue({
       _id: record._id,
@@ -1872,261 +2342,35 @@ const Transactions = () => {
       transactionId: record.transactionId,
       transactionNo: record.transactionNo,
 
-      // Load the credit record's transfer number into Transfer No2
+      // LOAD CREDIT RECORD'S TRANSFER NUMBER
       transferNo2:
         record.transaction === "transfer"
           ? creditTransaction?.transferNo || ""
           : "",
 
+      amount: originalAmount,
+      exchangeRate: record.exchangeRate,
       transaction: record.transaction,
       transactionType: record.transactionType,
-
       fullname: record.fullname,
+      finalAmount: exchangedAmount,
+      comission: comission,
       accountNo: record.accountNo,
-      currency: record.currency,
-      amount: record.amount,
-      exchangeRate: record.exchangeRate,
-      to: record.to,
+
+      currency: editCurrency,
 
       transferNo: record.transferNo,
       details: record.details,
       isPass: record.isPass,
 
-      comission: comission,
       comission_currency: comissionCurrency,
     });
-
-    // DEBUG
-    console.log("========== HANDLE EDIT ==========");
-    console.log("Record ID:", record._id);
-    console.log("Transaction ID:", record.transactionId);
-    console.log("Transaction:", record.transaction);
-    console.log("Transaction Type:", record.transactionType);
-    console.log("Amount:", record.amount);
-    console.log("Final Amount:", record.finalAmount);
-    console.log("Currency:", record.currency);
-
-    if (creditTransaction) {
-      console.log("========== CREDIT RECORD ==========");
-      console.log("Credit ID:", creditTransaction._id);
-      console.log("Credit Amount:", creditTransaction.amount);
-      console.log("Credit Final Amount:", creditTransaction.finalAmount);
-      console.log("Credit Currency:", creditTransaction.currency);
-      console.log("Credit Transfer No:", creditTransaction.transferNo);
-    }
 
     setEditTag("Please fill in all empty input fields carefully.");
   };
 
-  // on update
-  // const onUpdate = async (values) => {
-  //   try {
-  //     if (!trId) {
-  //       toast.error("Transaction ID missing!");
-  //       return;
-  //     }
-
-  //     // ==========================================
-  //     // AMOUNTS
-  //     // ==========================================
-  //     const originalAmount = Number(values.amount || 0);
-  //     const commission = Number(values.comission || 0);
-
-  //     // Already calculated by existing calculation logic
-  //     const exchangedAmount = Number(values.finalAmount || 0);
-
-  //     // ==========================================
-  //     // BUILD FORM DATA
-  //     // ==========================================
-  //     const buildFormData = (data) => {
-  //       const fd = new FormData();
-
-  //       Object.entries(data).forEach(([key, value]) => {
-  //         if (
-  //           !["image", "signature", "document", "exchangeRate"].includes(key)
-  //         ) {
-  //           fd.append(key, value ?? "");
-  //         }
-  //       });
-
-  //       if (scannedDoc) {
-  //         fd.append("document", scannedDoc);
-  //       }
-
-  //       if (capturedImage) {
-  //         fd.append("image", capturedImage);
-  //       }
-
-  //       if (signatureImage) {
-  //         fd.append("signature", signatureImage);
-  //       }
-
-  //       fd.append("exchangeRate", values.exchangeRate || 1);
-
-  //       return fd;
-  //     };
-
-  //     // ==========================================
-  //     // NORMAL TRANSACTION
-  //     // DO NOT CHANGE THIS LOGIC
-  //     // ==========================================
-  //     if (
-  //       values.transaction !== "transfer" &&
-  //       values.transaction !== "exchange"
-  //     ) {
-  //       const normalFinalAmount = originalAmount - commission;
-
-  //       const payload = {
-  //         ...values,
-
-  //         user: myUser,
-  //         branch: myBranch,
-
-  //         amount: normalFinalAmount,
-  //         finalAmount: normalFinalAmount,
-  //       };
-
-  //       const formData = buildFormData(payload);
-
-  //       await http().put(`/api/transaction/update/${trId}`, formData);
-  //     }
-
-  //     // ==========================================
-  //     // TRANSFER / EXCHANGE
-  //     // UPDATE BOTH SIDES
-  //     // ==========================================
-  //     else {
-  //       // ========================================
-  //       // DEBIT
-  //       // ========================================
-  //       const debitPayload = {
-  //         ...values,
-
-  //         user: myUser,
-  //         branch: myBranch,
-
-  //         transactionType: "debit",
-  //         transaction: values.transaction,
-
-  //         // ORIGINAL AMOUNT
-  //         amount: originalAmount,
-  //         finalAmount: originalAmount,
-
-  //         currency: selectedCurrency,
-
-  //         to: toAccount?.accountNo,
-  //         toFullname: toAccount?.fullname,
-
-  //         fromCurrency: selectedCurrency,
-  //         toCurrency: selectedToCurrency,
-
-  //         // Commission is separate
-  //         comission: 0,
-  //       };
-
-  //       const debitFormData = buildFormData(debitPayload);
-
-  //       await http().put(`/api/transaction/update/${trId}`, debitFormData);
-
-  //       // ========================================
-  //       // CREDIT
-  //       // ========================================
-  //       const creditTransferNo =
-  // values.transferNo2?.trim() || values.transferNo;
-  //       const creditPayload = {
-  //         ...values,
-
-  //         user: myUser,
-  //         branch: myBranch,
-
-  //         transactionType: "credit",
-  //         transaction: values.transaction,
-
-  //         accountNo: toAccount?.accountNo,
-  //         fullname: toAccount?.fullname,
-  //         toFullname: toAccount?.fullname,
-
-  //         // EXACT EXCHANGED AMOUNT
-  //         transferNo: creditTransferNo,
-  //         amount: exchangedAmount,
-  //         finalAmount: exchangedAmount,
-
-  //         currency: selectedToCurrency,
-
-  //         to: toAccount?.accountNo,
-
-  //         fromCurrency: selectedCurrency,
-  //         toCurrency: selectedToCurrency,
-
-  //         // Commission handled separately
-  //         comission: 0,
-  //       };
-
-  //       const creditFormData = buildFormData(creditPayload);
-
-  //       await http().put(`/api/transaction/update/${trId}`, creditFormData);
-
-  //       console.log("========== CREDIT UPDATE SENT ==========");
-  //     }
-
-  //     // ==========================================
-  //     // UPDATE COMMISSION
-  //     // ==========================================
-  //     if (commission > 0) {
-  //       const commissionData = {
-  //         fullname: values.fullname,
-  //         user: myUser,
-  //         branch: myBranch,
-  //         accountNo: Number(values.accountNo),
-
-  //         currency: selectedCurrency,
-
-  //         credit: commission,
-  //         debit: 0,
-
-  //         transactionId: values.transactionId,
-  //         transactionNo: values.transactionNo,
-  //         transactionType: values.transaction,
-  //         transferNo: values.transferNo,
-
-  //         details:
-  //           `Service fee for ${values.transaction} ` +
-  //           `${values.transactionId} by ${values.fullname}`,
-  //       };
-
-  //       await http().put(
-  //         `/api/comission/update/${values.transactionId}`,
-  //         commissionData,
-  //       );
-  //     }
-
-  //     // ==========================================
-  //     // REFRESH
-  //     // ==========================================
-  //     mutate("/api/transaction/read");
-
-  //     toast.success("Transaction updated successfully!");
-
-  //     form.resetFields();
-
-  //     setCapturedImage(null);
-  //     setSignatureImage(null);
-  //     setScannedDoc(null);
-  //   } catch (err) {
-  //     console.error("========== UPDATE ERROR ==========");
-
-  //     console.error(err);
-
-  //     console.error("Update error response:", err?.response?.data);
-
-  //     toast.error("Failed to update transaction!");
-  //   }
-
-  //   setEditTag(" ");
-  //   setEdit(false);
-  // };
-
   const onUpdate = async (values) => {
+    console.log("values", values);
     try {
       if (!trId) {
         toast.error("Transaction ID missing!");
@@ -2137,6 +2381,7 @@ const Transactions = () => {
       const originalAmount = Number(values.amount || 0);
       const commission = Number(values.comission || 0);
       const exchangedAmount = Number(values.finalAmount || 0);
+      const transactionCurrency = values.exdcurrency || values.currency;
 
       // BUILD FORM DATA
       const buildFormData = (data) => {
@@ -2172,14 +2417,16 @@ const Transactions = () => {
         values.transaction !== "transfer" &&
         values.transaction !== "exchange"
       ) {
-        const normalFinalAmount = originalAmount - commission;
-
         const payload = {
           ...values,
           user: myUser,
           branch: myBranch,
-          amount: normalFinalAmount,
-          finalAmount: normalFinalAmount,
+          // amount: normalFinalAmount,
+          // finalAmount: normalFinalAmount,
+          amount: exchangedAmount,
+          finalAmount: exchangedAmount,
+          currency: exdCurrency,
+          vaultAmount: Math.max(0, originalAmount - commission),
         };
 
         const formData = buildFormData(payload);
@@ -2240,12 +2487,12 @@ const Transactions = () => {
           amount: exchangedAmount,
           finalAmount: exchangedAmount,
 
-          currency: selectedToCurrency,
-
           to: toAccount?.accountNo,
 
-          fromCurrency: selectedCurrency,
-          toCurrency: selectedToCurrency,
+          currency: values.exdcurrency,
+
+          fromCurrency: values.currency,
+          toCurrency: values.tocurrency,
 
           comission: 0,
         };
@@ -2258,13 +2505,12 @@ const Transactions = () => {
       }
 
       // UPDATE COMMISSION — EXISTING LOGIC UNCHANGED
-      if (commission > 0) {
+      if (commission) {
         const commissionData = {
           fullname: values.fullname,
           user: myUser,
           branch: myBranch,
           accountNo: Number(values.accountNo),
-
           currency: selectedCurrency,
 
           credit: commission,
@@ -2284,6 +2530,39 @@ const Transactions = () => {
           `/api/comission/update/${values.transactionId}`,
           commissionData,
         );
+      }
+      // ==========================================
+      // UPDATE VAULT RECORDS
+      // NORMAL TRANSACTIONS ONLY
+      // ==========================================
+
+      if (
+        values.transaction !== "transfer" &&
+        values.transaction !== "exchange"
+      ) {
+        const vaultAmount = Math.max(0, originalAmount - commission);
+
+        const vualtData = {
+          fullname: values.fullname,
+          user: myUser,
+          branch: myBranch,
+          accountNo: String(values.accountNo),
+
+          currency: selectedCurrency,
+
+          credit: values.transactionType === "debit" ? 0 : vaultAmount,
+          debit: values.transactionType === "debit" ? vaultAmount : 0,
+
+          transactionId: values.transactionId,
+          transactionNo: values.transactionNo,
+          transactionType: values.transaction,
+          transferNo: values.transferNo,
+
+          details:
+            values.details || `Updated amount for ${values.transactionId}`,
+        };
+
+        await http().put(`/api/vault/update/${trId}`, vualtData);
       }
 
       // REFRESH
@@ -2308,8 +2587,6 @@ const Transactions = () => {
     setEdit(false);
   };
 
-  // Delete transaction
-
   const onDelete = async (transactionId) => {
     try {
       // Delete transaction
@@ -2317,7 +2594,7 @@ const Transactions = () => {
 
       // Delete commission (if it exists)
       await httpReq.delete(`/api/comission/delete/${transactionId}`);
-
+      await httpReq.delete(`/api/vault/delete/${transactionId}`);
       mutate("/api/transaction/read");
 
       toast.success("Transaction deleted successfully!");
@@ -2887,37 +3164,6 @@ const Transactions = () => {
       render: (value) => value || "—",
     },
     {
-      title: "Transaction No.",
-      dataIndex: "transactionNo",
-      width: 150,
-      render: (value) => value || "—",
-    },
-    {
-      title: "Transfer No.",
-      dataIndex: "transferNo",
-      width: 150,
-      render: (value) => value || "—",
-    },
-
-    {
-      title: "Exchange Rate",
-      dataIndex: "exchangeRate",
-      width: 110,
-      align: "left",
-      render: (value) =>
-        value !== undefined && value !== null && value !== ""
-          ? Number(value).toLocaleString(undefined, {
-              maximumFractionDigits: 6,
-            })
-          : "—",
-    },
-    {
-      title: "Currency",
-      dataIndex: "currency",
-      width: 90,
-      render: (value) => value || "—",
-    },
-    {
       title: "TRX-Type",
       dataIndex: "transactionType",
       width: 130,
@@ -2941,7 +3187,7 @@ const Transactions = () => {
       title: "Amount",
       dataIndex: "amount",
       width: 140,
-      align: "right",
+      align: "left",
       render: (value, record) => (
         <Space size={6}>
           <Tag
@@ -2959,6 +3205,36 @@ const Transactions = () => {
         </Space>
       ),
     },
+    {
+      title: "Currency",
+      dataIndex: "currency",
+      width: 90,
+      render: (value) => value || 1,
+    },
+    {
+      title: "Exchange Rate",
+      dataIndex: "exchangeRate",
+      width: 110,
+      align: "left",
+      render: (value) =>
+        value !== undefined && value !== null && value !== ""
+          ? Number(value).toLocaleString(undefined, {
+              maximumFractionDigits: 6,
+            })
+          : "—",
+    },
+    {
+      title: "Transaction No.",
+      dataIndex: "transactionNo",
+      width: 150,
+      render: (value) => value || "—",
+    },
+    {
+      title: "Transfer No.",
+      dataIndex: "transferNo",
+      width: 150,
+      render: (value) => value || "—",
+    },
 
     {
       title: "Details",
@@ -2967,6 +3243,7 @@ const Transactions = () => {
       ellipsis: true,
       render: (value) => value || "—",
     },
+
     {
       title: "Transaction ID",
       dataIndex: "transactionId",
@@ -3100,7 +3377,16 @@ const Transactions = () => {
   ];
 
   const handleCalculate = () => {
-    setCalc((prev) => !prev);
+    const nextDirection = !calc;
+
+    setCalc(nextDirection);
+
+    const currentAmount = Number(form.getFieldValue("amount") || 0);
+    const currentRate = Number(form.getFieldValue("exchangeRate") || 0);
+
+    if (currentAmount <= 0 || currentRate <= 0) return;
+
+    calculateExchangedAmount(currentAmount, currentRate, nextDirection);
   };
 
   // Currency for edit
@@ -3221,137 +3507,51 @@ Details: ${record.details || "-"}
     window.open(whatsappUrl, "_blank");
   };
 
-  // value validation
   const handleAmountChange = (value) => {
-    setAmount(value);
+    const enteredAmount = Number(value || 0);
+
+    setAmount(enteredAmount);
+
+    if (enteredAmount <= 0) return;
+
+    const currentRate = Number(form.getFieldValue("exchangeRate") || 0);
+
+    calculateExchangedAmount(enteredAmount, currentRate, calc);
   };
+
   const handleAmountBlur = () => {
-    // =========================
-    // EMPTY AMOUNT
-    // =========================
-    if (amount === null || amount === undefined || amount === "") {
-      return;
-    }
+    // Always sync React state with the latest form value
+    const enteredAmount = Number(form.getFieldValue("amount") || 0);
 
-    const enteredAmount = Number(amount);
+    setAmount(enteredAmount);
 
-    // =========================
-    // ZERO / NEGATIVE
-    // =========================
-    // Allow 0 and negative amounts.
-    // Do NOT show balance alert.
-    if (enteredAmount <= 0) {
-      return;
-    }
+    if (enteredAmount <= 0) return;
 
-    // =========================
-    // CREDIT / DEBIT
-    // =========================
-    // Credit and Debit do not need
-    // balance validation.
     if (!["transfer", "exchange"].includes(transactionType)) {
       return;
     }
 
-    // =========================
-    // FIND CUSTOMER CURRENCY
-    // =========================
     const customerCurrency = customerCurrencies.find(
       (item) => item.currency === selectedCurrency,
     );
 
-    // No currency/balance record
-    if (!customerCurrency) {
-      return;
-    }
+    if (!customerCurrency) return;
 
     const availableBalance = Number(customerCurrency.balance || 0);
 
-    // =========================
-    // AMOUNT IS WITHIN BALANCE
-    // =========================
-    if (enteredAmount <= availableBalance) {
-      return;
-    }
-
-    // =========================
-    // INSUFFICIENT BALANCE
-    // =========================
+    if (enteredAmount <= availableBalance) return;
 
     const actionName = transactionType === "exchange" ? "exchange" : "transfer";
 
-    const amountLabel =
-      transactionType === "exchange" ? "Exchange Amount" : "Transfer Amount";
-
     Modal.confirm({
       title: "Insufficient Balance",
-
       content: (
         <div className="py-2">
           <p className="text-sm text-slate-600">
             The {actionName} amount exceeds the customer's available balance.
           </p>
-
-          <div className="mt-3 rounded-md bg-slate-50 p-3">
-            {/* Available Balance */}
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Available Balance</span>
-
-              <strong>
-                {availableBalance.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                {selectedCurrency}
-              </strong>
-            </div>
-
-            {/* Requested Amount */}
-            <div className="mt-1 flex justify-between text-sm">
-              <span className="text-slate-500">{amountLabel}</span>
-
-              <strong className="text-red-600">
-                {enteredAmount.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                {selectedCurrency}
-              </strong>
-            </div>
-          </div>
-
-          <p className="mt-3 mb-0 text-sm text-slate-500">
-            Do you want to continue with this {actionName}?
-          </p>
         </div>
       ),
-
-      width: 400,
-
-      okText: "Continue",
-      cancelText: "Cancel",
-
-      // =========================
-      // CONTINUE
-      // =========================
-      onOk: () => {
-        setAmount(enteredAmount);
-
-        form.setFieldsValue({
-          amount: enteredAmount,
-        });
-      },
-
-      // =========================
-      // CANCEL
-      // =========================
-      onCancel: () => {
-        setAmount(null);
-
-        form.setFieldsValue({
-          amount: null,
-        });
-      },
     });
   };
 
@@ -3419,6 +3619,11 @@ Details: ${record.details || "-"}
         });
       },
     });
+  };
+
+  const handleExdCurrencyChange = (val) => {
+    // set selected exd currency
+    setExdCurrency(val);
   };
   return (
     <HomeLayout>
@@ -3558,47 +3763,60 @@ Details: ${record.details || "-"}
               </div>
 
               <Space>
-                <div className="flex items-center gap-3 p-2 !bg-slate-50">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-100 p-2 shadow-inner">
+                  {/* CALCULATE */}
                   <Button
                     type="text"
+                    title="Calculate"
                     onClick={handleCalculate}
-                    className="group !flex !h-8 !w-8 !items-center !justify-center
-                          !rounded-sm !border !border-blue-100 !bg-white
-                          !text-slate-700 !shadow-sm transition-all duration-300
-                          hover:!border-blue-500
-                          hover:!bg-gradient-to-br
-                          hover:!from-blue-500
-                          hover:!to-indigo-600
-                          hover:!text-white"
+                    className="group !flex !h-11 !w-11 !items-center !justify-center
+      !rounded-xl !border !border-blue-300
+      !bg-gradient-to-b !from-white !via-blue-50 !to-blue-200
+      !text-blue-700
+      !shadow-[0_4px_0_#93c5fd,0_6px_10px_rgba(37,99,235,0.20)]
+      transition-all duration-200
+      hover:!-translate-y-1 hover:!border-blue-400
+      hover:!from-blue-500 hover:!to-indigo-600 hover:!text-white
+      hover:!shadow-[0_6px_0_#3730a3,0_10px_18px_rgba(37,99,235,0.30)]
+      active:!translate-y-1 active:!shadow-none"
                   >
                     <SwapOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
                   </Button>
 
+                  {/* PRINT */}
                   <Button
                     type="text"
+                    title="Print"
                     onClick={() => setOpen(true)}
-                    className="group !flex !h-8 !w-8 !items-center !justify-center
-                          !rounded-sm !border !border-emerald-100 !bg-white
-                          !text-slate-700 !shadow-sm transition-all duration-300
-                          hover:!border-emerald-500
-                          hover:!bg-gradient-to-br
-                          hover:!from-emerald-500
-                          hover:!to-teal-600
-                          hover:!text-white"
+                    className="group !flex !h-11 !w-11 !items-center !justify-center
+      !rounded-xl !border !border-emerald-300
+      !bg-gradient-to-b !from-white !via-emerald-50 !to-emerald-200
+      !text-emerald-700
+      !shadow-[0_4px_0_#6ee7b7,0_6px_10px_rgba(16,185,129,0.20)]
+      transition-all duration-200
+      hover:!-translate-y-1 hover:!border-emerald-400
+      hover:!from-emerald-500 hover:!to-teal-600 hover:!text-white
+      hover:!shadow-[0_6px_0_#0f766e,0_10px_18px_rgba(16,185,129,0.30)]
+      active:!translate-y-1 active:!shadow-none"
                   >
-                    <PrinterOutlined className="!text-xl transition-transform duration-300 group-hover:scale-110" />
+                    <PrinterOutlined className="!text-xl transition-transform duration-200 group-hover:scale-110" />
                   </Button>
+
+                  {/* RESET */}
                   <Button
                     type="text"
+                    title="Reset"
                     onClick={resetFields}
-                    className="group !flex !h-8 !w-8 !items-center !justify-center
-                    !rounded-sm !border !border-emerald-100 !bg-white
-                    !text-blue-700 !shadow-sm transition-all duration-300
-                    hover:!border-emerald-500
-                    hover:!bg-gradient-to-br
-                    hover:!from-emerald-500
-                    hover:!to-teal-600
-                    hover:!text-white"
+                    className="group !flex !h-11 !w-11 !items-center !justify-center
+      !rounded-xl !border !border-violet-300
+      !bg-gradient-to-b !from-white !via-violet-50 !to-violet-200
+      !text-violet-700
+      !shadow-[0_4px_0_#c4b5fd,0_6px_10px_rgba(139,92,246,0.20)]
+      transition-all duration-200
+      hover:!-translate-y-1 hover:!border-violet-400
+      hover:!from-violet-500 hover:!to-purple-600 hover:!text-white
+      hover:!shadow-[0_6px_0_#6d28d9,0_10px_18px_rgba(139,92,246,0.30)]
+      active:!translate-y-1 active:!shadow-none"
                   >
                     <ReloadOutlined className="!text-xl transition-transform duration-300 group-hover:rotate-180" />
                   </Button>
@@ -3624,7 +3842,7 @@ Details: ${record.details || "-"}
                     size="small"
                     name="fullname"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Full Name
                       </span>
                     }
@@ -3640,7 +3858,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="accountNo"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Acc No
                       </span>
                     }
@@ -3659,7 +3877,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="transaction"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Transaction
                       </span>
                     }
@@ -3716,7 +3934,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="currency"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Currency
                       </span>
                     }
@@ -3745,7 +3963,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="amount"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Amount
                       </span>
                     }
@@ -3775,7 +3993,7 @@ Details: ${record.details || "-"}
                     <Form.Item
                       name="transactionType"
                       label={
-                        <span className="font-semibold text-slate-700">
+                        <span className="font-semibold text-slate-700 py-2">
                           Transaction Type
                         </span>
                       }
@@ -3800,7 +4018,7 @@ Details: ${record.details || "-"}
                         <Form.Item
                           name="to"
                           label={
-                            <span className="font-semibold text-slate-700">
+                            <span className="font-semibold text-slate-700 py-2">
                               To Account
                             </span>
                           }
@@ -3843,7 +4061,7 @@ Details: ${record.details || "-"}
                         <Form.Item
                           name="tocurrency"
                           label={
-                            <span className="font-semibold text-slate-700">
+                            <span className="font-semibold text-slate-700 py-2">
                               To Currency
                             </span>
                           }
@@ -3878,7 +4096,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="comission"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Commission Fee
                       </span>
                     }
@@ -3894,7 +4112,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="exchangeRate"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Exchange Rate
                       </span>
                     }
@@ -3908,45 +4126,98 @@ Details: ${record.details || "-"}
                   >
                     <InputNumber
                       placeholder="Rate"
-                      onChange={(value) => setRate(value)}
+                      onChange={(value) => {
+                        const newRate = Number(value || 0);
+                        setRate(newRate);
+
+                        const currentAmount = Number(
+                          form.getFieldValue("amount") || 0,
+                        );
+
+                        if (currentAmount <= 0) return;
+
+                        calculateExchangedAmount(currentAmount, newRate, calc);
+                      }}
                       className="!w-full !rounded-sm"
                     />
                   </Form.Item>
 
                   {/* ex amt */}
+                  <div className="border border-dashed border-rose-300 grid grid-cols-2 gap-2 w-full rounded-sm px-1 py-0 col-span-2">
+                    <div className=" min-w-0">
+                      <Form.Item
+                        name="finalAmount"
+                        className="!mb-0"
+                        label={
+                          <span className="font-semibold text-slate-700">
+                            Exchanged Amt
+                          </span>
+                        }
+                      >
+                        <InputNumber
+                          controls={false}
+                          // value={convertedAmount}
+                          precision={2}
+                          placeholder="Exchanged Amount"
+                          formatter={(value) =>
+                            value !== undefined &&
+                            value !== null &&
+                            value !== ""
+                              ? Number(value).toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })
+                              : ""
+                          }
+                          parser={(value) => value?.replace(/,/g, "")}
+                          className="!w-full final-amount-input"
+                          onChange={handleFinalAmountChange}
+                        />
+                      </Form.Item>
+                    </div>
 
-                  <Form.Item
-                    name="finalAmount"
-                    className="!mb-0"
-                    label={
-                      <span className="font-semibold text-slate-700">
-                        Exchanged Amt
-                      </span>
-                    }
-                  >
-                    <InputNumber
-                      disabled
-                      controls={false}
-                      value={convertedAmount}
-                      formatter={(value) =>
-                        value !== undefined && value !== null && value !== ""
-                          ? Math.round(Number(value)).toLocaleString("en-US", {
-                              maximumFractionDigits: 0,
-                            })
-                          : ""
-                      }
-                      parser={(value) =>
-                        parseFloat(value?.replace(/,/g, "")) || 0
-                      }
-                      className="!w-full final-amount-input"
-                    />
-                  </Form.Item>
+                    <div className=" min-w-0">
+                      {transactionType !== "transfer" &&
+                        transactionType !== "exchange" && (
+                          <Form.Item
+                            name="exdcurrency"
+                            label={
+                              <span className="font-semibold text-slate-700">
+                                ExdCurrency
+                              </span>
+                            }
+                            rules={[
+                              {
+                                required: true,
+                                message: "Select currency",
+                              },
+                            ]}
+                            className="xl:col-span-1"
+                          >
+                            <Select
+                              placeholder="Currency"
+                              onChange={handleExdCurrencyChange}
+                              className="!rounded-sm !w-full"
+                            >
+                              {currencies.map((c) => (
+                                <Select.Option
+                                  key={c.currency}
+                                  value={c.currency}
+                                >
+                                  {c.currency}
+                                </Select.Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        )}
+                    </div>
+                  </div>
 
                   {/* transaction id */}
                   <Form.Item
                     name="transactionId"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Transaction ID
                       </span>
                     }
@@ -3964,7 +4235,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="transactionNo"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Daily No
                       </span>
                     }
@@ -3981,7 +4252,7 @@ Details: ${record.details || "-"}
                   <Form.Item
                     name="transferNo"
                     label={
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 py-2">
                         Transfer No
                       </span>
                     }
@@ -4001,7 +4272,7 @@ Details: ${record.details || "-"}
                         <Form.Item
                           name="transferNo2"
                           label={
-                            <span className="font-semibold text-slate-700">
+                            <span className="font-semibold text-slate-700 py-2">
                               Transfer No2
                             </span>
                           }
@@ -4050,36 +4321,37 @@ Details: ${record.details || "-"}
                           }}
                           onRemove={() => setScannedDoc(null)}
                         >
-                          <Button
-                            size="small"
-                            icon={<PaperClipOutlined />}
-                            className="!h-11 !rounded-sm !border-slate-400 !bg-white !px-5 !font-semibold !text-slate-700 !shadow-sm transition-all duration-300 hover:!-translate-y-0.5 hover:!border-blue-500 hover:!text-blue-600 hover:!shadow-md"
-                          >
-                            Documents
-                          </Button>
+                         <Button
+  size="large"
+  icon={<PaperClipOutlined className="!text-lg transition-transform duration-200 group-hover:rotate-[-15deg]" />}
+  className="group !flex !h-12 !items-center !justify-center !gap-2 !rounded-xl !border !border-slate-200 !bg-gradient-to-b !from-white !to-slate-100 !px-6 !font-semibold !text-slate-700 !shadow-[0_4px_0_#cbd5e1,0_6px_12px_rgba(15,23,42,0.08)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-blue-300 hover:!from-blue-50 hover:!to-blue-100 hover:!text-blue-700 hover:!shadow-[0_6px_0_#bfdbfe,0_10px_18px_rgba(37,99,235,0.15)] active:!translate-y-1 active:!shadow-none"
+>
+  Documents
+</Button>
                         </Upload>
                       </Form.Item>
 
-                      <Button
-                        size="small"
-                        onClick={() => setOpenModal(true)}
-                        className="!flex !h-11 !items-center !justify-center !rounded-sm !border-0 !bg-gradient-to-r !from-blue-400 !to-cyan-500 !px-5 !font-semibold !text-white !shadow-md transition-all duration-300 hover:!-translate-y-0.5 hover:!shadow-xl"
-                      >
-                        <CameraOutlined className="!text-lg" />
-                        <SignatureOutlined className="!text-lg" />
-                      </Button>
+                    <Button
+  size="large"
+  onClick={() => setOpenModal(true)}
+  title="Camera / Signature"
+  className="group !flex !h-12 !items-center !justify-center !gap-3 !rounded-xl !border-0 !bg-gradient-to-br !from-blue-600 !via-blue-500 !to-cyan-400 !px-6 !text-white !shadow-[0_4px_0_#1e40af,0_7px_14px_rgba(37,99,235,0.25)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!from-blue-700 hover:!to-cyan-500 hover:!shadow-[0_6px_0_#1e40af,0_10px_20px_rgba(37,99,235,0.30)] active:!translate-y-1 active:!shadow-none"
+>
+  <CameraOutlined className="!text-xl transition-transform duration-200 group-hover:scale-110" />
+  <SignatureOutlined className="!text-xl transition-transform duration-200 group-hover:scale-110" />
+</Button>
                     </Space>
                   </Col>
 
                   <Col flex="1">
                     <Button
                       htmlType="submit"
-                      size="small"
-                      icon={<SaveOutlined />}
-                      className={`!w-full !h-11 !rounded-sm !border-0 !text-white ${
+                      size="large"
+                      icon={<SaveOutlined className="!text-lg" />}
+                      className={`!flex !h-12 !w-full !items-center !justify-center !gap-2 !rounded-xl !border-0 !font-semibold !tracking-wide !text-white !shadow-[0_4px_0_rgba(0,0,0,0.15),0_7px_14px_rgba(37,99,235,0.20)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!shadow-[0_6px_0_rgba(0,0,0,0.12),0_10px_20px_rgba(37,99,235,0.25)] active:!translate-y-1 active:!shadow-none ${
                         edit
-                          ? "!bg-gradient-to-r !from-orange-500 !to-amber-500"
-                          : "!bg-gradient-to-r !from-blue-400 !to-cyan-400"
+                          ? "!bg-gradient-to-r !from-orange-500 !via-orange-500 !to-amber-400 hover:!from-orange-600 hover:!to-amber-500"
+                          : "!bg-gradient-to-r !from-blue-600 !via-blue-500 !to-cyan-400 hover:!from-blue-700 hover:!to-cyan-500"
                       }`}
                     >
                       {edit ? "Update Transaction" : "Save Transaction"}
@@ -4091,250 +4363,464 @@ Details: ${record.details || "-"}
           </div>
         </div>
 
-        <div className="p-2 border-t border-dashed mt-5 border-blue-400">
-          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <h1 className="text-xl font-semibold text-slate-700">
-              Transaction History
-            </h1>
+        <div className="mt-6 w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
+          {/* HEADER */}
+          <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-blue-50 px-4 py-5 sm:px-6 sm:py-6">
+            <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-blue-200/30 blur-3xl" />
 
-            <div className="flex flex-wrap items-center gap-2 ">
-              <Input.Search
-                placeholder="Search transactions..."
-                allowClear
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className="!w-72 !border-lg border-blue-500"
-              />
+            <div className="relative flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-gradient-to-br from-white to-blue-100 text-blue-600 shadow-md">
+                <BookOutlined className="text-xl" />
+              </div>
 
-              <DatePicker
-                placeholder="From"
-                value={fromDate}
-                onChange={setFromDate}
-                format="DD-MM-YYYY"
-              />
-
-              <DatePicker
-                placeholder="To"
-                value={toDate}
-                onChange={setToDate}
-                format="DD-MM-YYYY"
-              />
-
-              <Button
-                type="primary"
-                icon={<SearchOutlined />}
-                onClick={handleSearch}
-              >
-                Search
-              </Button>
-
-              <Button icon={<ClearOutlined />} onClick={handleClear}>
-                Clear
-              </Button>
-
-              <Button
-                onClick={() => setShowIsPassed(!showIsPassed)}
-                className={`!border-0 !text-white
-                  ${
-                    showIsPassed
-                      ? "!bg-gradient-to-r !from-indigo-600 !to-violet-600"
-                      : "!bg-gradient-to-r !from-blue-600 !to-cyan-600"
-                  }`}
-              >
-                {showIsPassed ? "Passed" : "Pending"}
-              </Button>
-              <Button
-                icon={<PrinterOutlined />}
-                onClick={printTransactionHistory}
-                className="
-                  !border-blue-300
-                  !text-blue-700
-                  hover:!border-blue-500
-                  hover:!bg-blue-50
-                  hover:!text-blue-800
-                "
-              >
-                Print
-              </Button>
-
-              <Button
-                icon={<FileTextOutlined />}
-                onClick={exportTransactionHistoryToExcel}
-                className="
-                  !border-emerald-300
-                  !text-emerald-700
-                  hover:!border-emerald-500
-                  hover:!bg-emerald-50
-                  hover:!text-emerald-800
-                "
-              >
-                Excel
-              </Button>
+              <div className="min-w-0">
+                <h1 className="text-lg font-extrabold tracking-tight text-slate-800 sm:text-xl">
+                  Transaction History
+                </h1>
+                <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                  Search, filter and manage your financial records.
+                </p>
+              </div>
             </div>
           </div>
-          <Tabs
-            activeKey={activeHistoryTab}
-            onChange={(key) => {
-              setActiveHistoryTab(key);
-              setHistoryPage(1);
-            }}
+
+          {/* MAIN CONTENT */}
+          <div className="min-w-0 p-3 sm:p-5 lg:p-6">
+            {/* SEARCH & FILTER PANEL */}
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm sm:p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                  <SearchOutlined />
+                </div>
+                <h3 className="text-sm font-bold text-slate-700">
+                  Search & Filters
+                </h3>
+              </div>
+
+              {/* RESPONSIVE FILTERS */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {/* SEARCH */}
+                <div className="min-w-0 sm:col-span-2 xl:col-span-1">
+                  <Input.Search
+                    placeholder="Search transactions..."
+                    allowClear
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* FROM DATE */}
+                <div className="min-w-0">
+                  <DatePicker
+                    placeholder="From Date"
+                    value={fromDate}
+                    onChange={setFromDate}
+                    format="DD-MM-YYYY"
+                    className="!h-10 !w-full !rounded-lg"
+                  />
+                </div>
+
+                {/* TO DATE */}
+                <div className="min-w-0">
+                  <DatePicker
+                    placeholder="To Date"
+                    value={toDate}
+                    onChange={setToDate}
+                    format="DD-MM-YYYY"
+                    className="!h-10 !w-full !rounded-lg"
+                  />
+                </div>
+
+                {/* SEARCH AND CLEAR */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="primary"
+                    icon={<SearchOutlined />}
+                    onClick={handleSearch}
+                    className="!h-10 !w-full !rounded-lg !bg-gradient-to-r !from-blue-600 !to-indigo-600 !font-semibold !shadow-sm"
+                  >
+                    Search
+                  </Button>
+
+                  <Button
+                    icon={<ClearOutlined />}
+                    onClick={handleClear}
+                    className="!h-10 !w-full !rounded-lg !border-slate-200 !font-semibold"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4">
+                {/* PASSED / PENDING */}
+              <Button
+  onClick={() => setShowIsPassed(!showIsPassed)}
+  className={`!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border-0 !px-6 !font-semibold !tracking-wide !text-white !shadow-[0_4px_0_rgba(0,0,0,0.15),0_6px_12px_rgba(37,99,235,0.18)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!shadow-lg active:!translate-y-1 active:!shadow-none ${
+    showIsPassed
+      ? "!bg-gradient-to-r !from-indigo-600 !via-violet-600 !to-purple-500 hover:!from-indigo-700 hover:!to-purple-600"
+      : "!bg-gradient-to-r !from-blue-600 !via-blue-500 !to-cyan-500 hover:!from-blue-700 hover:!to-cyan-600"
+  }`}
+>
+  {showIsPassed ? "Passed" : "Pending"}
+</Button>
+
+                {/* PRINT */}
+               <Button
+  size="large"
+  icon={<PrinterOutlined className="!text-lg" />}
+  onClick={printTransactionHistory}
+  className="!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border !border-blue-200 !bg-gradient-to-b !from-white !to-blue-50 !px-6 !font-semibold !text-blue-700 !shadow-[0_4px_0_#bfdbfe,0_6px_12px_rgba(37,99,235,0.10)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-blue-400 hover:!from-blue-500 hover:!to-indigo-600 hover:!text-white hover:!shadow-[0_6px_0_#3730a3,0_10px_18px_rgba(37,99,235,0.20)] active:!translate-y-1 active:!shadow-none"
+>
+  Print
+</Button>
+
+                {/* EXCEL */}
+                <Button
+  size="large"
+  icon={<FileTextOutlined className="!text-lg" />}
+  onClick={exportTransactionHistoryToExcel}
+  className="!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border !border-emerald-200 !bg-gradient-to-b !from-white !to-emerald-50 !px-6 !font-semibold !text-emerald-700 !shadow-[0_4px_0_#a7f3d0,0_6px_12px_rgba(16,185,129,0.10)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-emerald-400 hover:!from-emerald-500 hover:!to-teal-600 hover:!text-white hover:!shadow-[0_6px_0_#0f766e,0_10px_18px_rgba(16,185,129,0.20)] active:!translate-y-1 active:!shadow-none"
+>
+  Excel
+</Button>
+              </div>
+            </div>
+
+            {/* TRANSACTION TABS */}
+            <div className="w-full min-w-0">
+              <Tabs
+                activeKey={activeHistoryTab}
+                onChange={(key) => {
+                  setActiveHistoryTab(key);
+                  setHistoryPage(1);
+                }}
+                size="small"
+                animated
+                tabBarGutter={8}
+                className="money-tabs mb-6"
+                // items={[
+                //   {
+                //     key: "1",
+                //     label: (
+                //       <span className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-r from-slate-600 to-slate-500 px-3 py-2 text-xs font-semibold text-white sm:text-sm">
+                //         <BookOutlined />
+                //         Transactions
+                //       </span>
+                //     ),
+                //     children: (
+                //       <div className="w-full min-w-0 pb-10 sm:pb-16">
+                //         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                //           <Table
+                //             rowKey="_id"
+                //             columns={columns}
+                //             dataSource={filterData(datasource || [])}
+                //             bordered
+                //             sticky
+                //             size="small"
+                //             locale={{
+                //               emptyText: (
+                //                 <Empty
+                //                   description={
+                //                     <div className="py-2">
+                //                       <h3 className="text-lg font-semibold text-rose-700">
+                //                         {searchText
+                //                           ? "No Results Found"
+                //                           : "No Data Available"}
+                //                       </h3>
+
+                //                       <p className="mt-1 text-sm text-gray-500">
+                //                         {searchText
+                //                           ? `No transaction records match "${searchText}".`
+                //                           : "There are no transaction records to display."}
+                //                       </p>
+                //                     </div>
+                //                   }
+                //                 />
+                //               ),
+                //             }}
+                //             pagination={{
+                //               current: historyPage,
+                //               pageSize: 10,
+                //               size: "small",
+                //               showSizeChanger: false,
+                //               onChange: (page) => setHistoryPage(page),
+                //             }}
+                //             scroll={{ x: "max-content" }}
+                //           />
+                //         </div>
+                //       </div>
+                //     ),
+                //   },
+
+                //   {
+                //     key: "2",
+                //     label: (
+                //       <span className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-r from-slate-600 to-slate-500 px-3 py-2 text-xs font-semibold text-white sm:text-sm">
+                //         <DollarCircleOutlined />
+                //         Transfers
+                //       </span>
+                //     ),
+                //     children: (
+                //       <div className="w-full min-w-0 pb-10 sm:pb-16">
+                //         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                //           <Table
+                //             rowKey="_id"
+                //             columns={columns}
+                //             dataSource={filterData(datasourceTransfer || [])}
+                //             bordered
+                //             sticky
+                //             size="small"
+                //             locale={{
+                //               emptyText: (
+                //                 <Empty
+                //                   description={
+                //                     <div className="py-2">
+                //                       <h3 className="text-lg font-semibold text-rose-700">
+                //                         {search
+                //                           ? "No Results Found"
+                //                           : "No Data Available"}
+                //                       </h3>
+
+                //                       <p className="mt-1 text-sm text-gray-500">
+                //                         {search
+                //                           ? `No transfer records match "${search}".`
+                //                           : "There are no transfer records to display."}
+                //                       </p>
+                //                     </div>
+                //                   }
+                //                 />
+                //               ),
+                //             }}
+                //             pagination={{
+                //               current: historyPage,
+                //               pageSize: 10,
+                //               size: "small",
+                //               showSizeChanger: false,
+                //               onChange: (page) => setHistoryPage(page),
+                //             }}
+                //             scroll={{ x: "max-content" }}
+                //           />
+                //         </div>
+                //       </div>
+                //     ),
+                //   },
+
+                //   {
+                //     key: "3",
+                //     label: (
+                //       <span className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-r from-slate-600 to-slate-500 px-3 py-2 text-xs font-semibold text-white sm:text-sm">
+                //         <SwapOutlined />
+                //         Exchanges
+                //       </span>
+                //     ),
+                //     children: (
+                //       <div className="w-full min-w-0 pb-10 sm:pb-16">
+                //         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                //           <Table
+                //             rowKey="_id"
+                //             columns={columns}
+                //             dataSource={filterData(datasourceExchange || [])}
+                //             bordered
+                //             sticky
+                //             size="small"
+                //             locale={{
+                //               emptyText: (
+                //                 <Empty
+                //                   description={
+                //                     <div className="py-2">
+                //                       <h3 className="text-lg font-semibold text-cyan-700">
+                //                         {searchText
+                //                           ? "No Results Found"
+                //                           : "No Data Available"}
+                //                       </h3>
+
+                //                       <p className="mt-1 text-sm text-gray-500">
+                //                         {searchText
+                //                           ? `No transaction records match "${searchText}".`
+                //                           : "There are no transaction records to display."}
+                //                       </p>
+                //                     </div>
+                //                   }
+                //                 />
+                //               ),
+                //             }}
+                //             pagination={{
+                //               current: historyPage,
+                //               pageSize: 10,
+                //               size: "small",
+                //               showSizeChanger: false,
+                //               onChange: (page) => setHistoryPage(page),
+                //             }}
+                //             scroll={{ x: "max-content" }}
+                //           />
+                //         </div>
+                //       </div>
+                //     ),
+                //   },
+                // ]}
+                items={[
+  {
+    key: "1",
+    label: (
+      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-blue-300 bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-xs font-semibold text-white shadow-[0_3px_0_#1e40af,0_5px_10px_rgba(37,99,235,0.15)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:text-sm">
+        <BookOutlined className="text-base" />
+        Transactions
+      </span>
+    ),
+    children: (
+      <div className="w-full min-w-0 pb-10 sm:pb-16">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <Table
+            rowKey="_id"
+            columns={columns}
+            dataSource={filterData(datasource || [])}
+            bordered
+            sticky
             size="small"
-            animated
-            tabBarGutter={2}
-            className="money-tabs mb-9"
-            items={[
-              {
-                key: "1",
-                label: (
-                  <span className="flex items-center gap-2 font-medium !bg-gradient-to-r !from-slate-400 !to-zinc-400 p-2 text-white hover:bg-indigo-300 rounded-md ">
-                    <BookOutlined />
-                    Transactions
-                  </span>
-                ),
-                children: (
-                  <div className="pb-20">
-                    <Table
-                      rowKey="_id"
-                      columns={columns}
-                      dataSource={filterData(datasource || [])}
-                      bordered
-                      sticky
-                      size="small"
-                      locale={{
-                        emptyText: (
-                          <Empty
-                            description={
-                              <div className="py-2">
-                                <h3 className="text-lg font-semibold text-rose-700">
-                                  {searchText
-                                    ? "No Results Found"
-                                    : "No Data Available"}
-                                </h3>
-
-                                <p className="mt-1 text-sm text-gray-500">
-                                  {searchText
-                                    ? `No transaction records match "${searchText}".`
-                                    : "There are no transaction records to display."}
-                                </p>
-                              </div>
-                            }
-                          />
-                        ),
-                      }}
-                      pagination={{
-                        current: historyPage,
-                        pageSize: 10,
-                        size: "small",
-                        showSizeChanger: false,
-                        onChange: (page) => setHistoryPage(page),
-                      }}
-                      scroll={{ x: "max-content" }}
-                    />
-                  </div>
-                ),
-              },
-              {
-                key: "2",
-                label: (
-                  <span className="flex items-center gap-2 font-medium !bg-gradient-to-r !from-slate-400 !to-zinc-400 p-2 text-white rounded-md ">
-                    <DollarCircleOutlined />
-                    Transfers
-                  </span>
-                ),
-                children: (
-                  <div className="pb-15">
-                    <Table
-                      rowKey="_id"
-                      columns={columns}
-                      dataSource={filterData(datasourceTransfer || [])}
-                      bordered
-                      sticky
-                      size="small"
-                      locale={{
-                        emptyText: (
-                          <Empty
-                            description={
-                              <div className="py-2">
-                                <h3 className="text-lg font-semibold text-rose-700">
-                                  {search
-                                    ? "No Results Found"
-                                    : "No Data Available"}
-                                </h3>
-
-                                <p className="mt-1 text-sm text-gray-500">
-                                  {search
-                                    ? `No transfer records match "${search}".`
-                                    : "There are no transfer records to display."}
-                                </p>
-                              </div>
-                            }
-                          />
-                        ),
-                      }}
-                      pagination={{
-                        current: historyPage,
-                        pageSize: 10,
-                        size: "small",
-                        showSizeChanger: false,
-                        onChange: (page) => setHistoryPage(page),
-                      }}
-                      scroll={{ x: "max-content" }}
-                    />
-                  </div>
-                ),
-              },
-              {
-                key: "3",
-                label: (
-                  <span className="flex items-center gap-2 font-medium !bg-gradient-to-r  !from-slate-400 !to-zinc-400 p-2 text-white rounded-md ">
-                    <SwapOutlined />
-                    Exchanges
-                  </span>
-                ),
-                children: (
-                  <div className="pb-15">
-                    <Table
-                      rowKey="_id"
-                      columns={columns}
-                      dataSource={filterData(datasourceExchange || [])}
-                      bordered
-                      sticky
-                      size="small"
-                      locale={{
-                        emptyText: (
-                          <Empty
-                            description={
-                              <div className="py-2">
-                                <h3 className="text-lg font-semibold text-cyan-700">
-                                  {searchText
-                                    ? "No Results Found"
-                                    : "No Data Available"}
-                                </h3>
-
-                                <p className="mt-1 text-sm text-gray-500">
-                                  {searchText
-                                    ? `No transaction records match "${searchText}".`
-                                    : "There are no transaction records to display."}
-                                </p>
-                              </div>
-                            }
-                          />
-                        ),
-                      }}
-                      pagination={{
-                        current: historyPage,
-                        pageSize: 10,
-                        size: "small",
-                        showSizeChanger: false,
-                        onChange: (page) => setHistoryPage(page),
-                      }}
-                      scroll={{ x: "max-content" }}
-                    />
-                  </div>
-                ),
-              },
-            ]}
+            locale={{
+              emptyText: (
+                <Empty
+                  description={
+                    <div className="py-2">
+                      <h3 className="text-lg font-semibold text-rose-700">
+                        {searchText
+                          ? "No Results Found"
+                          : "No Data Available"}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {searchText
+                          ? `No transaction records match "${searchText}".`
+                          : "There are no transaction records to display."}
+                      </p>
+                    </div>
+                  }
+                />
+              ),
+            }}
+            pagination={{
+              current: historyPage,
+              pageSize: 10,
+              size: "small",
+              showSizeChanger: false,
+              onChange: (page) => setHistoryPage(page),
+            }}
+            scroll={{ x: "max-content" }}
           />
+        </div>
+      </div>
+    ),
+  },
+
+  {
+    key: "2",
+    label: (
+      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-[0_3px_0_#cbd5e1,0_5px_10px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:from-indigo-50 hover:to-blue-100 hover:text-indigo-700 hover:shadow-md sm:text-sm">
+        <DollarCircleOutlined className="text-base" />
+        Transfers
+      </span>
+    ),
+    children: (
+      <div className="w-full min-w-0 pb-10 sm:pb-16">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <Table
+            rowKey="_id"
+            columns={columns}
+            dataSource={filterData(datasourceTransfer || [])}
+            bordered
+            sticky
+            size="small"
+            locale={{
+              emptyText: (
+                <Empty
+                  description={
+                    <div className="py-2">
+                      <h3 className="text-lg font-semibold text-rose-700">
+                        {search
+                          ? "No Results Found"
+                          : "No Data Available"}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {search
+                          ? `No transfer records match "${search}".`
+                          : "There are no transfer records to display."}
+                      </p>
+                    </div>
+                  }
+                />
+              ),
+            }}
+            pagination={{
+              current: historyPage,
+              pageSize: 10,
+              size: "small",
+              showSizeChanger: false,
+              onChange: (page) => setHistoryPage(page),
+            }}
+            scroll={{ x: "max-content" }}
+          />
+        </div>
+      </div>
+    ),
+  },
+
+  {
+    key: "3",
+    label: (
+      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-[0_3px_0_#cbd5e1,0_5px_10px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:from-violet-50 hover:to-purple-100 hover:text-violet-700 hover:shadow-md sm:text-sm">
+        <SwapOutlined className="text-base" />
+        Exchanges
+      </span>
+    ),
+    children: (
+      <div className="w-full min-w-0 pb-10 sm:pb-16">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <Table
+            rowKey="_id"
+            columns={columns}
+            dataSource={filterData(datasourceExchange || [])}
+            bordered
+            sticky
+            size="small"
+            locale={{
+              emptyText: (
+                <Empty
+                  description={
+                    <div className="py-2">
+                      <h3 className="text-lg font-semibold text-cyan-700">
+                        {searchText
+                          ? "No Results Found"
+                          : "No Data Available"}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {searchText
+                          ? `No transaction records match "${searchText}".`
+                          : "There are no transaction records to display."}
+                      </p>
+                    </div>
+                  }
+                />
+              ),
+            }}
+            pagination={{
+              current: historyPage,
+              pageSize: 10,
+              size: "small",
+              showSizeChanger: false,
+              onChange: (page) => setHistoryPage(page),
+            }}
+            scroll={{ x: "max-content" }}
+          />
+        </div>
+      </div>
+    ),
+  },
+]}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

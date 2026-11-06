@@ -20,6 +20,7 @@ import ProtectedLayout from "./components/Shared/Layouts/ProtectedLayout"
 import ProtectedAdminLayout from "./components/Shared/Layouts/ProtectedAdminLayout"
 import NotFound from "./components/Shared/NotFound";
 import Commissions from "./components/User/Comission";
+import Vault from "./components/User/Vault";
 import Backup from "./components/Shared/Backup/Backup";
 
 const App = () => {
@@ -48,6 +49,7 @@ const App = () => {
             <Route path="/transaction" element={<Transactions />} />
                <Route path="/account" element={<Accounts />} />
             <Route path="/comissions" element={<Commissions/>}/>
+            <Route path="/vault" element={<Vault/>}/>
           </Route>
 
           {/* Protected Admin Route */}

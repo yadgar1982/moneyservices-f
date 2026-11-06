@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 
 import PrintLayout from "../print/PrintLayout";
 import PrintHeader from "../print/PrintHeader";
-import PrintFooter from "../print/PrintFooter";
+
 
 const TransactionReceipt = ({
   logo,
@@ -49,7 +49,7 @@ const TransactionReceipt = ({
         />
       }
       info={
-        <div className="max-w-[160mm] mx-auto text-[12px]">
+    <div className="w-full max-w-none mx-0 text-[13px]">
           {/* Receipt Information */}
           <table className="w-full mb-6">
             <tbody>

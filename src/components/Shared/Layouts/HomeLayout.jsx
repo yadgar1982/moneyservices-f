@@ -12,6 +12,7 @@ import {
   DollarCircleFilled,
   BookOutlined,
   TransactionOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 
 import { Button, Layout, Menu, Tooltip, Drawer } from "antd";
@@ -73,6 +74,11 @@ const HomeLayout = ({ children }) => {
       icon: <DollarCircleFilled />,
       label: "Fees / Charges",
     },
+    {
+      key: "/vault",
+      icon: <WalletOutlined />,
+      label: "Vault",
+    },
    
   ];
 
@@ -113,7 +119,7 @@ const HomeLayout = ({ children }) => {
             !h-[68px]
             !px-3
             md:!px-5
-            !bg-slate-800
+            !bg-gradient-to-r !from-[#101c32] !via-[#172943] !to-[#101c32] !shadow-[0_7px_22px_rgba(15,23,42,0.18)] !relative !z-[5]
             !flex
             !items-center
             !justify-between
@@ -125,7 +131,7 @@ const HomeLayout = ({ children }) => {
           {/* ===================================================
               LEFT SIDE
           =================================================== */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
 
             {/* MENU BUTTON */}
             <Button
@@ -183,21 +189,37 @@ const HomeLayout = ({ children }) => {
             {/* =================================================
                 DESKTOP NAVIGATION
             ================================================= */}
-            <Menu
-              mode="horizontal"
-              theme="dark"
-              items={menuItems}
-              selectedKeys={[location.pathname]}
-              onClick={nav}
-              className="
-                modern-navbar-menu
-                !bg-transparent
-                !border-0
-                hidden
-                md:flex
-              "
-              overflowedIndicator={null}
-            />
+          <Menu
+  mode="horizontal"
+  theme="dark"
+  items={menuItems}
+  selectedKeys={[location.pathname]}
+  onClick={nav}
+  className="
+    modern-navbar-menu !bg-transparent !border-0 hidden md:flex !items-center !gap-1 !px-2
+    [&_.ant-menu-item]:!inline-flex [&_.ant-menu-item]:!items-center [&_.ant-menu-item]:!justify-center
+    [&_.ant-menu-item]:!h-11 [&_.ant-menu-item]:!leading-none [&_.ant-menu-item]:!mx-[3px]
+    [&_.ant-menu-item]:!px-[15px] [&_.ant-menu-item]:!rounded-[13px] [&_.ant-menu-item]:!border
+    [&_.ant-menu-item]:!border-white/10 [&_.ant-menu-item]:!text-slate-300 [&_.ant-menu-item]:!text-[13px]
+    [&_.ant-menu-item]:!font-semibold [&_.ant-menu-item]:!bg-gradient-to-br
+    [&_.ant-menu-item]:!from-white/10 [&_.ant-menu-item]:!to-white/[0.03]
+    [&_.ant-menu-item]:!shadow-[0_4px_0_rgba(4,12,27,0.38),0_7px_13px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.12)]
+    [&_.ant-menu-item]:!transition-all [&_.ant-menu-item]:!duration-200
+    [&_.ant-menu-item:hover]:!text-white [&_.ant-menu-item:hover]:!-translate-y-[3px]
+    [&_.ant-menu-item:hover]:!border-sky-300/30 [&_.ant-menu-item:hover]:!bg-[#263f61]
+    [&_.ant-menu-item-selected]:!text-white [&_.ant-menu-item-selected]:!-translate-y-0.5
+    [&_.ant-menu-item-selected]:!border-sky-300/70 [&_.ant-menu-item-selected]:!bg-gradient-to-br
+    [&_.ant-menu-item-selected]:!from-[#2878ed] [&_.ant-menu-item-selected]:!via-[#168fe5]
+    [&_.ant-menu-item-selected]:!to-[#08a9c5]
+    [&_.ant-menu-item-selected]:!shadow-[0_5px_0_#1554a5,0_9px_17px_rgba(14,116,220,0.25),inset_0_1px_0_rgba(255,255,255,0.34)]
+    [&_.ant-menu-item::after]:!hidden [&_.ant-menu-item_.anticon]:!text-base [&_.ant-menu-item_.anticon]:!mr-2
+  "
+  style={{
+    flex: 1,
+    minWidth: 0,
+    whiteSpace: "nowrap",
+  }}
+/>
           </div>
 
           {/* ===================================================
@@ -416,9 +438,22 @@ const HomeLayout = ({ children }) => {
                 selectedKeys={[location.pathname]}
                 onClick={nav}
                 className="
-                  modern-drawer-menu
-                  !border-0
-                  !bg-transparent
+                  modern-drawer-menu !border-0 !bg-transparent !w-full
+                  [&_.ant-menu-item]:!flex [&_.ant-menu-item]:!items-center [&_.ant-menu-item]:!h-[49px]
+                  [&_.ant-menu-item]:!leading-none [&_.ant-menu-item]:!my-2 [&_.ant-menu-item]:!mx-0
+                  [&_.ant-menu-item]:!px-4 [&_.ant-menu-item]:!rounded-[13px] [&_.ant-menu-item]:!border
+                  [&_.ant-menu-item]:!border-slate-200 [&_.ant-menu-item]:!text-slate-600
+                  [&_.ant-menu-item]:!text-[13px] [&_.ant-menu-item]:!font-semibold
+                  [&_.ant-menu-item]:!bg-gradient-to-br [&_.ant-menu-item]:!from-white [&_.ant-menu-item]:!to-slate-100
+                  [&_.ant-menu-item]:!shadow-[0_4px_0_#e2e8f0,0_6px_12px_rgba(15,23,42,0.055),inset_0_1px_0_#fff]
+                  [&_.ant-menu-item]:!transition-all [&_.ant-menu-item]:!duration-200
+                  [&_.ant-menu-item:hover]:!text-blue-700 [&_.ant-menu-item:hover]:!translate-x-[3px]
+                  [&_.ant-menu-item-selected]:!text-white [&_.ant-menu-item-selected]:!border-blue-400
+                  [&_.ant-menu-item-selected]:!bg-gradient-to-br [&_.ant-menu-item-selected]:!from-[#2878ed]
+                  [&_.ant-menu-item-selected]:!to-[#089fca]
+                  [&_.ant-menu-item-selected]:!shadow-[0_4px_0_#1e55a8,0_8px_15px_rgba(37,99,235,0.19),inset_0_1px_0_rgba(255,255,255,0.32)]
+                  [&_.ant-menu-item::after]:!hidden [&_.ant-menu-item_.anticon]:!text-[17px]
+                  [&_.ant-menu-item_.anticon]:!mr-3
                 "
               />
 
