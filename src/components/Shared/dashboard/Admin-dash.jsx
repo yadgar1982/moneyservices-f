@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import "./home-dash.css";
 
-import { Sunrise, Sun, Sunset, MoonStar } from "lucide-react";
+
 import ReactCountryFlag from "react-country-flag";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import AccountStatement from "../../Shared/Export/Statements/AccountStatement";
@@ -35,8 +35,10 @@ import {
   BellOutlined,
   CalendarOutlined,
   BankOutlined,
-  DollarOutlined,
+
   FileTextOutlined,
+  HistoryOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -50,12 +52,13 @@ import {
 } from "recharts";
 const API_URL = import.meta.env.VITE_API_URL;
 const myBrand = JSON.parse(localStorage.getItem("branding"));
-const myLogo = "/assets/logo.png"
+const myLogo = "/assets/logo.png";
 import HomeLayout from "../Layouts/AdminLayout";
 import { fetchTransaction } from "../../../redux/slices/transactionSlice";
 import { fetchUsers } from "../../../redux/slices/customerSlice";
 import { fetchCurrency } from "../../../redux/slices/currencySlice";
 import { fetchBranch } from "../../../redux/slices/branchSlice";
+import { fetchVaults } from "../../../redux/slices/vaultSlice";
 
 import { useDispatch, useSelector } from "react-redux";
 
@@ -90,12 +93,14 @@ const Dashboard = () => {
   const { users } = useSelector((state) => state.users);
   const { currencies } = useSelector((state) => state.currencies);
   const { branches } = useSelector((state) => state.branches);
+  const { vaults } = useSelector((state) => state.vaults);
 
   useEffect(() => {
     dispatch(fetchTransaction());
     dispatch(fetchUsers());
     dispatch(fetchCurrency());
     dispatch(fetchBranch());
+    dispatch(fetchVaults());
   }, [dispatch]);
 
   const userInfo = JSON.parse(localStorage.getItem("userInfo"));
@@ -105,8 +110,7 @@ const Dashboard = () => {
 
   const myBranch = userInfo?.branch;
 
-  // Data
-
+  // TransactionData
   const pendingTransactions =
     transactions?.filter(
       (t) => t.transaction === "transaction" && t.isPass === "false",
@@ -139,6 +143,23 @@ const Dashboard = () => {
       balances[currency] -= amount;
     }
   });
+  // TransactionData
+
+  // vault Balance calcualtion
+  const vbalances = {};
+
+  vaults?.forEach((t) => {
+    const currency = t.currency;
+
+    if (!vbalances[currency]) {
+      vbalances[currency] = 0;
+    }
+
+    const credit = Number(t.credit) || 0;
+    const debit = Number(t.debit) || 0;
+
+    vbalances[currency] += credit - debit;
+  });
 
   const gradients = [
     "from-cyan-500 to-blue-700",
@@ -156,6 +177,20 @@ const Dashboard = () => {
   ];
 
   const balanceCards = Object.entries(balances).map(
+    ([currency, amount], index) => {
+      const currencyInfo = currencies.find(
+        (item) => item.currency === currency,
+      );
+
+      return {
+        currency,
+        amount,
+        country: currencyInfo?.country,
+        color: gradients[index % gradients.length],
+      };
+    },
+  );
+  const vaultBalanceCards = Object.entries(vbalances).map(
     ([currency, amount], index) => {
       const currencyInfo = currencies.find(
         (item) => item.currency === currency,
@@ -304,7 +339,8 @@ const Dashboard = () => {
             {Number(record.amount).toLocaleString()}
           </span>
         ) : (
-          "—"
+          <span className="!text-red-600 font-semibold">0.00</span>
+          
         ),
     },
 
@@ -318,7 +354,7 @@ const Dashboard = () => {
             {Number(record.amount).toLocaleString()}
           </span>
         ) : (
-          "—"
+           <span className="!text-green-600 font-semibold">0.00</span>
         ),
     },
 
@@ -3858,35 +3894,124 @@ const Dashboard = () => {
   };
 
   // greetings
-  const getGreeting = () => {
-    const hour = new Date().getHours();
 
-    if (hour >= 5 && hour < 12) {
-      return {
-        text: "Good Morning",
-        icon: <Sunrise className="!h-7 !w-7 !text-amber-400" />,
-      };
-    }
+const getGreeting = () => {
+  const hour = new Date().getHours();
 
-    if (hour >= 12 && hour < 17) {
-      return {
-        text: "Good Afternoon",
-        icon: <Sun className="!h-7 !w-7 !text-yellow-400" />,
-      };
-    }
-
-    if (hour >= 17 && hour < 21) {
-      return {
-        text: "Good Evening",
-        icon: <Sunset className="!h-7 !w-7 !text-orange-400" />,
-      };
-    }
-
+  // GOOD MORNING: 5 AM - 12 PM
+  if (hour >= 5 && hour < 12) {
     return {
-      text: "Good Night",
-      icon: <MoonStar className="!h-7 !w-7 !text-indigo-400" />,
+      text: "Good Morning",
+      message: "A fresh start, a new opportunity. Make today amazing!",
+
+      icon: (
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-100 via-orange-100 to-white shadow-[0_8px_0_#e8bd75,0_12px_20px_rgba(217,119,6,0.2),inset_0_2px_5px_white]">
+          {/* Sun rays */}
+          <div className="absolute h-16 w-16 rounded-full bg-[repeating-conic-gradient(from_0deg,#fbbf24_0deg_5deg,transparent_5deg_30deg)] opacity-70 [mask-image:radial-gradient(circle,transparent_0_55%,black_58%)]" />
+
+          {/* 3D Sun */}
+          <div className="absolute top-4 h-11 w-11 rounded-full bg-gradient-to-br from-yellow-100 via-amber-400 to-orange-500 shadow-[0_5px_0_#c87913,0_8px_12px_rgba(217,119,6,0.35),inset_3px_3px_6px_rgba(255,255,255,0.9)]" />
+
+          {/* Sun highlight */}
+          <div className="absolute left-8 top-6 h-3 w-5 rotate-[-35deg] rounded-full bg-white/70 blur-[2px]" />
+
+          {/* Clouds */}
+          <div className="absolute bottom-4 left-2 z-10 h-3 w-10 rounded-full bg-gradient-to-b from-white to-slate-200 shadow-[0_3px_0_#cbd5e1,0_5px_6px_rgba(0,0,0,0.12)] before:absolute before:-top-2 before:left-2 before:h-5 before:w-5 before:rounded-full before:bg-white after:absolute after:-top-1 after:right-2 after:h-4 after:w-4 after:rounded-full after:bg-slate-100" />
+
+          <div className="absolute bottom-3 right-1 z-10 h-3 w-9 rounded-full bg-gradient-to-b from-white to-slate-200 shadow-[0_3px_0_#cbd5e1] before:absolute before:-top-2 before:left-2 before:h-4 before:w-4 before:rounded-full before:bg-white" />
+        </div>
+      ),
+
+      style: "from-amber-50 via-orange-50 to-white",
+      iconBg: "bg-amber-100",
+      textColor: "text-amber-700",
     };
+  }
+
+  // GOOD AFTERNOON: 12 PM - 5 PM
+  if (hour >= 12 && hour < 17) {
+    return {
+      text: "Good Afternoon",
+      message: "Keep the momentum going. You're doing great!",
+
+      icon: (
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-yellow-100 via-amber-100 to-white shadow-[0_8px_0_#e5b943,0_12px_20px_rgba(202,138,4,0.2),inset_0_2px_5px_white]">
+          {/* Rays */}
+          <div className="absolute h-[68px] w-[68px] rounded-full bg-[repeating-conic-gradient(from_0deg,#facc15_0deg_6deg,transparent_6deg_30deg)] [mask-image:radial-gradient(circle,transparent_0_55%,black_58%)]" />
+
+          {/* 3D Sun */}
+          <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-yellow-100 via-yellow-400 to-amber-600 shadow-[0_6px_0_#c47b08,0_9px_14px_rgba(202,138,4,0.35),inset_3px_3px_7px_rgba(255,255,255,0.9)]">
+            <div className="absolute left-2 top-2 h-3 w-5 -rotate-45 rounded-full bg-white/75 blur-[2px]" />
+            <div className="absolute bottom-2 right-2 h-3 w-3 rounded-full bg-amber-700/10 blur-sm" />
+          </div>
+        </div>
+      ),
+
+      style: "from-yellow-50 via-amber-50 to-white",
+      iconBg: "bg-yellow-100",
+      textColor: "text-amber-700",
+    };
+  }
+
+  // GOOD EVENING: 5 PM - 9 PM
+  if (hour >= 17 && hour < 21) {
+    return {
+      text: "Good Evening",
+      message: "Take a moment to appreciate everything you've achieved today.",
+
+      icon: (
+        <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-orange-100 via-rose-100 to-white shadow-[0_8px_0_#e7a18e,0_12px_20px_rgba(234,88,12,0.2),inset_0_2px_5px_white]">
+          {/* Sunset rays */}
+          <div className="absolute top-1 h-16 w-16 rounded-full bg-[repeating-conic-gradient(from_0deg,#fb923c_0deg_5deg,transparent_5deg_30deg)] opacity-70 [mask-image:radial-gradient(circle,transparent_0_55%,black_58%)]" />
+
+          {/* 3D Sunset */}
+          <div className="absolute top-3 h-12 w-12 rounded-full bg-gradient-to-br from-yellow-100 via-orange-400 to-rose-600 shadow-[0_5px_0_#c65b3b,0_8px_12px_rgba(234,88,12,0.3),inset_3px_3px_6px_rgba(255,255,255,0.8)]" />
+
+          {/* Sun reflection */}
+          <div className="absolute left-8 top-5 h-3 w-5 -rotate-45 rounded-full bg-white/60 blur-[2px]" />
+
+          {/* Horizon */}
+          <div className="absolute bottom-4 z-10 h-1.5 w-14 rounded-full bg-gradient-to-r from-orange-300 via-rose-400 to-orange-300 shadow-[0_3px_5px_rgba(190,75,50,0.3)]" />
+
+          {/* Clouds */}
+          <div className="absolute bottom-3 left-1 z-20 h-3 w-9 rounded-full bg-gradient-to-b from-white to-rose-100 shadow-[0_3px_0_#e6a69b] before:absolute before:-top-2 before:left-2 before:h-4 before:w-4 before:rounded-full before:bg-white" />
+
+          <div className="absolute bottom-2 right-0 z-20 h-3 w-9 rounded-full bg-gradient-to-b from-white to-rose-100 shadow-[0_3px_0_#e6a69b] before:absolute before:-top-2 before:left-2 before:h-4 before:w-4 before:rounded-full before:bg-white" />
+        </div>
+      ),
+
+      style: "from-orange-50 via-rose-50 to-white",
+      iconBg: "bg-orange-100",
+      textColor: "text-orange-700",
+    };
+  }
+
+  // GOOD NIGHT: 9 PM - 5 AM
+  return {
+    text: "Good Night",
+    message: "The day is done. Take time to relax and recharge.",
+
+    icon: (
+      <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-100 via-violet-100 to-white shadow-[0_8px_0_#a5a1d6,0_12px_20px_rgba(79,70,229,0.2),inset_0_2px_5px_white]">
+        {/* Moon */}
+        <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-yellow-50 via-amber-200 to-amber-400 shadow-[0_5px_0_#c18a29,0_8px_12px_rgba(217,119,6,0.25),inset_3px_3px_6px_white]">
+          {/* Crescent shadow */}
+          <div className="absolute -right-1 -top-1 h-10 w-10 rounded-full bg-gradient-to-br from-indigo-100 to-violet-100" />
+        </div>
+
+        {/* Stars */}
+        <div className="absolute right-4 top-3 h-2 w-2 rotate-45 rounded-sm bg-amber-400 shadow-[0_0_8px_#fbbf24]" />
+        <div className="absolute bottom-4 left-4 h-1.5 w-1.5 rotate-45 rounded-sm bg-violet-400" />
+        <div className="absolute right-5 bottom-5 h-1 w-1 rounded-full bg-indigo-400" />
+      </div>
+    ),
+
+    style: "from-indigo-50 via-violet-50 to-white",
+    iconBg: "bg-indigo-100",
+    textColor: "text-indigo-700",
   };
+};
+
   const greeting = getGreeting();
 
   // badge for pending transactions
@@ -3949,7 +4074,7 @@ const Dashboard = () => {
         }
       `}</style>
 
-      <Layout className="!relative !min-h-screen !overflow-hidden !bg-[#F1F5F9]">
+      <Layout className="!relative !min-h-screen !overflow-hidden !bg-zinc-50 !transition-all !duration-300">
         {/* Background Glow */}
         <div className="!absolute !-top-32 !-left-32 !w-[420px] !h-[420px] !rounded-full !bg-cyan-500/10 !blur-[130px]"></div>
 
@@ -4024,122 +4149,283 @@ const Dashboard = () => {
           </div>
 
           {/* BALANCE CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-            {balanceCards.map((item) => (
-              <div
-                key={item.currency}
-                className="!group !relative !min-h-[230px] !overflow-hidden !rounded-3xl !border !border-slate-200 !bg-white !p-7
-  !shadow-[0_10px_30px_rgba(15,23,42,0.08)] !transition-all !duration-300 hover:!-translate-y-1 hover:!shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
-              >
-                {/* Background Glow */}
-                <div className="!absolute !-top-16 !-right-16 !h-44 !w-44 !rounded-full !bg-cyan-400/5 !blur-3xl !transition-all !duration-500 group-hover:!scale-110" />
-                {/* Bottom Gradient */}
-                <div className="!absolute !bottom-0 !left-0 !h-1 !w-full !bg-gradient-to-r !from-cyan-400 !via-blue-500 !to-purple-500" />
+          <h1 className="!text-2xl !font-bold !text-slate-800 mb-3">
+            Customer Account Balance
+          </h1>
+          <hr className="!mb-5 !border-slate-300" />
 
-                <div className="!relative !z-10 !flex !h-full !flex-col !justify-between">
+          
+<div className="grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-4">
+  {balanceCards.map((item) => (
+    <div
+      key={item.currency}
+      className="group relative pt-5 transition-all duration-500 hover:-translate-y-2"
+    >
+      {/* Folder tab */}
+      <div className="absolute left-5 top-1 z-10 h-7 w-28 rounded-t-xl border border-emerald-300/80 bg-gradient-to-b from-emerald-200 to-emerald-100 shadow-[0_-3px_6px_rgba(6,78,59,0.10)]" />
+
+      {/* Folder body */}
+      <div
+        className="relative overflow-hidden rounded-2xl rounded-tl-none border border-emerald-200/80
+        bg-gradient-to-br from-emerald-100 via-teal-50 to-white
+        shadow-[0_8px_0_#a7d5c5,0_14px_25px_rgba(6,78,59,0.13)]
+        transition-all duration-500
+        group-hover:shadow-[0_10px_0_#91c9b5,0_24px_40px_rgba(6,78,59,0.22)]"
+      >
+        {/* Background glow */}
+        <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-amber-300/20 blur-3xl transition-all duration-500 group-hover:bg-amber-300/30" />
+
+        {/* Folder shine */}
+        <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-white via-emerald-300 to-transparent" />
+
+        <div className="relative z-10 p-5">
+          {/* Header */}
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700/70">
+                Account Overview
+              </p>
+
+              <h3 className="mt-1 text-xl font-extrabold tracking-tight text-emerald-950">
+                {item.currency}
+              </h3>
+
+              <p className="mt-1 text-xs font-medium text-emerald-800/60">
+                Available Balance
+              </p>
+            </div>
+
+            {/* Raised flag holder */}
+            <div
+              className="flex h-14 w-14 items-center justify-center rounded-2xl
+              border border-white bg-gradient-to-br from-white to-emerald-100
+              shadow-[4px_5px_10px_rgba(6,78,59,0.13),inset_1px_1px_3px_white]
+              transition-transform duration-500 group-hover:rotate-6 group-hover:scale-105"
+            >
+              <ReactCountryFlag
+                countryCode={item.country?.toUpperCase()}
+                svg
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "5px",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Balance panel */}
+          <div
+            className="mt-6 rounded-xl border border-white/90 bg-white/75 p-4
+            shadow-[inset_0_2px_5px_rgba(255,255,255,0.9),0_5px_12px_rgba(6,78,59,0.07)]
+            backdrop-blur-md"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700/50">
+              Current Account Balance
+            </p>
+
+            <h2
+              className={`mt-2 break-all text-2xl font-extrabold tracking-tight ${
+                Number(item.amount) < 0
+                  ? "text-rose-500"
+                  : "text-emerald-950"
+              }`}
+            >
+              {Number(item.amount || 0).toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </h2>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-5 flex items-center justify-between">
+            <span className="text-xs font-medium text-emerald-800/60">
+              Updated just now
+            </span>
+
+            <span className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-bold text-amber-700 shadow-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              Active
+            </span>
+          </div>
+        </div>
+
+        {/* Gold bottom accent */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-200" />
+      </div>
+
+      {/* 3D bottom shadow */}
+      <div className="absolute -bottom-2 left-3 right-3 -z-10 h-5 rounded-b-2xl bg-emerald-200/60 blur-[2px]" />
+    </div>
+  ))}
+</div>
+
+
+          <h1 className="!text-2xl !font-bold !text-slate-800 mb-3 mt-6">
+            Vault Available Balance
+          </h1>
+          <hr className="!mb-5 !border-slate-300" />
+       
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-4">
+          {vaultBalanceCards.map((item) => (
+            <div
+              key={item.currency}
+              className="group relative pt-5 transition-all duration-500 hover:-translate-y-2"
+            >
+              {/* Folder tab */}
+              <div className="absolute left-5 top-1 z-10 h-7 w-28 rounded-t-xl border border-blue-200 bg-gradient-to-b from-blue-200 to-blue-100 shadow-[0_-3px_5px_rgba(30,64,175,0.08)]" />
+
+              {/* Folder body */}
+              <div
+                className="relative overflow-hidden rounded-2xl rounded-tl-none border border-blue-200/80
+                bg-gradient-to-br from-blue-100 via-blue-50 to-white
+                shadow-[0_8px_0_#cbdcf5,0_14px_25px_rgba(30,64,175,0.13)]
+                transition-all duration-500
+                group-hover:shadow-[0_10px_0_#b8cff0,0_24px_40px_rgba(30,64,175,0.22)]"
+              >
+                {/* Glossy background */}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/80 via-transparent to-blue-200/30" />
+
+                {/* Decorative glow */}
+                <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-blue-400/20 blur-3xl transition-all duration-500 group-hover:bg-blue-400/30" />
+
+                {/* Folder shine */}
+                <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-white via-blue-300 to-transparent" />
+
+                <div className="relative z-10 p-5">
+
                   {/* Header */}
-                  <div className="!flex !items-start !justify-between">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <p className="!text-xs !font-semibold !uppercase !tracking-[0.25em] !text-slate-500">
-                        Available Balance
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">
+                        Secure Storage
                       </p>
 
-                      <h3 className="!mt-3 !text-3xl !font-bold !tracking-wide !text-slate-800">
+                      <h3 className="mt-1 text-xl font-extrabold tracking-tight text-slate-800">
                         {item.currency}
                       </h3>
+
+                      <p className="mt-1 text-xs font-medium text-slate-500">
+                        Vault Balance
+                      </p>
                     </div>
 
-                    <div className="!flex !h-16 !w-16 !items-center !justify-center !rounded-2xl !border !border-slate-200 !bg-slate-50 !shadow-sm">
-                      {" "}
+                    {/* Raised flag holder */}
+                    <div
+                      className="flex h-14 w-14 items-center justify-center rounded-2xl
+                      border border-white bg-gradient-to-br from-white to-blue-100
+                      shadow-[4px_5px_10px_rgba(30,64,175,0.15),inset_1px_1px_3px_white]
+                      transition-transform duration-500 group-hover:rotate-6 group-hover:scale-105"
+                    >
                       <ReactCountryFlag
                         countryCode={item.country?.toUpperCase()}
                         svg
                         style={{
-                          width: "34px",
-                          height: "34px",
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "5px",
                         }}
                       />
                     </div>
                   </div>
 
-                  {/* Amount */}
-                  <div className="!mt-8">
+                  {/* Balance panel */}
+                  <div
+                    className="mt-6 rounded-xl border border-white/90 bg-white/70 p-4
+                    shadow-[inset_0_2px_5px_rgba(255,255,255,0.9),0_5px_12px_rgba(30,64,175,0.07)]
+                    backdrop-blur-md"
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                      Available Balance
+                    </p>
+
                     <h2
-                      className={`!text-4xl !font-extrabold !tracking-tight ${
+                      className={`mt-2 break-all text-2xl font-extrabold tracking-tight ${
                         Number(item.amount) < 0
-                          ? "!text-rose-500"
-                          : "!text-slate-900"
+                          ? "text-rose-500"
+                          : "text-slate-800"
                       }`}
                     >
-                      {Number(item.amount).toLocaleString()}
+                      {Number(item.amount || 0).toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </h2>
-
-                    <p className="!mt-2 !text-sm !text-slate-500">
-                      Current account balance
-                    </p>
                   </div>
 
                   {/* Footer */}
-                  <div className="!mt-8 !flex !items-center !justify-between">
-                    <span className="!text-sm !text-slate-500">
-                      Updated just now
-                    </span>
+                  <div className="mt-5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                      </span>
 
-                    <span className="!rounded-full !border !border-emerald-200 !bg-emerald-50 !px-3 !py-1 !text-xs !font-semibold !text-emerald-600">
-                      ● Active
+                      <span className="text-xs font-semibold text-slate-600">
+                        Active Vault
+                      </span>
+                    </div>
+
+                    <span className="rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-[10px] font-semibold text-blue-500 shadow-sm">
+                      {item.currency}
                     </span>
                   </div>
                 </div>
+
+                {/* Bottom folder edge */}
+                <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 via-cyan-400 to-indigo-500" />
               </div>
-            ))}
-          </div>
+
+              {/* 3D bottom shadow layer */}
+              <div className="absolute -bottom-2 left-3 right-3 -z-10 h-5 rounded-b-2xl bg-blue-200/60 blur-[2px]" />
+            </div>
+          ))}
+        </div>
+
 
           {/* REPORTS */}
 
-          <div className="!mt-8">
-            <div className="!mb-5">
-              <h2 className="!text-2xl !font-bold !text-slate-800">Reports</h2>
-
+          <div className="!mt-7">
+            {/* Section Header */}
+            <div className="!mb-4">
+              <h2 className="!text-xl !font-bold !text-slate-800">Reports</h2>
               <p className="!mt-1 !text-sm !text-slate-500">
                 Generate and print financial reports
               </p>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-4 border p-6 rounded-2xl border-slate-200 bg-white shadow-sm">
               {/* ALL ACCOUNTS */}
-
-              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
-                {" "}
-                <div className="!flex !items-start !gap-4">
-                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !bg-cyan-500/10 !border !border-cyan-500/20">
-                    <BankOutlined className="!text-2xl !text-cyan-600" />
+              <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-100 bg-cyan-50">
+                    <BankOutlined className="!text-xl !text-cyan-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-slate-800">
+                    <h3 className="text-base font-bold text-slate-800">
                       All Accounts Statement
                     </h3>
-
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       View balances for all customer accounts by currency.
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 !mt-6">
+
+                <div className="mt-5 grid grid-cols-2 gap-2">
                   <Button
                     type="primary"
-                    size="large"
                     icon={<PrinterOutlined />}
-                    className="!h-12 !rounded-xl"
+                    className=" !h-10 !rounded-lg !border-cyan-500 !text-cyan-500 !bg-white hover:!bg-cyan-700 hover:!text-white"
                     onClick={printallAccounts}
                   >
                     Print
                   </Button>
 
                   <Button
-                    size="large"
                     icon={<FileExcelOutlined />}
-                    className="!h-12 !rounded-xl"
+                    className="!h-10 !text-green-500 !font-bold !border-green-500 !rounded-lg hover:!bg-green-500 hover:!text-white"
                     onClick={exportAllAccountsToExcel}
                   >
                     Excel
@@ -4147,94 +4433,85 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* ==================================================
-                    CUSTOMER ID REPORT
-                ================================================== */}
-
-              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
-                {" "}
-                <div className="!flex !items-start !gap-4">
-                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-violet-200 !bg-violet-50">
-                    <UserOutlined className="!text-2xl !text-violet-600" />
+              {/* CUSTOMER ID REPORT */}
+              <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-100 bg-cyan-50">
+                    <UserOutlined className="!text-xl !text-cyan-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-slate-800">
+                    <h3 className="text-base font-bold text-slate-800">
                       Customer ID Report
                     </h3>
-
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
-                      View all accounts and currency balances for a customer.
+                    <p className="mt-1 text-xs text-slate-500">
+                      View all customer accounts & currency balances .
                     </p>
                   </div>
                 </div>
+
                 <Button
                   type="primary"
                   block
-                  size="large"
                   icon={<UserOutlined />}
                   onClick={() => setCustomerIdReportModalOpen(true)}
-                  className="!mt-4 !h-12 !rounded-xl !border-0 !bg-violet-600 !font-medium hover:!bg-violet-700"
+                  className="!mt-5 !h-10 !rounded-lg !border-cyan-500 !text-cyan-500 !bg-white hover:!bg-cyan-700 hover:!text-white"
                 >
                   Customer ID Report
                 </Button>
               </div>
-              {/* CUSTOMER STATEMENT */}
-              {/* Customer Account Statement */}
-              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
-                {" "}
-                <div className="!flex !items-start !gap-4">
-                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-emerald-200 !bg-emerald-50">
-                    <FileTextOutlined className="!text-2xl !text-emerald-600" />
+
+              {/* CUSTOMER ACCOUNT STATEMENT */}
+              <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
+                    <FileTextOutlined className="!text-xl !text-emerald-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-slate-800">
+                    <h3 className="text-base font-bold text-slate-800">
                       Customer Account Statement
                     </h3>
-
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
-                      Select a customer and generate a transaction statement.
+                    <p className="mt-1 text-xs text-slate-500">
+                      Customer Transaction Statement
                     </p>
                   </div>
                 </div>
+
                 <Button
                   type="primary"
                   block
-                  size="large"
                   icon={<FileTextOutlined />}
                   onClick={() => setCustomerStatementModalOpen(true)}
-                  className="!mt-4 !h-12 !rounded-xl !border-0 !bg-blue-600 !font-medium hover:!bg-blue-700"
+                  className="!mt-5 !h-10 !rounded-lg !border-cyan-500 !text-cyan-500 !bg-white hover:!bg-cyan-700 hover:!text-white"
                 >
                   Generate Statement
                 </Button>
               </div>
 
-              {/* Currency Balance Report */}
-              <div className="!rounded-[24px] !border !border-slate-200 !bg-white !p-6 !shadow-sm !transition-all !duration-300 hover:!shadow-md">
-                {" "}
-                <div className="!flex !items-start !gap-4">
-                  <div className="!flex !h-14 !w-14 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-cyan-200 !bg-cyan-50">
-                    <BankOutlined className="!text-2xl !text-cyan-600" />
+              {/* CURRENCY BALANCE REPORT */}
+              <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-100 bg-cyan-50">
+                    <BankOutlined className="!text-xl !text-cyan-600" />
                   </div>
 
                   <div>
-                    <h3 className="!text-xl !font-bold !text-slate-800">
+                    <h3 className="text-base font-bold text-slate-800">
                       Currency Balance Report
                     </h3>
-
-                    <p className="!mt-1 !text-sm !leading-6 !text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500">
                       View and print current balances by currency.
                     </p>
                   </div>
                 </div>
+
                 <Button
                   type="primary"
                   block
-                  size="large"
                   icon={<PrinterOutlined />}
                   onClick={() => setCurrencyBalanceModalOpen(true)}
-                  className="!mt-4 !h-12 !rounded-xl !border-0 !bg-cyan-600 !font-medium hover:!bg-cyan-700"
+                  className="!mt-5 !h-10 !rounded-lg !border-cyan-500 !text-cyan-500 !bg-white hover:!bg-cyan-700 hover:!text-white"
                 >
                   Print Currency Balance
                 </Button>
@@ -4245,28 +4522,32 @@ const Dashboard = () => {
           {/* FINANCIAL OVERVIEW */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-8">
             {/* CHART */}
-            <div className="xl:col-span-2 rounded-[24px] bg-white border border-slate-200 p-7 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
+            <div className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md">
+              {/* Header */}
+              <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-800">
+                  <h2 className="text-lg font-bold text-slate-800">
                     Transaction Chart
                   </h2>
 
-                  <p className="text-sm text-slate-500">
+                  <p className="mt-1 text-xs text-slate-500">
                     Transactions completed over the last 7 days
                   </p>
                 </div>
 
-                <SwapOutlined className="text-cyan-600 text-2xl" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-100 bg-cyan-50">
+                  <SwapOutlined className="text-xl text-cyan-600" />
+                </div>
               </div>
 
-              <ResponsiveContainer width="100%" height={320}>
+              {/* Chart */}
+              <ResponsiveContainer width="100%" height={260}>
                 <AreaChart
                   data={chartData}
                   margin={{
                     top: 10,
-                    right: 20,
-                    left: 0,
+                    right: 12,
+                    left: -15,
                     bottom: 0,
                   }}
                 >
@@ -4286,7 +4567,7 @@ const Dashboard = () => {
                   <XAxis
                     dataKey="name"
                     stroke="#CBD5E1"
-                    tick={{ fill: "#64748B" }}
+                    tick={{ fill: "#64748B", fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
                   />
@@ -4294,10 +4575,12 @@ const Dashboard = () => {
                   <YAxis
                     allowDecimals={false}
                     stroke="#CBD5E1"
-                    tick={{ fill: "#64748B" }}
+                    tick={{ fill: "#64748B", fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
+                    width={35}
                   />
+
                   <ChartTooltip
                     cursor={{ stroke: "#06b6d4", strokeWidth: 1 }}
                     content={<CustomTooltip />}
@@ -4307,217 +4590,310 @@ const Dashboard = () => {
                     type="monotone"
                     dataKey="count"
                     stroke="#06b6d4"
-                    strokeWidth={3}
+                    strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#colorCount)"
-                    activeDot={{ r: 6 }}
+                    activeDot={{ r: 5 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
             {/* QUICK STATS */}
-            <div className="space-y-5">
-              <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm transition-all duration-300 hover:shadow-md">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      Pending Transactions
-                    </p>
+            <div className="space-y-3">
+              {/* PENDING TRANSACTIONS */}
+              <div className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Pending Transactions
+                  </p>
 
-                    <h2 className="text-5xl font-black text-slate-900 mt-3">
-                      {pendingTransactions}
-                    </h2>
-                  </div>
+                  <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+                    {pendingTransactions}
+                  </h2>
+                </div>
 
-                  <div className="bg-cyan-50 p-4 rounded-2xl">
-                    <ClockCircleOutlined className="text-3xl text-cyan-600" />
-                  </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-100 bg-cyan-50">
+                  <ClockCircleOutlined className="text-2xl text-cyan-600" />
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm transition-all duration-300 hover:shadow-md">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-zinc-500">Pending Transfer</p>
+              {/* PENDING TRANSFERS */}
+              <div className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Pending Transfers
+                  </p>
 
-                    <h2 className="text-5xl font-black text-slate-900 mt-3">
-                      {pendingTransfers}
-                    </h2>
-                  </div>
+                  <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+                    {pendingTransfers}
+                  </h2>
+                </div>
 
-                  <div className="bg-emerald-50 p-4 rounded-2xl">
-                    <SyncOutlined className="text-3xl text-emerald-600" />
-                  </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
+                  <SyncOutlined className="text-2xl text-emerald-600" />
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm transition-all duration-300 hover:shadow-md">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-zinc-500">Pending Exchange</p>
+              {/* PENDING EXCHANGES */}
+              <div className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Pending Exchanges
+                  </p>
 
-                    <h2 className="text-5xl font-black text-slate-900 mt-3">
-                      {pendingExchanges}
-                    </h2>
-                  </div>
+                  <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+                    {pendingExchanges}
+                  </h2>
+                </div>
 
-                  <div className="bg-orange-50 p-4 rounded-2xl">
-                    <SwapOutlined className="text-3xl text-orange-600" />
-                  </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-orange-100 bg-orange-50">
+                  <SwapOutlined className="text-2xl text-orange-600" />
                 </div>
               </div>
             </div>
           </div>
+
 
           {/* RECENT TRANSACTIONS */}
-          <div className="!mt-8 !overflow-hidden !rounded-[24px] !border !border-slate-200 !bg-white !shadow-sm">
-            {/* Header */}
-            <div className="!px-8 !py-6 !border-b !border-slate-200">
-              <h2 className="!text-2xl !font-bold !text-slate-800">
-                Transaction History
-              </h2>
 
-              <p className="!mt-1 !text-sm !text-slate-500">
-                Search, filter and manage all customer transactions.
-              </p>
-            </div>
+          
+<div className="!mt-8 !w-full !min-w-0 !overflow-hidden !rounded-[24px] !border !border-slate-200/80 !bg-white !shadow-[0_12px_35px_rgba(15,23,42,0.07)]">
 
-            {/* Search */}
-            <div className="!p-8">
-              <div className="!flex !flex-wrap !items-center !gap-4 !mb-8">
-                <Input
-                  placeholder="🔍 Search customer, account or transaction..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ width: 320 }}
-                  className="!h-12 !rounded-xl"
-                />
+  {/* ================= HEADER ================= */}
+  <div className="!relative !overflow-hidden !border-b !border-slate-100 !bg-gradient-to-r !from-slate-50 !via-white !to-blue-50 !px-5 !py-6 sm:!px-8 sm:!py-7">
+    <div className="!absolute !-right-10 !-top-16 !h-48 !w-48 !rounded-full !bg-blue-200/30 !blur-3xl" />
 
-                <DatePicker
-                  placeholder="From Date"
-                  onChange={setFromDate}
-                  className="!h-12 !rounded-xl"
-                />
+    <div className="!relative !z-10 !flex !items-center !gap-3">
+      <div className="!flex !h-12 !w-12 !shrink-0 !items-center !justify-center !rounded-2xl !border !border-blue-100 !bg-gradient-to-br !from-white !to-blue-100 !text-blue-600 !shadow-[0_5px_12px_rgba(37,99,235,0.13)]">
+        <HistoryOutlined className="!text-2xl" />
+      </div>
 
-                <DatePicker
-                  placeholder="To Date"
-                  onChange={setToDate}
-                  className="!h-12 !rounded-xl"
-                />
+      <div className="!min-w-0">
+        <h2 className="!text-xl !font-extrabold !tracking-tight !text-slate-800 sm:!text-2xl">
+          Transaction History
+        </h2>
 
-                <Select
-                  placeholder="Currency"
-                  allowClear
-                  value={currency}
-                  onChange={setCurrency}
-                  style={{ width: 180 }}
-                  className="!h-12 !rounded-xl"
-                  options={(currencies || []).map((item) => ({
-                    label: item.currency,
-                    value: item.currency,
-                  }))}
-                />
+        <p className="!mt-1 !text-xs !text-slate-500 sm:!text-sm">
+          Search, filter and manage all customer transactions.
+        </p>
+      </div>
+    </div>
+  </div>
 
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={() => {
-                    printTransactions();
-                    resetStatementForm();
-                  }}
-                  icon={<PrinterOutlined className="!text-xl" />}
-                >
-                  Print Statement
-                </Button>
+  {/* ================= MAIN CONTENT ================= */}
+  <div className="!w-full !min-w-0 !p-4 sm:!p-6 lg:!p-8">
 
-                <Button
-                  size="large"
-                  onClick={() => {
-                    exportTransactionsToExcel();
-                    resetStatementForm();
-                  }}
-                  icon={
-                    <FileExcelOutlined className="!text-xl !text-green-600" />
-                  }
-                  className="!border-green-500 !text-green-600 hover:!border-green-600 hover:!text-green-700"
-                >
-                  Export to Excel
-                </Button>
-              </div>
+    {/* ================= SEARCH & FILTERS ================= */}
+    <div className="!mb-7 !w-full !rounded-2xl !border !border-slate-200 !bg-gradient-to-br !from-slate-50 !to-white !p-4 !shadow-sm sm:!p-5">
 
-              {/* Tabs */}
+      {/* Section heading */}
+      <div className="!mb-4 !flex !items-center !gap-2">
+        <div className="!flex !h-8 !w-8 !shrink-0 !items-center !justify-center !rounded-lg !bg-blue-100 !text-blue-600">
+          <SearchOutlined />
+        </div>
 
-              <Tabs
-                className="!mb-6"
-                activeKey={activeTab}
-                onChange={setActiveTab}
-                items={[
-                  {
-                    key: "transaction",
-                    label: `Transactions (${
-                      transactions.filter(
-                        (t) => t.transaction === "transaction",
-                      ).length
-                    })`,
-                  },
-                  {
-                    key: "transfer",
-                    label: `Transfers (${
-                      transactions.filter((t) => t.transaction === "transfer")
-                        .length
-                    })`,
-                  },
-                  {
-                    key: "exchange",
-                    label: `Exchanges (${
-                      transactions.filter((t) => t.transaction === "exchange")
-                        .length
-                    })`,
-                  },
-                ]}
+        <h3 className="!text-sm !font-bold !text-slate-700">
+          Search & Filters
+        </h3>
+      </div>
+
+      {/* Responsive filter grid */}
+      <div className="!grid !grid-cols-1 !gap-3 sm:!grid-cols-2 xl:!grid-cols-4">
+
+        {/* Search */}
+        <div className="!min-w-0 sm:!col-span-2 xl:!col-span-1">
+          <Input
+            placeholder="Search customer, account or transaction..."
+            prefix={<SearchOutlined className="!text-slate-400" />}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="!h-12 !w-full !rounded-xl !border-slate-200 hover:!border-blue-400 focus:!border-blue-500"
+          />
+        </div>
+
+        {/* From Date */}
+        <div className="!min-w-0">
+          <DatePicker
+            placeholder="From Date"
+            onChange={setFromDate}
+            className="!h-12 !w-full !rounded-xl !border-slate-200 hover:!border-blue-400"
+          />
+        </div>
+
+        {/* To Date */}
+        <div className="!min-w-0">
+          <DatePicker
+            placeholder="To Date"
+            onChange={setToDate}
+            className="!h-12 !w-full !rounded-xl !border-slate-200 hover:!border-blue-400"
+          />
+        </div>
+
+        {/* Currency */}
+        <div className="!min-w-0">
+          <Select
+            placeholder="Select Currency"
+            allowClear
+            value={currency}
+            onChange={setCurrency}
+            className="!h-12 !w-full"
+            options={(currencies || []).map((item) => ({
+              label: item.currency,
+              value: item.currency,
+            }))}
+          />
+        </div>
+
+      </div>
+
+      {/* Action buttons */}
+      <div className="!mt-5 !grid !grid-cols-1 !gap-3 !border-t !border-slate-200 !pt-5 sm:!grid-cols-2">
+
+        {/* Print */}
+        <Button
+          type="primary"
+          size="large"
+          block
+          onClick={() => {
+            printTransactions();
+            resetStatementForm();
+          }}
+          icon={<PrinterOutlined />}
+          className="!h-12 !w-full !rounded-xl !border-0 !bg-gradient-to-r !from-blue-600 !to-indigo-600 !font-semibold !shadow-[0_5px_12px_rgba(37,99,235,0.2)] hover:!from-blue-700 hover:!to-indigo-700"
+        >
+          Print Statement
+        </Button>
+
+        {/* Excel */}
+        <Button
+          size="large"
+          block
+          onClick={() => {
+            exportTransactionsToExcel();
+            resetStatementForm();
+          }}
+          icon={<FileExcelOutlined className="!text-emerald-600" />}
+          className="!h-12 !w-full !rounded-xl !border !border-emerald-200 !bg-emerald-50 !font-semibold !text-emerald-700 hover:!border-emerald-400 hover:!bg-emerald-100"
+        >
+          Export to Excel
+        </Button>
+
+      </div>
+    </div>
+
+    {/* ================= TABS ================= */}
+    <div className="!mb-6 !w-full !min-w-0 !overflow-hidden !rounded-2xl !border !border-slate-200 !bg-white !px-3 !pt-3 !shadow-sm">
+
+      <div className="!overflow-x-auto">
+        <Tabs
+          className="!mb-0"
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: "transaction",
+              label: (
+                <span className="!whitespace-nowrap !text-xs !font-semibold sm:!text-sm">
+                  Transactions (
+                  {transactions.filter(
+                    (t) => t.transaction === "transaction",
+                  ).length}
+                  )
+                </span>
+              ),
+            },
+            {
+              key: "transfer",
+              label: (
+                <span className="!whitespace-nowrap !text-xs !font-semibold sm:!text-sm">
+                  Transfers (
+                  {transactions.filter(
+                    (t) => t.transaction === "transfer",
+                  ).length}
+                  )
+                </span>
+              ),
+            },
+            {
+              key: "exchange",
+              label: (
+                <span className="!whitespace-nowrap !text-xs !font-semibold sm:!text-sm">
+                  Exchanges (
+                  {transactions.filter(
+                    (t) => t.transaction === "exchange",
+                  ).length}
+                  )
+                </span>
+              ),
+            },
+          ]}
+        />
+      </div>
+    </div>
+
+    {/* ================= TABLE ================= */}
+    <div className="!mb-10 !w-full !min-w-0 !overflow-hidden !rounded-2xl !border !border-slate-200 !bg-white !shadow-[0_5px_20px_rgba(15,23,42,0.04)]">
+
+      {/* Table heading */}
+      <div className="!flex !flex-wrap !items-center !justify-between !gap-3 !border-b !border-slate-100 !bg-slate-50/80 !px-4 !py-4 sm:!px-5">
+        <div>
+          <h3 className="!text-sm !font-bold !text-slate-800">
+            Transaction Records
+          </h3>
+
+          <p className="!mt-1 !text-xs !text-slate-500">
+            Review your customer transaction details.
+          </p>
+        </div>
+
+        <span className="!rounded-full !border !border-blue-100 !bg-blue-50 !px-3 !py-1.5 !text-xs !font-bold !text-blue-700">
+          {filteredTransactions.length} Records
+        </span>
+      </div>
+
+      {/* Existing table */}
+      <div className="!w-full !overflow-x-auto">
+        <Table
+          columns={columns}
+          dataSource={filteredTransactions}
+          rowKey="_id"
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <div className="py-2">
+                    <h3 className="text-lg font-semibold text-rose-700">
+                      {search
+                        ? "No Results Found"
+                        : "No Data Available"}
+                    </h3>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      {search
+                        ? `No customer, account, or transaction matches "${search}".`
+                        : "There are no records to display."}
+                    </p>
+                  </div>
+                }
               />
+            ),
+          }}
+          pagination={{
+            pageSize: 8,
+            showSizeChanger: false,
+            responsive: true,
+          }}
+          scroll={{ x: 1200 }}
+          className="custom-light-table"
+        />
+      </div>
+    </div>
 
-              {/* Table */}
+  </div>
+</div>
 
-              <div className="mb-10 !overflow-x-auto !rounded-2xl !border !border-slate-200 !bg-white !shadow-sm">
-                <Table
-                  columns={columns}
-                  dataSource={filteredTransactions}
-                  rowKey="_id"
-                  locale={{
-                    emptyText: (
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={
-                          <div className="py-2">
-                            <h3 className="text-lg font-semibold text-rose-700">
-                              {search
-                                ? "No Results Found"
-                                : "No Data Available"}
-                            </h3>
-
-                            <p className="mt-1 text-sm text-gray-500">
-                              {search
-                                ? `No customer, account, or transaction matches "${search}".`
-                                : "There are no records to display."}
-                            </p>
-                          </div>
-                        }
-                      />
-                    ),
-                  }}
-                  pagination={{
-                    pageSize: 8,
-                    showSizeChanger: false,
-                    responsive: true,
-                  }}
-                  scroll={{ x: 1200 }}
-                  className="custom-light-table"
-                />
-              </div>
-            </div>
-          </div>
         </Content>
       </Layout>
 

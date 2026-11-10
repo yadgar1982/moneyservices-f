@@ -3163,47 +3163,44 @@ const Transactions = () => {
       width: 180,
       render: (value) => value || "—",
     },
-    {
-      title: "TRX-Type",
-      dataIndex: "transactionType",
-      width: 130,
-      render: (value) => {
-        if (!value) return "—";
 
-        const type = String(value).toLowerCase();
-
-        return (
-          <Tag
-            color={
-              type === "credit" ? "green" : type === "debit" ? "red" : "blue"
-            }
-          >
-            {value}
-          </Tag>
-        );
-      },
-    },
     {
-      title: "Amount",
+      title: "Credit",
       dataIndex: "amount",
       width: 140,
-      align: "left",
-      render: (value, record) => (
-        <Space size={6}>
-          <Tag
-            color={getCurrencyColor(record.currency)}
-            style={{ margin: 0, fontWeight: 600 }}
-          >
-            {record.currency || "—"}
-          </Tag>
-          <span className="font-medium">
+      align: "right",
+      render: (value, record) =>
+        record.transactionType === "credit"
+          ? Number(value || 0).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "0.00",
+    },
+    {
+      title: "Debit",
+      dataIndex: "amount",
+      width: 140,
+      align: "right",
+      render: (value, record) =>
+        record.transactionType === "debit" ? (
+          <span style={{ color: "red", fontWeight: 600 }}>
             {Number(value || 0).toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
           </span>
-        </Space>
-      ),
+        ) : (
+           <span style={{ color: "red", fontWeight: 600 }}>
+            0.00
+          </span>
+        ),
+    },
+    {
+      title: "Transaction ID",
+      dataIndex: "transactionId",
+      width: 160,
+      render: (value) => value || "—",
     },
     {
       title: "Currency",
@@ -3244,12 +3241,7 @@ const Transactions = () => {
       render: (value) => value || "—",
     },
 
-    {
-      title: "Transaction ID",
-      dataIndex: "transactionId",
-      width: 160,
-      render: (value) => value || "—",
-    },
+    
     {
       title: "Photo",
       dataIndex: "image",
@@ -4321,25 +4313,27 @@ Details: ${record.details || "-"}
                           }}
                           onRemove={() => setScannedDoc(null)}
                         >
-                         <Button
-  size="large"
-  icon={<PaperClipOutlined className="!text-lg transition-transform duration-200 group-hover:rotate-[-15deg]" />}
-  className="group !flex !h-12 !items-center !justify-center !gap-2 !rounded-xl !border !border-slate-200 !bg-gradient-to-b !from-white !to-slate-100 !px-6 !font-semibold !text-slate-700 !shadow-[0_4px_0_#cbd5e1,0_6px_12px_rgba(15,23,42,0.08)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-blue-300 hover:!from-blue-50 hover:!to-blue-100 hover:!text-blue-700 hover:!shadow-[0_6px_0_#bfdbfe,0_10px_18px_rgba(37,99,235,0.15)] active:!translate-y-1 active:!shadow-none"
->
-  Documents
-</Button>
+                          <Button
+                            size="large"
+                            icon={
+                              <PaperClipOutlined className="!text-lg transition-transform duration-200 group-hover:rotate-[-15deg]" />
+                            }
+                            className="group !flex !h-12 !items-center !justify-center !gap-2 !rounded-xl !border !border-slate-200 !bg-gradient-to-b !from-white !to-slate-100 !px-6 !font-semibold !text-slate-700 !shadow-[0_4px_0_#cbd5e1,0_6px_12px_rgba(15,23,42,0.08)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-blue-300 hover:!from-blue-50 hover:!to-blue-100 hover:!text-blue-700 hover:!shadow-[0_6px_0_#bfdbfe,0_10px_18px_rgba(37,99,235,0.15)] active:!translate-y-1 active:!shadow-none"
+                          >
+                            Documents
+                          </Button>
                         </Upload>
                       </Form.Item>
 
-                    <Button
-  size="large"
-  onClick={() => setOpenModal(true)}
-  title="Camera / Signature"
-  className="group !flex !h-12 !items-center !justify-center !gap-3 !rounded-xl !border-0 !bg-gradient-to-br !from-blue-600 !via-blue-500 !to-cyan-400 !px-6 !text-white !shadow-[0_4px_0_#1e40af,0_7px_14px_rgba(37,99,235,0.25)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!from-blue-700 hover:!to-cyan-500 hover:!shadow-[0_6px_0_#1e40af,0_10px_20px_rgba(37,99,235,0.30)] active:!translate-y-1 active:!shadow-none"
->
-  <CameraOutlined className="!text-xl transition-transform duration-200 group-hover:scale-110" />
-  <SignatureOutlined className="!text-xl transition-transform duration-200 group-hover:scale-110" />
-</Button>
+                      <Button
+                        size="large"
+                        onClick={() => setOpenModal(true)}
+                        title="Camera / Signature"
+                        className="group !flex !h-12 !items-center !justify-center !gap-3 !rounded-xl !border-0 !bg-gradient-to-br !from-blue-600 !via-blue-500 !to-cyan-400 !px-6 !text-white !shadow-[0_4px_0_#1e40af,0_7px_14px_rgba(37,99,235,0.25)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!from-blue-700 hover:!to-cyan-500 hover:!shadow-[0_6px_0_#1e40af,0_10px_20px_rgba(37,99,235,0.30)] active:!translate-y-1 active:!shadow-none"
+                      >
+                        <CameraOutlined className="!text-xl transition-transform duration-200 group-hover:scale-110" />
+                        <SignatureOutlined className="!text-xl transition-transform duration-200 group-hover:scale-110" />
+                      </Button>
                     </Space>
                   </Col>
 
@@ -4456,36 +4450,36 @@ Details: ${record.details || "-"}
               {/* ACTION BUTTONS */}
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4">
                 {/* PASSED / PENDING */}
-              <Button
-  onClick={() => setShowIsPassed(!showIsPassed)}
-  className={`!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border-0 !px-6 !font-semibold !tracking-wide !text-white !shadow-[0_4px_0_rgba(0,0,0,0.15),0_6px_12px_rgba(37,99,235,0.18)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!shadow-lg active:!translate-y-1 active:!shadow-none ${
-    showIsPassed
-      ? "!bg-gradient-to-r !from-indigo-600 !via-violet-600 !to-purple-500 hover:!from-indigo-700 hover:!to-purple-600"
-      : "!bg-gradient-to-r !from-blue-600 !via-blue-500 !to-cyan-500 hover:!from-blue-700 hover:!to-cyan-600"
-  }`}
->
-  {showIsPassed ? "Passed" : "Pending"}
-</Button>
+                <Button
+                  onClick={() => setShowIsPassed(!showIsPassed)}
+                  className={`!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border-0 !px-6 !font-semibold !tracking-wide !text-white !shadow-[0_4px_0_rgba(0,0,0,0.15),0_6px_12px_rgba(37,99,235,0.18)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!shadow-lg active:!translate-y-1 active:!shadow-none ${
+                    showIsPassed
+                      ? "!bg-gradient-to-r !from-indigo-600 !via-violet-600 !to-purple-500 hover:!from-indigo-700 hover:!to-purple-600"
+                      : "!bg-gradient-to-r !from-blue-600 !via-blue-500 !to-cyan-500 hover:!from-blue-700 hover:!to-cyan-600"
+                  }`}
+                >
+                  {showIsPassed ? "Passed" : "Pending"}
+                </Button>
 
                 {/* PRINT */}
-               <Button
-  size="large"
-  icon={<PrinterOutlined className="!text-lg" />}
-  onClick={printTransactionHistory}
-  className="!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border !border-blue-200 !bg-gradient-to-b !from-white !to-blue-50 !px-6 !font-semibold !text-blue-700 !shadow-[0_4px_0_#bfdbfe,0_6px_12px_rgba(37,99,235,0.10)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-blue-400 hover:!from-blue-500 hover:!to-indigo-600 hover:!text-white hover:!shadow-[0_6px_0_#3730a3,0_10px_18px_rgba(37,99,235,0.20)] active:!translate-y-1 active:!shadow-none"
->
-  Print
-</Button>
+                <Button
+                  size="large"
+                  icon={<PrinterOutlined className="!text-lg" />}
+                  onClick={printTransactionHistory}
+                  className="!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border !border-blue-200 !bg-gradient-to-b !from-white !to-blue-50 !px-6 !font-semibold !text-blue-700 !shadow-[0_4px_0_#bfdbfe,0_6px_12px_rgba(37,99,235,0.10)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-blue-400 hover:!from-blue-500 hover:!to-indigo-600 hover:!text-white hover:!shadow-[0_6px_0_#3730a3,0_10px_18px_rgba(37,99,235,0.20)] active:!translate-y-1 active:!shadow-none"
+                >
+                  Print
+                </Button>
 
                 {/* EXCEL */}
                 <Button
-  size="large"
-  icon={<FileTextOutlined className="!text-lg" />}
-  onClick={exportTransactionHistoryToExcel}
-  className="!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border !border-emerald-200 !bg-gradient-to-b !from-white !to-emerald-50 !px-6 !font-semibold !text-emerald-700 !shadow-[0_4px_0_#a7f3d0,0_6px_12px_rgba(16,185,129,0.10)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-emerald-400 hover:!from-emerald-500 hover:!to-teal-600 hover:!text-white hover:!shadow-[0_6px_0_#0f766e,0_10px_18px_rgba(16,185,129,0.20)] active:!translate-y-1 active:!shadow-none"
->
-  Excel
-</Button>
+                  size="large"
+                  icon={<FileTextOutlined className="!text-lg" />}
+                  onClick={exportTransactionHistoryToExcel}
+                  className="!flex !h-11 !items-center !justify-center !gap-2 !rounded-xl !border !border-emerald-200 !bg-gradient-to-b !from-white !to-emerald-50 !px-6 !font-semibold !text-emerald-700 !shadow-[0_4px_0_#a7f3d0,0_6px_12px_rgba(16,185,129,0.10)] !transition-all !duration-200 hover:!-translate-y-0.5 hover:!border-emerald-400 hover:!from-emerald-500 hover:!to-teal-600 hover:!text-white hover:!shadow-[0_6px_0_#0f766e,0_10px_18px_rgba(16,185,129,0.20)] active:!translate-y-1 active:!shadow-none"
+                >
+                  Excel
+                </Button>
               </div>
             </div>
 
@@ -4662,162 +4656,162 @@ Details: ${record.details || "-"}
                 //   },
                 // ]}
                 items={[
-  {
-    key: "1",
-    label: (
-      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-blue-300 bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-xs font-semibold text-white shadow-[0_3px_0_#1e40af,0_5px_10px_rgba(37,99,235,0.15)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:text-sm">
-        <BookOutlined className="text-base" />
-        Transactions
-      </span>
-    ),
-    children: (
-      <div className="w-full min-w-0 pb-10 sm:pb-16">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <Table
-            rowKey="_id"
-            columns={columns}
-            dataSource={filterData(datasource || [])}
-            bordered
-            sticky
-            size="small"
-            locale={{
-              emptyText: (
-                <Empty
-                  description={
-                    <div className="py-2">
-                      <h3 className="text-lg font-semibold text-rose-700">
-                        {searchText
-                          ? "No Results Found"
-                          : "No Data Available"}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {searchText
-                          ? `No transaction records match "${searchText}".`
-                          : "There are no transaction records to display."}
-                      </p>
-                    </div>
-                  }
-                />
-              ),
-            }}
-            pagination={{
-              current: historyPage,
-              pageSize: 10,
-              size: "small",
-              showSizeChanger: false,
-              onChange: (page) => setHistoryPage(page),
-            }}
-            scroll={{ x: "max-content" }}
-          />
-        </div>
-      </div>
-    ),
-  },
+                  {
+                    key: "1",
+                    label: (
+                      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-blue-300 bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-xs font-semibold text-white shadow-[0_3px_0_#1e40af,0_5px_10px_rgba(37,99,235,0.15)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:text-sm">
+                        <BookOutlined className="text-base" />
+                        Transactions
+                      </span>
+                    ),
+                    children: (
+                      <div className="w-full min-w-0 pb-10 sm:pb-16">
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                          <Table
+                            rowKey="_id"
+                            columns={columns}
+                            dataSource={filterData(datasource || [])}
+                            bordered
+                            sticky
+                            size="small"
+                            locale={{
+                              emptyText: (
+                                <Empty
+                                  description={
+                                    <div className="py-2">
+                                      <h3 className="text-lg font-semibold text-rose-700">
+                                        {searchText
+                                          ? "No Results Found"
+                                          : "No Data Available"}
+                                      </h3>
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        {searchText
+                                          ? `No transaction records match "${searchText}".`
+                                          : "There are no transaction records to display."}
+                                      </p>
+                                    </div>
+                                  }
+                                />
+                              ),
+                            }}
+                            pagination={{
+                              current: historyPage,
+                              pageSize: 10,
+                              size: "small",
+                              showSizeChanger: false,
+                              onChange: (page) => setHistoryPage(page),
+                            }}
+                            scroll={{ x: "max-content" }}
+                          />
+                        </div>
+                      </div>
+                    ),
+                  },
 
-  {
-    key: "2",
-    label: (
-      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-[0_3px_0_#cbd5e1,0_5px_10px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:from-indigo-50 hover:to-blue-100 hover:text-indigo-700 hover:shadow-md sm:text-sm">
-        <DollarCircleOutlined className="text-base" />
-        Transfers
-      </span>
-    ),
-    children: (
-      <div className="w-full min-w-0 pb-10 sm:pb-16">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <Table
-            rowKey="_id"
-            columns={columns}
-            dataSource={filterData(datasourceTransfer || [])}
-            bordered
-            sticky
-            size="small"
-            locale={{
-              emptyText: (
-                <Empty
-                  description={
-                    <div className="py-2">
-                      <h3 className="text-lg font-semibold text-rose-700">
-                        {search
-                          ? "No Results Found"
-                          : "No Data Available"}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {search
-                          ? `No transfer records match "${search}".`
-                          : "There are no transfer records to display."}
-                      </p>
-                    </div>
-                  }
-                />
-              ),
-            }}
-            pagination={{
-              current: historyPage,
-              pageSize: 10,
-              size: "small",
-              showSizeChanger: false,
-              onChange: (page) => setHistoryPage(page),
-            }}
-            scroll={{ x: "max-content" }}
-          />
-        </div>
-      </div>
-    ),
-  },
+                  {
+                    key: "2",
+                    label: (
+                      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-[0_3px_0_#cbd5e1,0_5px_10px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:from-indigo-50 hover:to-blue-100 hover:text-indigo-700 hover:shadow-md sm:text-sm">
+                        <DollarCircleOutlined className="text-base" />
+                        Transfers
+                      </span>
+                    ),
+                    children: (
+                      <div className="w-full min-w-0 pb-10 sm:pb-16">
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                          <Table
+                            rowKey="_id"
+                            columns={columns}
+                            dataSource={filterData(datasourceTransfer || [])}
+                            bordered
+                            sticky
+                            size="small"
+                            locale={{
+                              emptyText: (
+                                <Empty
+                                  description={
+                                    <div className="py-2">
+                                      <h3 className="text-lg font-semibold text-rose-700">
+                                        {search
+                                          ? "No Results Found"
+                                          : "No Data Available"}
+                                      </h3>
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        {search
+                                          ? `No transfer records match "${search}".`
+                                          : "There are no transfer records to display."}
+                                      </p>
+                                    </div>
+                                  }
+                                />
+                              ),
+                            }}
+                            pagination={{
+                              current: historyPage,
+                              pageSize: 10,
+                              size: "small",
+                              showSizeChanger: false,
+                              onChange: (page) => setHistoryPage(page),
+                            }}
+                            scroll={{ x: "max-content" }}
+                          />
+                        </div>
+                      </div>
+                    ),
+                  },
 
-  {
-    key: "3",
-    label: (
-      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-[0_3px_0_#cbd5e1,0_5px_10px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:from-violet-50 hover:to-purple-100 hover:text-violet-700 hover:shadow-md sm:text-sm">
-        <SwapOutlined className="text-base" />
-        Exchanges
-      </span>
-    ),
-    children: (
-      <div className="w-full min-w-0 pb-10 sm:pb-16">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <Table
-            rowKey="_id"
-            columns={columns}
-            dataSource={filterData(datasourceExchange || [])}
-            bordered
-            sticky
-            size="small"
-            locale={{
-              emptyText: (
-                <Empty
-                  description={
-                    <div className="py-2">
-                      <h3 className="text-lg font-semibold text-cyan-700">
-                        {searchText
-                          ? "No Results Found"
-                          : "No Data Available"}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {searchText
-                          ? `No transaction records match "${searchText}".`
-                          : "There are no transaction records to display."}
-                      </p>
-                    </div>
-                  }
-                />
-              ),
-            }}
-            pagination={{
-              current: historyPage,
-              pageSize: 10,
-              size: "small",
-              showSizeChanger: false,
-              onChange: (page) => setHistoryPage(page),
-            }}
-            scroll={{ x: "max-content" }}
-          />
-        </div>
-      </div>
-    ),
-  },
-]}
+                  {
+                    key: "3",
+                    label: (
+                      <span className="group flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 shadow-[0_3px_0_#cbd5e1,0_5px_10px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:from-violet-50 hover:to-purple-100 hover:text-violet-700 hover:shadow-md sm:text-sm">
+                        <SwapOutlined className="text-base" />
+                        Exchanges
+                      </span>
+                    ),
+                    children: (
+                      <div className="w-full min-w-0 pb-10 sm:pb-16">
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                          <Table
+                            rowKey="_id"
+                            columns={columns}
+                            dataSource={filterData(datasourceExchange || [])}
+                            bordered
+                            sticky
+                            size="small"
+                            locale={{
+                              emptyText: (
+                                <Empty
+                                  description={
+                                    <div className="py-2">
+                                      <h3 className="text-lg font-semibold text-cyan-700">
+                                        {searchText
+                                          ? "No Results Found"
+                                          : "No Data Available"}
+                                      </h3>
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        {searchText
+                                          ? `No transaction records match "${searchText}".`
+                                          : "There are no transaction records to display."}
+                                      </p>
+                                    </div>
+                                  }
+                                />
+                              ),
+                            }}
+                            pagination={{
+                              current: historyPage,
+                              pageSize: 10,
+                              size: "small",
+                              showSizeChanger: false,
+                              onChange: (page) => setHistoryPage(page),
+                            }}
+                            scroll={{ x: "max-content" }}
+                          />
+                        </div>
+                      </div>
+                    ),
+                  },
+                ]}
               />
             </div>
           </div>

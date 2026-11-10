@@ -1,5 +1,4 @@
 import HomeLayout from "../Shared/Layouts/HomeLayout";
-import React from "react";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { useEffect, useState } from "react";
@@ -12,9 +11,7 @@ import {
   Select,
   Row,
   Col,
-  Checkbox,
   Card,
-  Statistic,
   Table,
   Popconfirm,
   Modal,
@@ -36,15 +33,20 @@ import { fetchUsers } from "../../redux/slices/customerSlice";
 
 import { fetcher, http } from "../Modules/http";
 import useSWR, { mutate } from "swr";
+import { ArrowLeftRight } from "lucide-react";
 import {
-  CheckOutlined,
+
   DeleteOutlined,
   EditOutlined,
   PrinterOutlined,
   WalletOutlined,
   FileExcelOutlined,
+  BankOutlined,
+  DollarCircleOutlined,
+  FileTextOutlined,
+  SaveOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
-
 
 const Vault = () => {
   const [edit, setEdit] = useState(false);
@@ -81,27 +83,27 @@ const Vault = () => {
   const { data, error } = useSWR("/api/vault/read", fetcher);
   const Vaults = data?.data || [];
 
- const onFinish = async (values) => {
-  if (Array.isArray(values.accountNo)) {
-    values.accountNo = values.accountNo[0];
-  }
+  const onFinish = async (values) => {
+    if (Array.isArray(values.accountNo)) {
+      values.accountNo = values.accountNo[0];
+    }
 
-  const vaultData = {
-    ...values,
-    isActive: true,
+    const vaultData = {
+      ...values,
+      isActive: true,
+    };
+
+    console.log("Sending:", vaultData);
+
+    try {
+      await http().post("/api/vault/create", vaultData);
+      toast.success("data has been saved successfully");
+      mutate("/api/vault/read");
+      form.resetFields();
+    } catch (error) {
+      console.log(error.message);
+    }
   };
-
-  console.log("Sending:", vaultData);
-
-  try {
-    await http().post("/api/vault/create", vaultData);
-    toast.success("data has been saved successfully");
-    mutate("/api/vault/read");
-    form.resetFields();
-  } catch (error) {
-    console.log(error.message);
-  }
-};
 
   //   Edit Vault
   const handleEdit = (record) => {
@@ -126,39 +128,39 @@ const Vault = () => {
     try {
       const id = values.transactionId;
       if (!id) {
-      toast.error("No transaction available");
-      return;
+        toast.error("No transaction available");
+        return;
+      }
+
+      const { transactionId, ...formData } = values;
+
+      await http().put(`/api/vault/update/${id}`, formData);
+
+      toast.success("Record Updated!");
+
+      await mutate("/api/vault/read");
+
+      setEdit(false);
+      form.resetFields();
+    } catch (err) {
+      console.error("Update Failed:", err);
+      toast.error(err.response?.data?.msg || "Failed to update record");
     }
-
-    const { transactionId, ...formData } = values;
-
-    await http().put(`/api/vault/update/${id}`, formData);
-
-    toast.success("Record Updated!");
-
-    await mutate("/api/vault/read");
-
-    setEdit(false);
-    form.resetFields();
-  } catch (err) {
-    console.error("Update Failed:", err);
-    toast.error(err.response?.data?.msg || "Failed to update record");
-  }
   };
 
   // Delete Vault
- const onDelete = async (transactionId) => {
-  try {
-    await http().delete(`/api/vault/delete/${transactionId}`);
+  const onDelete = async (transactionId) => {
+    try {
+      await http().delete(`/api/vault/delete/${transactionId}`);
 
-    await mutate("/api/vault/read");
+      await mutate("/api/vault/read");
 
-    toast.success("Vault deleted!");
-  } catch (err) {
-    console.error("Failed to delete Vault:", err);
-    toast.error(err.response?.data?.msg || "Failed to delete Vault");
-  }
-};
+      toast.success("Vault deleted!");
+    } catch (err) {
+      console.error("Failed to delete Vault:", err);
+      toast.error(err.response?.data?.msg || "Failed to delete Vault");
+    }
+  };
 
   // Vaults details
   const today = new Date().toDateString();
@@ -519,37 +521,35 @@ const Vault = () => {
       return 0;
     }
 
-    return Vaults
-      .filter((transaction) => {
-        const sameCurrency =
-          String(transaction.currency || "").toUpperCase() ===
-          String(currency).toUpperCase();
+    return Vaults.filter((transaction) => {
+      const sameCurrency =
+        String(transaction.currency || "").toUpperCase() ===
+        String(currency).toUpperCase();
 
-        if (!sameCurrency) {
-          return false;
-        }
+      if (!sameCurrency) {
+        return false;
+      }
 
-        // If an account is selected,
-        // only calculate that account's balance.
-        if (
-          accountNo !== undefined &&
-          accountNo !== null &&
-          String(accountNo).trim() !== ""
-        ) {
-          return String(transaction.accountNo) === String(accountNo);
-        }
+      // If an account is selected,
+      // only calculate that account's balance.
+      if (
+        accountNo !== undefined &&
+        accountNo !== null &&
+        String(accountNo).trim() !== ""
+      ) {
+        return String(transaction.accountNo) === String(accountNo);
+      }
 
-        // No account selected,
-        // include all accounts for this currency.
-        return true;
-      })
-      .reduce((balance, transaction) => {
-        const credit = Number(transaction.credit) || 0;
+      // No account selected,
+      // include all accounts for this currency.
+      return true;
+    }).reduce((balance, transaction) => {
+      const credit = Number(transaction.credit) || 0;
 
-        const debit = Number(transaction.debit) || 0;
+      const debit = Number(transaction.debit) || 0;
 
-        return balance + credit - debit;
-      }, 0);
+      return balance + credit - debit;
+    }, 0);
   };
 
   // PRINT ACCOUNT STATEMENT
@@ -1336,44 +1336,45 @@ const Vault = () => {
     );
   };
   const columns = [
-   {
-  title: "S/N",
-  key: "serialNo",
-  render: (_, __, index) => index + 1,
-},
-   {
-  title: "Date",
-  dataIndex: "createdAt",
-  key: "createdAt",
-  render: (date) =>
-    date && dayjs(date).isValid()
-      ? dayjs(date).format("DD-MM-YYYY")
-      : "-",
-},
+    {
+      title: "S/N",
+      key: "serialNo",
+      render: (_, __, index) => index + 1,
+    },
+    {
+      title: "Date",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (date) =>
+        date && dayjs(date).isValid() ? dayjs(date).format("DD-MM-YYYY") : "-",
+    },
 
     {
       title: "Currency",
       dataIndex: "currency",
     },
 
-   {
-  title: "Credit",
-  dataIndex: "credit",
-  render: (value) =>
-    Number(value || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }),
-},
-{
-  title: "Debit",
-  dataIndex: "debit",
-  render: (value) =>
-    Number(value || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }),
-},
+    {
+      title: "Credit",
+      dataIndex: "credit",
+      render: (value) =>
+        Number(value || 0).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+    },
+    {
+      title: "Debit",
+      dataIndex: "debit",
+      render: (value) => (
+        <span style={{ color: "red", fontWeight: 600 }}>
+          {Number(value || 0).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </span>
+      ),
+    },
 
     {
       title: "Transaction",
@@ -1405,936 +1406,557 @@ const Vault = () => {
         );
       },
     },
-   {
-  title: "Edit",
-  key: "edit",
-  fixed: "right",
-  width: 20,
-  render: (_, record) => {
-    return record.isActive === true ? (
-      <EditOutlined
-        className="!text-blue-600 !cursor-pointer"
-        onClick={() => handleEdit(record)}
-      />
-    ) : (
-      <EditOutlined
-        className="!text-gray-300 !cursor-not-allowed"
-      />
-    );
-  },
-},
-{
-  title: "Delete",
-  key: "isDelete",
-  fixed: "right",
-  width: 20,
-  render: (_, record) => {
-    return record.isActive === true ? (
-      <Popconfirm
-        title="Are you sure you want to delete this record?"
-        onConfirm={() => onDelete(record.transactionId)}
-      >
-        <DeleteOutlined className="!text-xl rounded !text-rose-600 !cursor-pointer" />
-      </Popconfirm>
-    ) : (
-      <DeleteOutlined className="!text-xl !text-gray-300 !cursor-not-allowed" />
-    );
-  },
-},
+    {
+      title: "Edit",
+      key: "edit",
+      fixed: "right",
+      width: 20,
+      render: (_, record) => {
+        return record.isActive === true ? (
+          <EditOutlined
+            className="!text-blue-600 !cursor-pointer"
+            onClick={() => handleEdit(record)}
+          />
+        ) : (
+          <EditOutlined className="!text-gray-300 !cursor-not-allowed" />
+        );
+      },
+    },
+    {
+      title: "Delete",
+      key: "isDelete",
+      fixed: "right",
+      width: 20,
+      render: (_, record) => {
+        return record.isActive === true ? (
+          <Popconfirm
+            title="Are you sure you want to delete this record?"
+            onConfirm={() => onDelete(record.transactionId)}
+          >
+            <DeleteOutlined className="!text-xl rounded !text-rose-600 !cursor-pointer" />
+          </Popconfirm>
+        ) : (
+          <DeleteOutlined className="!text-xl !text-gray-300 !cursor-not-allowed" />
+        );
+      },
+    },
   ];
   return (
-//     <HomeLayout>
-//       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-cyan-50/30 p-4 md:p-8">
-//         <div className="mb-8 rounded-3xl bg-white/80 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/50 p-8">
-//           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-//             <div>
-//               <h1 className="text-4xl font-black tracking-tight text-slate-800">
-//                 Vault Management
-//               </h1>
-
-//               <p className="mt-2 text-slate-500 text-lg">
-//                 Manage Vault daily transaction with ease.
-//               </p>
-//             </div>
-
-//             <div className="mt-5 md:mt-0">
-//               <div className="px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold shadow-lg">
-//                 <WalletOutlined /> Today's Summary
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//         {/* status */}
-//         <Row gutter={[16, 16]} className="mb-6 flex justify-center w-full">
-//           {Object.entries(todayTotals).map(([currency, total]) => {
-//             const net = total.credit - total.debit;
-
-//             console.log("ALL VAULT:", Vaults.length);
-// console.log("TODAY VAULT:", todayVault.length);
-//             return (
-//               <Col xs={24} sm={12} md={8} lg={6} key={currency}>
-//                 <div className="rounded-2xl border border-slate-200 bg-white shadow-md hover:shadow-xl transition-all duration-300 p-4">
-//                   <h3 className="text-lg font-bold text-slate-700 border-b pb-2 mb-3">
-//                     {currency}
-//                   </h3>
-
-//                   <div className="flex justify-between items-center mb-2">
-//                     <span className="text-slate-500 font-medium">Credit</span>
-//                     <span className="text-green-600 font-bold text-lg">
-//                      {Number(total.credit || 0).toLocaleString("en-US", {
-//                         minimumFractionDigits: 2,
-//                         maximumFractionDigits: 2,
-//                       })}
-//                     </span>
-//                   </div>
-
-//                   <div className="flex justify-between items-center mb-2">
-//                     <span className="text-slate-500 font-medium">Debit</span>
-//                     <span className="text-red-600 font-bold text-lg">
-//                       {Number(total.debit || 0).toLocaleString("en-US", {
-//                         minimumFractionDigits: 2,
-//                         maximumFractionDigits: 2,
-//                       })}
-//                     </span>
-//                   </div>
-
-//                   <div className="border-t mt-3 pt-3 flex justify-between items-center">
-//                     <span className="text-slate-700 font-semibold">Net</span>
-//                     <span
-//                       className={`text-xl font-extrabold ${
-//                         net >= 0 ? "text-blue-600" : "text-red-600"
-//                       }`}
-//                     >
-//                       {Number(net || 0).toLocaleString("en-US", {
-//                         minimumFractionDigits: 2,
-//                         maximumFractionDigits: 2,
-//                       })}
-//                     </span>
-//                   </div>
-//                 </div>
-//               </Col>
-//             );
-//           })}
-//         </Row>
-//         {/* Form */}
-//         <div className="flex justify-center w-full ">
-//           <Card
-//             className="!w-full xl:!w-9/12 !rounded-2xl !shadow-xl !border-0 overflow-hidden"
-//             title={
-//               <div className="flex items-center gap-3 py-2">
-//                 <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 flex items-center justify-center text-white text-2xl">
-//                   💰
-//                 </div>
-
-//                 <div>
-//                   <h2 className="text-xl font-bold text-slate-800">
-//                     {edit ? "Update Vault" : "New Vault"}
-//                   </h2>
-
-//                   <p className="text-sm text-slate-500">
-//                     Manage customer Vault transactions
-//                   </p>
-//                 </div>
-//               </div>
-//             }
-//           >
-//             <Form
-//               form={form}
-//               layout="vertical"
-//               onFinish={edit ? onUpdat : onFinish}
-//               autoComplete="off"
-//             >
-//               {/* Customer Section */}
-//               <div className="mb-4">
-//                 <h3 className="text-base font-semibold text-slate-700">
-//                   Customer Information
-//                 </h3>
-//               </div>
-
-//               <Row gutter={[24, 8]}>
-//                 <Col xs={24} md={12}>
-//                   <Form.Item
-//                     label="Customer Name"
-//                     name="fullname"
-//                     rules={[
-//                       {
-//                         required: true,
-//                         message: "Please enter customer name",
-//                       },
-//                     ]}
-//                   >
-//                     <Input
-//                       size="large"
-//                       className="!rounded-lg"
-//                       placeholder="Customer Name"
-//                     />
-//                   </Form.Item>
-//                 </Col>
-
-//                 <Col xs={24} md={12}>
-//                   <Form.Item name="accountNo" label="Account No">
-//                     <Select
-//                       mode="tags"
-//                       size="large"
-//                       showSearch
-//                       placeholder="Select Account"
-//                       options={accountOptions}
-//                       className="!rounded-lg"
-//                     />
-//                   </Form.Item>
-//                 </Col>
-
-//                 <Col xs={24} md={12}>
-//                   <Form.Item
-//                     label="Currency"
-//                     name="currency"
-//                     rules={[
-//                       {
-//                         required: true,
-//                         message: "Select currency",
-//                       },
-//                     ]}
-//                   >
-//                     <Select
-//                       size="large"
-//                       className="!rounded-lg"
-//                       placeholder="Currency"
-//                       options={currencies?.map((item) => ({
-//                         label: item.currency,
-//                         value: item.currency,
-//                       }))}
-//                     />
-//                   </Form.Item>
-//                 </Col>
-
-//                 <Col xs={24} md={12}>
-//                   <Form.Item label="Transaction Type" name="transactionType">
-//                     <Select
-//                       size="large"
-//                       className="!rounded-lg"
-//                       placeholder="Transaction Type"
-//                       options={[
-//                         {
-//                           value: "Vault Credit",
-//                           label: "Vault Credit",
-//                         },
-//                         {
-//                           value: "Vault Debit",
-//                           label: "Vault Debit",
-//                         },
-                        
-                      
-//                       ]}
-//                     />
-//                   </Form.Item>
-//                 </Col>
-
-//                 {/* Amount Section */}
-
-//                 <Col span={24}>
-//                   <div className="bg-slate-50 border rounded-xl p-4">
-//                     <h3 className="font-semibold text-slate-700 mb-3">
-//                        Amount
-//                     </h3>
-
-//                     <Row gutter={[24, 8]}>
-//                       <Col xs={24} md={12}>
-//                         <Form.Item
-//                           label="Credit"
-//                           name="credit"
-//                           initialValue={0}
-//                         >
-//                           <InputNumber
-//                             size="large"
-//                             className="!w-full !rounded-lg"
-//                             min={0}
-//                             formatter={(value) =>
-//                               `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-//                             }
-//                             parser={(value) => value.replace(/,/g, "")}
-//                           />
-//                         </Form.Item>
-//                       </Col>
-
-//                       <Col xs={24} md={12}>
-//                         <Form.Item label="Debit" name="debit" initialValue={0}>
-//                           <InputNumber
-//                             size="large"
-//                             className="!w-full !rounded-lg"
-//                             min={0}
-//                             formatter={(value) =>
-//                               `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-//                             }
-//                             parser={(value) => value.replace(/,/g, "")}
-//                           />
-//                         </Form.Item>
-//                       </Col>
-//                     </Row>
-//                   </div>
-//                 </Col>
-
-//                 {/* Reference */}
-
-//                 <Col xs={24} md={12}>
-//                   <Form.Item label="Transaction ID" name="transactionId">
-//                     <Input
-//                       size="large"
-//                       className="!rounded-lg"
-//                       readOnly={edit}
-//                     />
-//                   </Form.Item>
-//                 </Col>
-
-//                 <Col xs={24} md={12}>
-//                   <Form.Item label="Transaction No" name="transactionNo">
-//                     <Input size="large" className="!rounded-lg" />
-//                   </Form.Item>
-//                 </Col>
-
-//                 <Col span={24}>
-//                   <Form.Item label="Details" name="details">
-//                     <Input.TextArea
-//                       rows={3}
-//                       className="!rounded-lg"
-//                       placeholder="Vault details..."
-//                     />
-//                   </Form.Item>
-//                 </Col>
-
-//                 <Col span={24}>
-//                   <Button
-//                     type="primary"
-//                     htmlType="submit"
-//                     size="large"
-//                     block
-//                     className="
-//                     !h-12
-//                     !rounded-xl
-//                     !font-semibold
-//                     !bg-gradient-to-r
-//                     !from-blue-600
-//                     !to-cyan-500
-//                     !border-0
-//                     "
-//                   >
-//                     {edit ? "Update Vault" : "Save Vault"}
-//                   </Button>
-//                 </Col>
-//               </Row>
-//             </Form>
-//           </Card>
-//         </div>
-//         <Card
-//           bordered={false}
-//           className="!mt-8 !rounded-3xl !bg-white/80 !backdrop-blur-xl !border !border-white/40 !shadow-xl"
-//           title={
-//             <div>
-//               <div className="flex justify-between items-center mt-2">
-//                 <h2 className="text-xl font-bold text-slate-800 py-4">
-//                   Commission History
-//                 </h2>
-//                 <div className="flex items-center gap-2">
-//                   <Tooltip title="Print Transactions">
-//                     <Button onClick={openModal}>
-//                       <PrinterOutlined className="!text-lg !text-blue-500" />
-//                     </Button>
-//                   </Tooltip>
-
-//                   <Input.Search
-//                     placeholder="Search Vault..."
-//                     allowClear
-//                     size="middle"
-//                     value={searchText}
-//                     onChange={(e) => setSearchText(e.target.value)}
-//                   />
-//                 </div>
-//               </div>
-//             </div>
-//           }
-//         >
-//           <Tabs
-//             defaultActiveKey="today"
-//             size="small"
-//             items={[
-//               {
-//                 key: "today",
-//                 label: (
-//                   <p className="!text-indigo-400 hover:!text-yellow-600 hover:!text-xl !font-bold">
-//                     Today's Vault
-//                   </p>
-//                 ),
-//                 children: (
-//                   <Table
-//                     size="small"
-//                     rowKey="_id"
-//                     dataSource={filterData(todayVault)}
-//                     columns={columns}
-//                     pagination={{ pageSize: 6 }}
-//                     scroll={{ x: "max-content" }}
-//                   />
-//                 ),
-//               },
-//               {
-//                 key: "all",
-//                 label: (
-//                   <p className="!text-cyan-400 hover:!text-yellow-600 hover:!text-xl !font-bold">
-//                     All Vault
-//                   </p>
-//                 ),
-//                 children: (
-//                  <Table
-//                   size="small"
-//                   rowKey="_id"
-//                   dataSource={filterData(Vaults)}
-//                   columns={columns}
-//                   pagination={{ pageSize: 10 }}
-//                   scroll={{ x: "max-content" }}
-//                 />
-//                 ),
-//               },
-//             ]}
-//           />
-//         </Card>
-//       </div>
-
-//       {/* Vault Statement Modal */}
-//       <Modal
-//         open={open}
-//         onCancel={() => setOpen(false)}
-//         footer={null}
-//         title="Select your account to get Statement"
-//         styles={{
-//           content: { borderRadius: 0 },
-//         }}
-//       >
-//         <Form form={statementForm} layout="vertical" onFinish={printStatement}>
-//           {/* CURRENCY */}
-//           <Form.Item
-//             name="currency"
-//             label="Currency"
-//             rules={[
-//               {
-//                 required: true,
-//                 message: "Please select a currency",
-//               },
-//             ]}
-//           >
-//             <Select
-//               placeholder="Select Currency"
-//               allowClear
-//               options={currencies.map((cur) => ({
-//                 label: cur.currency,
-//                 value: cur.currency,
-//               }))}
-//             />
-//           </Form.Item>
-
-//           {/* ACCOUNT */}
-
-//           <Form.Item name="accountNo" label="Account No">
-//             <Select
-//               size="large"
-//               showSearch
-//               placeholder="Select Account No"
-//               options={accountOptions}
-//               className="!rounded-lg !border-slate-300 hover:!border-blue-500"
-//             />
-//           </Form.Item>
-
-//           {/* DATE RANGE */}
-//           <div className="flex gap-3">
-//             <Form.Item name="fromDate" label="From Date">
-//               <DatePicker />
-//             </Form.Item>
-
-//             <Form.Item name="toDate" label="To Date">
-//               <DatePicker />
-//             </Form.Item>
-//           </div>
-
-//           {/* BUTTON */}
-//           <Form.Item>
-//             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-//               <Button
-//                 type="primary"
-//                 htmlType="submit"
-//                 icon={<PrinterOutlined />}
-//                 className="!h-10 !rounded-lg"
-//               >
-//                 Print Statement
-//               </Button>
-
-//               <Button
-//                 type="default"
-//                 icon={<FileExcelOutlined className="!text-green-600" />}
-//                 onClick={exportStatementToExcel}
-//                 className="!h-10 !rounded-lg !border-green-200 !text-green-700 hover:!border-green-400 hover:!text-green-800"
-//               >
-//                 Export to Excel
-//               </Button>
-//             </div>
-//           </Form.Item>
-//         </Form>
-//       </Modal>
-//     </HomeLayout>
-
-<HomeLayout>
-  <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-    {/* Header */}
-    <div className="mb-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-5 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 p-6 text-white md:flex-row md:items-center md:justify-between md:p-8">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-200">
-            <WalletOutlined /> FINANCIAL OPERATIONS
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Vault Management
-          </h1>
-          <p className="mt-2 text-sm text-blue-100 md:text-base">
-            Manage vault transactions, monitor daily balances, and review account activity.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 self-start rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm md:self-auto">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 text-xl">
-            <WalletOutlined />
-          </div>
-          <div>
-            <div className="text-xs font-medium uppercase tracking-wider text-blue-200">
-              Overview
+ 
+    <HomeLayout>
+      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        {/* Header */}
+        <div className="mb-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-5 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 p-6 text-white md:flex-row md:items-center md:justify-between md:p-8">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-200">
+                <WalletOutlined /> FINANCIAL OPERATIONS
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                Vault Management
+              </h1>
+              <p className="mt-2 text-sm text-blue-100 md:text-base">
+                Manage vault transactions, monitor daily balances, and review
+                account activity.
+              </p>
             </div>
-            <div className="font-semibold">Today's Summary</div>
+
+            <div className="flex items-center gap-3 self-start rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm md:self-auto">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 text-xl">
+                <WalletOutlined />
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wider text-blue-200">
+                  Overview
+                </div>
+                <div className="font-semibold">Today's Summary</div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    {/* Daily Summary */}
-    <div className="mb-4 flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-bold text-slate-800">Daily Overview</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Credit, debit, and net totals by currency
-        </p>
-      </div>
-      <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-        TODAY
+        {/* Daily Summary */}
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Daily Overview</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Credit, debit, and net totals by currency
+            </p>
+          </div>
+          <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+            TODAY
+          </span>
+        </div>
+
+        <Row gutter={[16, 16]} className="mb-8 flex justify-center w-full">
+          {Object.entries(todayTotals).map(([currency, total]) => {
+            const net = total.credit - total.debit;
+
+            return (
+              <Col xs={24} sm={12} md={8} lg={6} key={currency}>
+  <div className="h-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+
+    {/* Currency Header */}
+    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+        {currency}
+      </h3>
+      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
+        Balance
       </span>
     </div>
 
-    <Row gutter={[16, 16]} className="mb-8 flex justify-center w-full">
-      {Object.entries(todayTotals).map(([currency, total]) => {
-        const net = total.credit - total.debit;
+    {/* Credit */}
+    <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+        <span className="text-sm font-medium text-slate-500">
+          Credit
+        </span>
+      </div>
 
-        return (
-          <Col xs={24} sm={12} md={8} lg={6} key={currency}>
-            <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-              <h3 className="mb-4 border-b border-slate-100 pb-3 text-sm font-bold uppercase tracking-wider text-slate-500">
-                {currency}
-              </h3>
+      <span className="text-base font-semibold tabular-nums text-emerald-700">
+        {Number(total.credit || 0).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </span>
+    </div>
 
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-medium text-slate-500">Credit</span>
-                <span className="text-lg font-bold tabular-nums text-emerald-700">
-                  {Number(total.credit || 0).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
+    {/* Debit */}
+    <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-red-500" />
+        <span className="text-sm font-medium text-slate-500">
+          Debit
+        </span>
+      </div>
 
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-medium text-slate-500">Debit</span>
-                <span className="text-lg font-bold tabular-nums text-red-700">
-                  {Number(total.debit || 0).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
+      <span className="text-base font-semibold tabular-nums text-red-700">
+        {Number(total.debit || 0).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </span>
+    </div>
 
-              <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="font-semibold text-slate-700">Net</span>
-                <span
-                  className={`text-xl font-bold tabular-nums ${
-                    net >= 0 ? "text-blue-600" : "text-red-600"
-                  }`}
-                >
-                  {Number(net || 0).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-            </div>
-          </Col>
-        );
-      })}
-    </Row>
+    {/* Net Balance */}
+    <div className="mt-4 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-3">
+      <span className="text-sm font-bold text-slate-700">
+        Net Balance
+      </span>
 
-    {/* Vault Form */}
-    <div className="flex w-full justify-center">
-      <Card
-        className="!w-full xl:!w-10/12 !overflow-hidden !rounded-2xl !border !border-slate-200 !shadow-sm"
-        title={
-          <div className="flex items-center gap-3 py-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl text-blue-700">
-              💰
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-800">
-                {edit ? "Update Vault" : "New Vault"}
-              </h2>
-              <p className="text-sm text-slate-500">
-                Manage customer vault transactions
-              </p>
-            </div>
-          </div>
-        }
+      <span
+        className={`text-lg font-bold tabular-nums ${
+          net >= 0 ? "text-blue-700" : "text-red-600"
+        }`}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={edit ? onUpdat : onFinish}
-          autoComplete="off"
+        {Number(net || 0).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </span>
+    </div>
+
+  </div>
+</Col>
+            );
+          })}
+        </Row>
+
+        {/* Vault Form */}
+      
+
+<div className="flex w-full justify-center px-2 py-4">
+  <Card
+    className="!w-full xl:!w-10/12 !rounded-xl !border !border-slate-200 !shadow-sm"
+    title={
+      <div className="flex items-center gap-3 py-1">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-lg text-blue-700">
+          <BankOutlined />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-800">
+            {edit ? "Update Vault" : "New Vault"}
+          </h2>
+          <p className="text-xs font-normal text-slate-400">
+            Customer vault management
+          </p>
+        </div>
+      </div>
+    }
+  >
+    <Form
+      form={form}
+      layout="vertical"
+      onFinish={edit ? onUpdat : onFinish}
+      autoComplete="off"
+      size="middle"
+    >
+      {/* CUSTOMER INFORMATION */}
+      <div className="mb-3 flex items-center gap-2">
+        <UserOutlined className="text-blue-600" />
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+          Customer Information
+        </span>
+      </div>
+
+      <Row gutter={[16, 4]}>
+        <Col xs={24} md={12}>
+          <Form.Item
+            label="Customer Name"
+            name="fullname"
+            rules={[
+              {
+                required: true,
+                message: "Please enter customer name",
+              },
+            ]}
+          >
+            <Input
+              size="middle"
+              className="!rounded-lg"
+              placeholder="Customer Name"
+            />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={12}>
+          <Form.Item name="accountNo" label="Account No">
+            <Select
+              mode="tags"
+              size="middle"
+              showSearch
+              placeholder="Select Account"
+              options={accountOptions}
+              className="!rounded-lg"
+            />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={12}>
+          <Form.Item
+            label="Currency"
+            name="currency"
+            rules={[
+              {
+                required: true,
+                message: "Select currency",
+              },
+            ]}
+          >
+            <Select
+              size="middle"
+              className="!rounded-lg"
+              placeholder="Select Currency"
+              options={currencies?.map((item) => ({
+                label: item.currency,
+                value: item.currency,
+              }))}
+            />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={12}>
+          <Form.Item
+            label="Transaction Type"
+            name="transactionType"
+          >
+            <Select
+              size="middle"
+              className="!rounded-lg"
+              placeholder="Transaction Type"
+              options={[
+                {
+                  value: "Vault Credit",
+                  label: "Vault Credit",
+                },
+                {
+                  value: "Vault Debit",
+                  label: "Vault Debit",
+                },
+              ]}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      {/* AMOUNTS */}
+      <div className="mb-3 mt-2 flex items-center gap-2">
+        <DollarCircleOutlined className="text-blue-600" />
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+          Transaction Amount
+        </span>
+      </div>
+
+      <Row gutter={[16, 8]}>
+        <Col xs={24} md={12}>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 pt-3">
+            <Form.Item
+              label={
+                <span className="font-semibold text-emerald-700">
+                  Credit Amount
+                </span>
+              }
+              name="credit"
+              initialValue={0}
+            >
+              <InputNumber
+                size="middle"
+                className="!w-full !rounded-lg"
+                min={0}
+                placeholder="0.00"
+                formatter={(value) =>
+                  `${value ?? ""}`.replace(
+                    /\B(?=(\d{3})+(?!\d))/g,
+                    ","
+                  )
+                }
+                parser={(value) => (value || "").replace(/,/g, "")}
+              />
+            </Form.Item>
+          </div>
+        </Col>
+
+        <Col xs={24} md={12}>
+          <div className="rounded-lg border border-red-200 bg-red-50/40 px-3 pt-3">
+            <Form.Item
+              label={
+                <span className="font-semibold text-red-700">
+                  Debit Amount
+                </span>
+              }
+              name="debit"
+              initialValue={0}
+            >
+              <InputNumber
+                size="middle"
+                className="!w-full !rounded-lg"
+                min={0}
+                placeholder="0.00"
+                formatter={(value) =>
+                  `${value ?? ""}`.replace(
+                    /\B(?=(\d{3})+(?!\d))/g,
+                    ","
+                  )
+                }
+                parser={(value) => (value || "").replace(/,/g, "")}
+              />
+            </Form.Item>
+          </div>
+        </Col>
+      </Row>
+
+      {/* REFERENCES */}
+      <div className="mb-3 mt-4 flex items-center gap-2">
+        <FileTextOutlined className="text-blue-600" />
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+          Transaction References
+        </span>
+      </div>
+
+      <Row gutter={[16, 4]}>
+        <Col xs={24} md={12}>
+          <Form.Item label="Transaction ID" name="transactionId">
+            <Input
+              size="middle"
+              className="!rounded-lg"
+              readOnly={edit}
+              placeholder="Transaction ID"
+            />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={12}>
+          <Form.Item label="Transaction No" name="transactionNo">
+            <Input
+              size="middle"
+              className="!rounded-lg"
+              placeholder="Transaction Number"
+            />
+          </Form.Item>
+        </Col>
+
+        <Col span={24}>
+          <Form.Item label="Details" name="details">
+            <Input.TextArea
+              rows={2}
+              className="!rounded-lg"
+              placeholder="Additional details..."
+            />
+          </Form.Item>
+        </Col>
+
+        {/* ACTION */}
+        <Col span={24}>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <span className="text-xs text-slate-400">
+              Review details before saving.
+            </span>
+
+            <Button
+              type="primary"
+              htmlType="submit"
+              size="middle"
+              icon={<SaveOutlined />}
+              className="!h-10 !rounded-lg !border-0 !bg-blue-700 !px-7 !font-semibold hover:!bg-blue-800"
+            >
+              {edit ? "Update Vault" : "Save Vault"}
+            </Button>
+          </div>
+        </Col>
+      </Row>
+    </Form>
+  </Card>
+</div>
+
+
+        {/* Vault History */}
+        <Card
+          bordered={false}
+          className="!mt-8 !rounded-2xl !border !border-slate-200 !bg-white !shadow-sm"
+          title={
+            <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-bold text-slate-800">
+                Vault History
+              </h2>
+
+              <div className="flex items-center gap-2">
+                <Tooltip title="Print Transactions">
+                  <Button onClick={openModal} className="!rounded-lg">
+                    <PrinterOutlined className="!text-lg !text-blue-700" />
+                  </Button>
+                </Tooltip>
+
+                <Input.Search
+                  placeholder="Search Vault..."
+                  allowClear
+                  size="middle"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                />
+              </div>
+            </div>
+          }
         >
-          <div className="mb-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600">
-              Customer Information
-            </h3>
+          <Tabs
+            defaultActiveKey="today"
+            size="small"
+            items={[
+              {
+                key: "today",
+                label: (
+                  <span className="font-semibold text-blue-700">
+                    Today's Vault
+                  </span>
+                ),
+                children: (
+                  <Table
+                    size="small"
+                    rowKey="_id"
+                    dataSource={filterData(todayVault)}
+                    columns={columns}
+                    pagination={{ pageSize: 6 }}
+                    scroll={{ x: "max-content" }}
+                  />
+                ),
+              },
+              {
+                key: "all",
+                label: (
+                  <span className="font-semibold text-blue-700">All Vault</span>
+                ),
+                children: (
+                  <Table
+                    size="small"
+                    rowKey="_id"
+                    dataSource={filterData(Vaults)}
+                    columns={columns}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: "max-content" }}
+                  />
+                ),
+              },
+            ]}
+          />
+        </Card>
+      </div>
+
+      {/* Vault Statement Modal */}
+      <Modal
+        open={open}
+        onCancel={() => setOpen(false)}
+        footer={null}
+        title="Select your account to get Statement"
+        styles={{
+          content: { borderRadius: 16 },
+        }}
+      >
+        <Form form={statementForm} layout="vertical" onFinish={printStatement}>
+          <Form.Item
+            name="currency"
+            label="Currency"
+            rules={[
+              {
+                required: true,
+                message: "Please select a currency",
+              },
+            ]}
+          >
+            <Select
+              placeholder="Select Currency"
+              allowClear
+              options={currencies.map((cur) => ({
+                label: cur.currency,
+                value: cur.currency,
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item name="accountNo" label="Account No">
+            <Select
+              size="large"
+              showSearch
+              placeholder="Select Account No"
+              options={accountOptions}
+              className="!rounded-xl !border-slate-300 hover:!border-blue-500"
+            />
+          </Form.Item>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Form.Item name="fromDate" label="From Date" className="flex-1">
+              <DatePicker className="!w-full" />
+            </Form.Item>
+
+            <Form.Item name="toDate" label="To Date" className="flex-1">
+              <DatePicker className="!w-full" />
+            </Form.Item>
           </div>
 
-          <Row gutter={[24, 8]}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                label="Customer Name"
-                name="fullname"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please enter customer name",
-                  },
-                ]}
-              >
-                <Input
-                  size="large"
-                  className="!rounded-xl"
-                  placeholder="Customer Name"
-                />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Form.Item name="accountNo" label="Account No">
-                <Select
-                  mode="tags"
-                  size="large"
-                  showSearch
-                  placeholder="Select Account"
-                  options={accountOptions}
-                  className="!rounded-xl"
-                />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Form.Item
-                label="Currency"
-                name="currency"
-                rules={[
-                  {
-                    required: true,
-                    message: "Select currency",
-                  },
-                ]}
-              >
-                <Select
-                  size="large"
-                  className="!rounded-xl"
-                  placeholder="Currency"
-                  options={currencies?.map((item) => ({
-                    label: item.currency,
-                    value: item.currency,
-                  }))}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Form.Item label="Transaction Type" name="transactionType">
-                <Select
-                  size="large"
-                  className="!rounded-xl"
-                  placeholder="Transaction Type"
-                  options={[
-                    {
-                      value: "Vault Credit",
-                      label: "Vault Credit",
-                    },
-                    {
-                      value: "Vault Debit",
-                      label: "Vault Debit",
-                    },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-
-            {/* Amount */}
-            <Col span={24}>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 md:p-5">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-600">
-                  Amount
-                </h3>
-
-                <Row gutter={[24, 8]}>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      label={
-                        <span className="font-semibold text-emerald-700">
-                          Credit
-                        </span>
-                      }
-                      name="credit"
-                      initialValue={0}
-                    >
-                      <InputNumber
-                        size="large"
-                        className="!w-full !rounded-xl"
-                        min={0}
-                        formatter={(value) =>
-                          `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                        }
-                        parser={(value) => value.replace(/,/g, "")}
-                      />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      label={
-                        <span className="font-semibold text-red-700">
-                          Debit
-                        </span>
-                      }
-                      name="debit"
-                      initialValue={0}
-                    >
-                      <InputNumber
-                        size="large"
-                        className="!w-full !rounded-xl"
-                        min={0}
-                        formatter={(value) =>
-                          `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                        }
-                        parser={(value) => value.replace(/,/g, "")}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </div>
-            </Col>
-
-            {/* References */}
-            <Col xs={24} md={12}>
-              <Form.Item label="Transaction ID" name="transactionId">
-                <Input
-                  size="large"
-                  className="!rounded-xl"
-                  readOnly={edit}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Form.Item label="Transaction No" name="transactionNo">
-                <Input size="large" className="!rounded-xl" />
-              </Form.Item>
-            </Col>
-
-            <Col span={24}>
-              <Form.Item label="Details" name="details">
-                <Input.TextArea
-                  rows={3}
-                  className="!rounded-xl"
-                  placeholder="Vault details..."
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={24}>
+          <Form.Item>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button
                 type="primary"
                 htmlType="submit"
-                size="large"
-                block
-                className="!h-12 !rounded-xl !border-0 !bg-gradient-to-r !from-blue-700 !to-blue-500 !font-semibold hover:!from-blue-800 hover:!to-blue-600"
+                icon={<PrinterOutlined />}
+                className="!h-10 !rounded-lg !bg-gradient-to-r !from-blue-700 !to-blue-500"
               >
-                {edit ? "Update Vault" : "Save Vault"}
+                Print Statement
               </Button>
-            </Col>
-          </Row>
-        </Form>
-      </Card>
-    </div>
 
-    {/* Vault History */}
-    <Card
-      bordered={false}
-      className="!mt-8 !rounded-2xl !border !border-slate-200 !bg-white !shadow-sm"
-      title={
-        <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-bold text-slate-800">
-            Vault History
-          </h2>
-
-          <div className="flex items-center gap-2">
-            <Tooltip title="Print Transactions">
               <Button
-                onClick={openModal}
-                className="!rounded-lg"
+                type="default"
+                icon={<FileExcelOutlined className="!text-green-600" />}
+                onClick={exportStatementToExcel}
+                className="!h-10 !rounded-lg !border-green-200 !text-green-700 hover:!border-green-400 hover:!text-green-800"
               >
-                <PrinterOutlined className="!text-lg !text-blue-700" />
+                Export to Excel
               </Button>
-            </Tooltip>
-
-            <Input.Search
-              placeholder="Search Vault..."
-              allowClear
-              size="middle"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-            />
-          </div>
-        </div>
-      }
-    >
-      <Tabs
-        defaultActiveKey="today"
-        size="small"
-        items={[
-          {
-            key: "today",
-            label: (
-              <span className="font-semibold text-blue-700">
-                Today's Vault
-              </span>
-            ),
-            children: (
-              <Table
-                size="small"
-                rowKey="_id"
-                dataSource={filterData(todayVault)}
-                columns={columns}
-                pagination={{ pageSize: 6 }}
-                scroll={{ x: "max-content" }}
-              />
-            ),
-          },
-          {
-            key: "all",
-            label: (
-              <span className="font-semibold text-blue-700">
-                All Vault
-              </span>
-            ),
-            children: (
-              <Table
-                size="small"
-                rowKey="_id"
-                dataSource={filterData(Vaults)}
-                columns={columns}
-                pagination={{ pageSize: 10 }}
-                scroll={{ x: "max-content" }}
-              />
-            ),
-          },
-        ]}
-      />
-    </Card>
-  </div>
-
-  {/* Vault Statement Modal */}
-  <Modal
-    open={open}
-    onCancel={() => setOpen(false)}
-    footer={null}
-    title="Select your account to get Statement"
-    styles={{
-      content: { borderRadius: 16 },
-    }}
-  >
-    <Form
-      form={statementForm}
-      layout="vertical"
-      onFinish={printStatement}
-    >
-      <Form.Item
-        name="currency"
-        label="Currency"
-        rules={[
-          {
-            required: true,
-            message: "Please select a currency",
-          },
-        ]}
-      >
-        <Select
-          placeholder="Select Currency"
-          allowClear
-          options={currencies.map((cur) => ({
-            label: cur.currency,
-            value: cur.currency,
-          }))}
-        />
-      </Form.Item>
-
-      <Form.Item name="accountNo" label="Account No">
-        <Select
-          size="large"
-          showSearch
-          placeholder="Select Account No"
-          options={accountOptions}
-          className="!rounded-xl !border-slate-300 hover:!border-blue-500"
-        />
-      </Form.Item>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Form.Item name="fromDate" label="From Date" className="flex-1">
-          <DatePicker className="!w-full" />
-        </Form.Item>
-
-        <Form.Item name="toDate" label="To Date" className="flex-1">
-          <DatePicker className="!w-full" />
-        </Form.Item>
-      </div>
-
-      <Form.Item>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Button
-            type="primary"
-            htmlType="submit"
-            icon={<PrinterOutlined />}
-            className="!h-10 !rounded-lg !bg-gradient-to-r !from-blue-700 !to-blue-500"
-          >
-            Print Statement
-          </Button>
-
-          <Button
-            type="default"
-            icon={<FileExcelOutlined className="!text-green-600" />}
-            onClick={exportStatementToExcel}
-            className="!h-10 !rounded-lg !border-green-200 !text-green-700 hover:!border-green-400 hover:!text-green-800"
-          >
-            Export to Excel
-          </Button>
-        </div>
-      </Form.Item>
-    </Form>
-  </Modal>
-</HomeLayout>
-
-
+            </div>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </HomeLayout>
   );
 };
 

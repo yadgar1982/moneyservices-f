@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import "./home-dash.css";
 
-import { Sunrise, Sun, Sunset, MoonStar } from "lucide-react";
+
 import ReactCountryFlag from "react-country-flag";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import AccountStatement from "../../Shared/Export/Statements/AccountStatement";
@@ -339,7 +339,8 @@ const Dashboard = () => {
             {Number(record.amount).toLocaleString()}
           </span>
         ) : (
-          "—"
+          <span className="!text-red-600 font-semibold">0.00</span>
+          
         ),
     },
 
@@ -353,7 +354,7 @@ const Dashboard = () => {
             {Number(record.amount).toLocaleString()}
           </span>
         ) : (
-          "—"
+           <span className="!text-green-600 font-semibold">0.00</span>
         ),
     },
 
