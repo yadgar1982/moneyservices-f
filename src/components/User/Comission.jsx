@@ -45,11 +45,13 @@ import {
   FileExcelOutlined,
   FileTextOutlined,
   DollarCircleOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 
 const Commissions = () => {
   const [edit, setEdit] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // statement modal
+  const [commissionFormOpen, setCommissionFormOpen] = useState(false);
 
   //account statement states
   const [stAcc, setStAcc] = useState(null);
@@ -82,31 +84,34 @@ const Commissions = () => {
   const { data, error } = useSWR("/api/comission/read", fetcher);
   const comissions = data?.data || [];
 
- const onFinish = async (values) => {
-  if (Array.isArray(values.accountNo)) {
-    values.accountNo = values.accountNo[0];
-  }
+  const onFinish = async (values) => {
+    if (Array.isArray(values.accountNo)) {
+      values.accountNo = values.accountNo[0];
+    }
 
-  const commissionData = {
-    ...values,
-    isActive: true,
+    const commissionData = {
+      ...values,
+      isActive: true,
+    };
+
+    console.log("Sending:", commissionData);
+
+    try {
+      await http().post("/api/comission/create", commissionData);
+      toast.success("data has been saved successfully");
+      mutate("/api/comission/read");
+      form.resetFields();
+      setCommissionFormOpen(false);
+      setEdit(false);
+    } catch (error) {
+      console.log(error.message);
+    }
   };
-
-  console.log("Sending:", commissionData);
-
-  try {
-    await http().post("/api/comission/create", commissionData);
-    toast.success("data has been saved successfully");
-    mutate("/api/comission/read");
-    form.resetFields();
-  } catch (error) {
-    console.log(error.message);
-  }
-};
 
   //   Edit comission
   const handleEdit = (record) => {
     setEdit(true);
+    setCommissionFormOpen(true);
     console.log(record);
 
     form.setFieldsValue({
@@ -138,6 +143,7 @@ const Commissions = () => {
       mutate("/api/comission/read");
       setEdit(false);
       form.resetFields();
+      setCommissionFormOpen(false);
     } catch (err) {
       console.error("Update Failed");
     }
@@ -154,13 +160,15 @@ const Commissions = () => {
     }
   };
 
- // Today's commissions (based on the user's local date)
-const todayCommissions = (comissions || []).filter((item) => {
-  if (!item.createdAt) return false;
+  // Today's commissions (based on the user's local date)
+  const todayCommissions = (comissions || []).filter((item) => {
+    if (!item.createdAt) return false;
 
-  return dayjs(item.createdAt).isValid() &&
-    dayjs(item.createdAt).isSame(dayjs(), "day");
-});
+    return (
+      dayjs(item.createdAt).isValid() &&
+      dayjs(item.createdAt).isSame(dayjs(), "day")
+    );
+  });
 
   const todayTotals = todayCommissions.reduce((acc, item) => {
     const currency = item.currency || "Unknown";
@@ -238,65 +246,181 @@ const todayCommissions = (comissions || []).filter((item) => {
         <title>Receipt</title>
 
         <style>
-          body{
-            font-family:'Segoe UI',sans-serif;
-            padding:40px;
-            background:#fff;
-            color:#000;
-          }
+          
+* {
+  box-sizing: border-box;
+}
 
-          .receipt{
-            width:100%;
-            max-width:900px;
-            margin:auto;
-          }
+@page {
+  size: auto;
+  margin: 10mm;
+}
 
-          .header{
-            text-align:center;
-            border-bottom:2px solid #000;
-            margin-bottom:20px;
-            padding-bottom:10px;
-          }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #172033;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
 
-          .header h2{
-            margin:0;
-            font-size:26px;
-          }
+.receipt {
+  display: block;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  background: #fff;
+}
 
-          .row{
-            display:flex;
-            justify-content:space-between;
-            margin:8px 0;
-            font-size:15px;
-          }
+.header {
+  text-align: center;
+  border-bottom: 1px solid #d8e0eb;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+}
 
-          .label{
-            color:#555;
-          }
+.header h2 {
+  margin: 2px 0 5px;
+  color: #173b70;
+  font-size: 24px;
+  line-height: 1.2;
+}
 
-          .value{
-            font-weight:600;
-          }
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin: 9px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
-          .section{
-            margin-top:15px;
-          }
+.label {
+  flex: 0 0 38%;
+  color: #64748b;
+}
 
-          .amount{
-            font-size:18px;
-            font-weight:bold;
-            text-align:center;
-            margin:25px 0;
-            color:green;
-          }
+.value {
+  flex: 1;
+  color: #172033;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
 
-          .footer{
-            text-align:center;
-            margin-top:30px;
-            font-size:13px;
-            border-top:3px double #2d6ff2;
-            padding-top:10px;
-          }
+.section {
+  margin-top: 14px;
+  padding: 2px 0;
+}
+
+.amount {
+  margin: 18px 0;
+  padding: 13px 16px;
+  border: 1px solid #cfe0f5;
+  border-radius: 9px;
+  background: #f5f9ff;
+  color: #176b45;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.footer {
+  display: block;
+  position: static;
+  width: 100%;
+  margin: 18px 0 0;
+  padding: 10px 0 0;
+  border-top: 2px solid #d8e0eb;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media print {
+  html,
+  body {
+    width: 100%;
+    height: auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .receipt {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .header,
+  .section,
+  .amount,
+  .footer,
+  .row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .footer {
+    position: static !important;
+    margin-top: 18px !important;
+  }
+}
+
+/* Landscape: compact vertical spacing without shrinking text. */
+@media print and (orientation: landscape) {
+  .header {
+    margin-bottom: 8px;
+    padding-bottom: 7px;
+  }
+
+  .header h2 {
+    font-size: 22px;
+  }
+
+  .row {
+    margin: 5px 0;
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .section {
+    margin-top: 7px;
+  }
+
+  .amount {
+    margin: 9px 0;
+    padding: 9px 14px;
+    font-size: 18px;
+  }
+
+  .footer {
+    position: static !important;
+    margin-top: 10px !important;
+    padding-top: 7px;
+  }
+}
+
         </style>
 
       </head>
@@ -308,10 +432,10 @@ const todayCommissions = (comissions || []).filter((item) => {
         <div class="header">
 
           <div style="text-align:center;">
-            <div style="width:150px;height:105px;margin:0 auto;">
+            <div style="width:90px;height:65px;margin:0 auto;">
               <img
                 src="${myLogo}"
-                style="width:150px;height:100px;object-fit:cover;"
+                style="width:90px;height:60px;object-fit:contain;"
               />
             </div>
           </div>
@@ -1349,26 +1473,26 @@ const todayCommissions = (comissions || []).filter((item) => {
     },
 
     {
-  title: "Credit",
-  dataIndex: "credit",
-  render: (value) =>
-    Number(value || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }),
-},
-{
-  title: "Debit",
-  dataIndex: "debit",
-  render: (value) => (
-    <span style={{ color: "red", fontWeight: 500 }}>
-      {Number(value || 0).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}
-    </span>
-  ),
-},
+      title: "Credit",
+      dataIndex: "credit",
+      render: (value) =>
+        Number(value || 0).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+    },
+    {
+      title: "Debit",
+      dataIndex: "debit",
+      render: (value) => (
+        <span style={{ color: "red", fontWeight: 500 }}>
+          {Number(value || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </span>
+      ),
+    },
 
     {
       title: "Transaction",
@@ -1400,456 +1524,589 @@ const todayCommissions = (comissions || []).filter((item) => {
         );
       },
     },
-   {
-  title: "Edit",
-  key: "edit",
-  fixed: "right",
-  width: 20,
-  height: 20,
-  render: (_, record) => {
-    return record.isActive === true ? (
-      <EditOutlined
-        className="!text-blue-600 !cursor-pointer"
-        onClick={() => handleEdit(record)}
-      />
-    ) : (
-      <EditOutlined className="!text-gray-300 !cursor-not-allowed" />
-    );
-  },
-},
+    {
+      title: "Edit",
+      key: "edit",
+      fixed: "right",
+      width: 20,
+      height: 20,
+      render: (_, record) => {
+        return record.isActive === true ? (
+          <EditOutlined
+            className="!text-blue-600 !cursor-pointer"
+            onClick={() => handleEdit(record)}
+          />
+        ) : (
+          <EditOutlined className="!text-gray-300 !cursor-not-allowed" />
+        );
+      },
+    },
 
-{
-  title: "Delete",
-  key: "isDelete",
-  fixed: "right",
-  width: 20,
-  height: 20,
-  render: (_, record) => {
-    return record.isActive === true ? (
-      <Popconfirm
-        title="Are you sure you want to delete this commission?"
-        onConfirm={() => onDelete(record.transactionId)}
-      >
-        <DeleteOutlined className="!text-xl rounded !text-rose-600 !cursor-pointer" />
-      </Popconfirm>
-    ) : (
-      <DeleteOutlined className="!text-xl !text-gray-300 !cursor-not-allowed" />
-    );
-  },
-},
+    {
+      title: "Delete",
+      key: "isDelete",
+      fixed: "right",
+      width: 20,
+      height: 20,
+      render: (_, record) => {
+        return record.isActive === true ? (
+          <Popconfirm
+            title="Are you sure you want to delete this commission?"
+            onConfirm={() => onDelete(record.transactionId)}
+          >
+            <DeleteOutlined className="!text-xl rounded !text-rose-600 !cursor-pointer" />
+          </Popconfirm>
+        ) : (
+          <DeleteOutlined className="!text-xl !text-gray-300 !cursor-not-allowed" />
+        );
+      },
+    },
   ];
   return (
-
-
     <HomeLayout>
-  <div className="min-h-screen bg-slate-50 px-4 py-6 md:px-8 md:py-8">
-    {/* Page header */}
-    <div className="mb-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-5 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 p-6 text-white md:flex-row md:items-center md:justify-between md:p-8">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-200">
-            <WalletOutlined /> FINANCIAL OPERATIONS
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Commission Management
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-blue-100 md:text-base">
-            Manage commission transactions, monitor daily earnings, and review account activity.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 self-start rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm md:self-auto">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 text-xl">
-            <WalletOutlined />
-          </div>
-          <div>
-            <div className="text-xs font-medium uppercase tracking-wider text-blue-200">Overview</div>
-            <div className="font-semibold">Today's Summary</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {/* Daily totals */}
-    <div className="mb-8">
-      <div className="mb-4 flex items-center justify-between px-4 md:px-6">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800">Daily Overview</h2>
-          <p className="mt-1 text-sm text-slate-500">Credit, debit, and net totals by currency</p>
-        </div>
-        <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">TODAY</span>
-      </div>
-      <Row gutter={[16, 16]} className="!flex !justify-center !w-full">
-        {Object.entries(todayTotals).map(([currency, total]) => {
-          const net = total.credit - total.debit;
-          return (
-            <Col xs={24} sm={12} md={8} lg={6} key={currency}>
-              <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-800">{currency}</h3>
-                  <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{currency}</span>
+      <div className="min-h-screen bg-slate-50 px-4 py-6 md:px-8 md:py-8">
+        {/* Page header */}
+        <div className="mb-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-5 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 p-6 text-white md:flex-row md:items-center md:justify-between md:p-8">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-200">
+                <WalletOutlined /> FINANCIAL OPERATIONS
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                Commission Management
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-blue-100 md:text-base">
+                Manage commission transactions, monitor daily earnings, and
+                review account activity.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+              <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 text-xl">
+                  <WalletOutlined />
                 </div>
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> Credit
-                  </span>
-                  <span className="text-base font-bold tabular-nums text-emerald-700">
-                    {Number(total.credit || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-red-500" /> Debit
-                  </span>
-                  <span className="text-base font-bold tabular-nums text-red-700">
-                    {Number(total.debit || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
-                  <span className="text-sm font-semibold text-slate-600">Net balance</span>
-                  <span className={`text-lg font-extrabold tabular-nums ${net >= 0 ? "text-blue-700" : "text-red-700"}`}>
-                    {net.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wider text-blue-200">
+                    Overview
+                  </div>
+                  <div className="font-semibold">Today's Summary</div>
                 </div>
               </div>
-            </Col>
-          );
-        })}
-      </Row>
-    </div>
-
-    {/* Commission form */}
-    <div className="mb-6 flex w-full justify-center px-2">
-  <Card
-    className="!w-full xl:!w-10/12 !rounded-xl !border !border-slate-200 !shadow-sm"
-    title={
-      <div className="flex items-center gap-3 py-1">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-lg text-blue-700">
-          <WalletOutlined />
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEdit(false);
+                  form.resetFields();
+                  setCommissionFormOpen(true);
+                }}
+                className="!h-11 !rounded-lg !border-white/30 !bg-white !px-5 !font-semibold !text-blue-900 hover:!bg-blue-50"
+              >
+                New Commission
+              </Button>
+            </div>
+          </div>
         </div>
-        <div>
-          <h2 className="text-base font-bold text-slate-800">
-            {edit ? "Update Commission" : "New Commission"}
-          </h2>
-          <p className="text-xs font-normal text-slate-400">
-            Commission transaction management
-          </p>
-        </div>
-      </div>
-    }
-  >
-    <Form
-      form={form}
-      layout="vertical"
-      onFinish={edit ? onUpdat : onFinish}
-      autoComplete="off"
-      size="middle"
-    >
-      {/* TRANSACTION INFORMATION */}
-      <div className="mb-3 flex items-center gap-2">
-        <FileTextOutlined className="text-blue-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-          Transaction Information
-        </span>
-      </div>
 
-      <Row gutter={[16, 4]}>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Customer Name"
-            name="fullname"
-            rules={[
+        {/* Daily totals */}
+        <div className="mb-8">
+          <div className="mb-4 flex items-center justify-between px-4 md:px-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">
+                Daily Overview
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Credit, debit, and net totals by currency
+              </p>
+            </div>
+            <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+              TODAY
+            </span>
+          </div>
+          <Row gutter={[16, 16]} className="!flex !justify-center !w-full">
+            {Object.entries(todayTotals).map(([currency, total]) => {
+              const net = total.credit - total.debit;
+              return (
+                <Col xs={24} sm={12} md={8} lg={6} key={currency}>
+                  <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="text-base font-bold text-slate-800">
+                        {currency}
+                      </h3>
+                      <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                        {currency}
+                      </span>
+                    </div>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />{" "}
+                        Credit
+                      </span>
+                      <span className="text-base font-bold tabular-nums text-emerald-700">
+                        {Number(total.credit || 0).toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
+                        <span className="h-2 w-2 rounded-full bg-red-500" />{" "}
+                        Debit
+                      </span>
+                      <span className="text-base font-bold tabular-nums text-red-700">
+                        {Number(total.debit || 0).toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
+                      <span className="text-sm font-semibold text-slate-600">
+                        Net balance
+                      </span>
+                      <span
+                        className={`text-lg font-extrabold tabular-nums ${net >= 0 ? "text-blue-700" : "text-red-700"}`}
+                      >
+                        {net.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </Col>
+              );
+            })}
+          </Row>
+        </div>
+
+        {/* Create / Edit Commission Modal */}
+        <Modal
+          open={commissionFormOpen}
+          onCancel={() => {
+            setCommissionFormOpen(false);
+            setEdit(false);
+            form.resetFields();
+          }}
+          footer={null}
+          destroyOnClose={false}
+          width={760}
+          centered
+          title={
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg text-blue-700">
+                <WalletOutlined />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  {edit ? "Update Commission" : "New Commission"}
+                </h2>
+                <p className="text-xs font-normal text-slate-500">
+                  Enter and review commission transaction details
+                </p>
+              </div>
+            </div>
+          }
+          styles={{
+            content: { borderRadius: 18, padding: 24 },
+            header: { marginBottom: 18 },
+          }}
+        >
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={edit ? onUpdat : onFinish}
+            autoComplete="off"
+            size="middle"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <FileTextOutlined className="text-blue-600" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Transaction Information
+              </span>
+            </div>
+
+            <Row gutter={[16, 4]}>
+              <Col xs={24} md={12}>
+                <Form.Item name="accountNo" label="Account Number">
+                  <Select
+                    size="middle"
+                    showSearch
+                    placeholder="Select account"
+                    options={accountOptions}
+                    className="!rounded-lg"
+                    optionFilterProp="label"
+                    onChange={(accountNo) => {
+                      const selectedAccount = accountOptions.find(
+                        (item) => String(item.value) === String(accountNo),
+                      );
+
+                      form.setFieldsValue({
+                        fullname: selectedAccount?.fullname || "",
+                      });
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="Customer Name"
+                  name="fullname"
+                  rules={[
+                    { required: true, message: "Please enter customer name" },
+                  ]}
+                >
+                  <Input
+                    size="middle"
+                    className="!rounded-lg"
+                    placeholder="Customer name will appear automatically"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="Currency"
+                  name="currency"
+                  rules={[{ required: true, message: "Select currency" }]}
+                >
+                  <Select
+                    size="middle"
+                    className="!rounded-lg"
+                    placeholder="Select currency"
+                    options={currencies?.map((item) => ({
+                      label: item.currency,
+                      value: item.currency,
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Transaction Type" name="transactionType">
+                  <Select
+                    size="middle"
+                    className="!rounded-lg"
+                    placeholder="Select transaction type"
+                    options={[
+                      { value: "transaction fees", label: "Transaction Fees" },
+                      { value: "transfer commission", label: "Transfer Fees" },
+                      { value: "exchange commission", label: "Exchange Fees" },
+                      { value: "expense", label: "Expense" },
+                      { value: "withdrawal", label: "Withdrawal" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <div className="mb-3 mt-2 flex items-center gap-2">
+              <DollarCircleOutlined className="text-blue-600" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Commission Amounts
+              </span>
+            </div>
+            <Row gutter={[16, 8]}>
+              <Col xs={24} md={12}>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 pt-3">
+                  <Form.Item
+                    label={
+                      <span className="font-semibold text-emerald-700">
+                        Credit Amount
+                      </span>
+                    }
+                    name="credit"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter debit amount",
+                      },
+                    ]}
+                  >
+                    <InputNumber
+                      size="middle"
+                      className="!w-full !rounded-lg"
+                      min={0}
+                      placeholder="Enter credit amount"
+                      formatter={(value) =>
+                        `${value ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                      }
+                      parser={(value) => (value || "").replace(/,/g, "")}
+                    />
+                  </Form.Item>
+                </div>
+              </Col>
+              <Col xs={24} md={12}>
+                <div className="rounded-xl border border-red-200 bg-red-50/40 px-3 pt-3">
+                  <Form.Item
+                    label={
+                      <span className="font-semibold text-red-700">
+                        Debit Amount
+                      </span>
+                    }
+                    name="debit"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter debit amount",
+                      },
+                    ]}
+                  >
+                    <InputNumber
+                      size="middle"
+                      className="!w-full !rounded-lg"
+                      min={0}
+                      placeholder="Enter debit amount"
+                      formatter={(value) =>
+                        `${value ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                      }
+                      parser={(value) => (value || "").replace(/,/g, "")}
+                    />
+                  </Form.Item>
+                </div>
+              </Col>
+            </Row>
+
+            <div className="mb-3 mt-4 flex items-center gap-2">
+              <FileTextOutlined className="text-blue-600" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Reference Details
+              </span>
+            </div>
+            <Row gutter={[16, 4]}>
+              <Col xs={24} md={12}>
+                <Form.Item label="Transaction ID" name="transactionId">
+                  <Input
+                    size="middle"
+                    className="!rounded-lg"
+                    readOnly={edit}
+                    placeholder="Transaction ID"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Transaction Number" name="transactionNo">
+                  <Input
+                    size="middle"
+                    className="!rounded-lg"
+                    placeholder="Enter transaction number"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item label="Details" name="details">
+                  <Input.TextArea
+                    rows={2}
+                    className="!rounded-lg"
+                    placeholder="Add commission details or notes..."
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                  <span className="text-xs text-slate-400">
+                    Review details before saving.
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => {
+                        setCommissionFormOpen(false);
+                        setEdit(false);
+                        form.resetFields();
+                      }}
+                      className="!h-10 !rounded-lg"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      size="middle"
+                      className="!h-10 !rounded-lg !border-0 !bg-blue-700 !px-7 !font-semibold hover:!bg-blue-800"
+                    >
+                      {edit ? "Update Commission" : "Save Commission"}
+                    </Button>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+          </Form>
+        </Modal>
+
+        {/* Commission history */}
+        <Card
+          bordered={false}
+          className="!rounded-2xl !border !border-slate-200 !shadow-sm"
+          title={
+            <div className="flex flex-col gap-4 py-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  Commission History
+                </h2>
+                <p className="mt-1 text-xs font-normal text-slate-500">
+                  Review and search recorded commission transactions
+                </p>
+              </div>
+              <div className="flex w-full items-center gap-2 md:w-auto">
+                <Tooltip title="Print Transactions">
+                  <Button
+                    onClick={openModal}
+                    className="!flex !h-10 !w-10 !items-center !justify-center !rounded-lg !border-slate-200"
+                  >
+                    <PrinterOutlined className="!text-lg !text-blue-700" />
+                  </Button>
+                </Tooltip>
+                <Input.Search
+                  placeholder="Search commissions..."
+                  allowClear
+                  size="large"
+                  className="md:!w-72"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                />
+              </div>
+            </div>
+          }
+        >
+          <Tabs
+  className="commission-tabs-compact p-3 !m-3 !-mt-4"
+  defaultActiveKey="today"
+  size="middle"
+  items={[
               {
-                required: true,
-                message: "Please enter customer name",
+                key: "today",
+                label: (
+                  <span className="text-sm font-semibold">
+                    Today's Commissions
+                  </span>
+                ),
+                children: (
+                  <Table
+                    size="small"
+                    rowKey="transactionId"
+                    dataSource={filterData(todayCommissions)}
+                    columns={columns}
+                    pagination={{
+                      defaultPageSize: 6,
+                      pageSize: 6,
+                      showSizeChanger: true,
+                      pageSizeOptions: ["6", "10", "20", "50"],
+                      showTotal: (total, range) =>
+                        `${range[0]}-${range[1]} of ${total} records`,
+                    }}
+                    scroll={{ x: "max-content" }}
+                    className="commission-compact-table m-2 my-4"
+                  />
+                ),
+              },
+              {
+                key: "all",
+                label: (
+                  <span className="text-sm font-semibold">All Commissions</span>
+                ),
+                children: (
+                  <Table
+                    size="small"
+                    rowKey="transactionId"
+                    dataSource={filterData(comissions)}
+                    columns={columns}
+                    pagination={{
+                      defaultPageSize: 8,
+                      pageSize: 8,
+                      showSizeChanger: true,
+                      pageSizeOptions: ["10", "20", "50", "100"],
+                      showTotal: (total, range) =>
+                        `${range[0]}-${range[1]} of ${total} records`,
+                    }}
+                    scroll={{ x: "max-content" }}
+                    className="commission-compact-table m-2 my-4"
+                  />
+                ),
               },
             ]}
+          />
+        </Card>
+      </div>
+
+      {/* Commission statement modal */}
+      <Modal
+        open={open}
+        onCancel={() => setOpen(false)}
+        footer={null}
+        title={
+          <div className="py-1">
+            <h3 className="text-lg font-bold text-slate-800">
+              Commission Statement
+            </h3>
+            <p className="mt-1 text-xs font-normal text-slate-500">
+              Choose the account, currency, and date range
+            </p>
+          </div>
+        }
+        width={560}
+        styles={{
+          content: { borderRadius: 16, padding: 24 },
+          header: { marginBottom: 20 },
+        }}
+      >
+        <Form form={statementForm} layout="vertical" onFinish={printStatement}>
+          <Form.Item
+            name="currency"
+            label="Currency"
+            rules={[{ required: true, message: "Please select a currency" }]}
           >
-            <Input
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Enter customer name"
+            <Select
+              size="large"
+              placeholder="Select currency"
+              allowClear
+              options={currencies.map((cur) => ({
+                label: cur.currency,
+                value: cur.currency,
+              }))}
             />
           </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
           <Form.Item name="accountNo" label="Account Number">
             <Select
-              mode="tags"
-              size="middle"
+              size="large"
               showSearch
-              placeholder="Select account"
+              placeholder="Select account number"
               options={accountOptions}
               className="!rounded-lg"
             />
           </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Currency"
-            name="currency"
-            rules={[
-              {
-                required: true,
-                message: "Select currency",
-              },
-            ]}
-          >
-            <Select
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Select currency"
-              options={currencies?.map((item) => ({
-                label: item.currency,
-                value: item.currency,
-              }))}
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item label="Transaction Type" name="transactionType">
-            <Select
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Select transaction type"
-              options={[
-                { value: "transaction fees", label: "Transaction Fees" },
-                { value: "transfer commission", label: "Transfer Fees" },
-                { value: "exchange commission", label: "Exchange Fees" },
-                { value: "expense", label: "Expense" },
-                { value: "withdrawal", label: "Withdrawal" },
-              ]}
-            />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      {/* COMMISSION AMOUNTS */}
-      <div className="mb-3 mt-2 flex items-center gap-2">
-        <DollarCircleOutlined className="text-blue-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-          Commission Amounts
-        </span>
-      </div>
-
-      <Row gutter={[16, 8]}>
-        <Col xs={24} md={12}>
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 pt-3">
-            <Form.Item
-              label={
-                <span className="font-semibold text-emerald-700">
-                  Credit Amount
-                </span>
-              }
-              name="credit"
-              initialValue={0}
-            >
-              <InputNumber
-                size="middle"
-                className="!w-full !rounded-lg"
-                min={0}
-                placeholder="0.00"
-                formatter={(value) =>
-                  `${value ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }
-                parser={(value) => (value || "").replace(/,/g, "")}
-              />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Form.Item name="fromDate" label="From Date">
+              <DatePicker size="large" className="!w-full !rounded-lg" />
+            </Form.Item>
+            <Form.Item name="toDate" label="To Date">
+              <DatePicker size="large" className="!w-full !rounded-lg" />
             </Form.Item>
           </div>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <div className="rounded-lg border border-red-200 bg-red-50/40 px-3 pt-3">
-            <Form.Item
-              label={
-                <span className="font-semibold text-red-700">
-                  Debit Amount
-                </span>
-              }
-              name="debit"
-              initialValue={0}
-            >
-              <InputNumber
-                size="middle"
-                className="!w-full !rounded-lg"
-                min={0}
-                placeholder="0.00"
-                formatter={(value) =>
-                  `${value ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }
-                parser={(value) => (value || "").replace(/,/g, "")}
-              />
-            </Form.Item>
-          </div>
-        </Col>
-      </Row>
-
-      {/* REFERENCE DETAILS */}
-      <div className="mb-3 mt-4 flex items-center gap-2">
-        <FileTextOutlined className="text-blue-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-          Reference Details
-        </span>
-      </div>
-
-      <Row gutter={[16, 4]}>
-        <Col xs={24} md={12}>
-          <Form.Item label="Transaction ID" name="transactionId">
-            <Input
-              size="middle"
-              className="!rounded-lg"
-              readOnly={edit}
-              placeholder="Transaction ID"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item label="Transaction Number" name="transactionNo">
-            <Input
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Enter transaction number"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col span={24}>
-          <Form.Item label="Details" name="details">
-            <Input.TextArea
-              rows={2}
-              className="!rounded-lg"
-              placeholder="Add commission details or notes..."
-            />
-          </Form.Item>
-        </Col>
-
-        {/* ACTION */}
-        <Col span={24}>
-          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-            <span className="text-xs text-slate-400">
-              Review details before saving.
-            </span>
-
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="middle"
-              className="!h-10 !rounded-lg !border-0 !bg-blue-700 !px-7 !font-semibold hover:!bg-blue-800"
-            >
-              {edit ? "Update Commission" : "Save Commission"}
-            </Button>
-          </div>
-        </Col>
-      </Row>
-    </Form>
-  </Card>
-</div>
-    {/* Commission history */}
-    <Card
-      bordered={false}
-      className="!rounded-2xl !border !border-slate-200 !shadow-sm"
-      title={
-        <div className="flex flex-col gap-4 py-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Commission History</h2>
-            <p className="mt-1 text-xs font-normal text-slate-500">Review and search recorded commission transactions</p>
-          </div>
-          <div className="flex w-full items-center gap-2 md:w-auto">
-            <Tooltip title="Print Transactions">
-              <Button onClick={openModal} className="!flex !h-10 !w-10 !items-center !justify-center !rounded-lg !border-slate-200">
-                <PrinterOutlined className="!text-lg !text-blue-700" />
+          <Form.Item className="!mb-0">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<PrinterOutlined />}
+                size="large"
+                className="!h-11 !rounded-lg !font-semibold"
+              >
+                Print Statement
               </Button>
-            </Tooltip>
-            <Input.Search
-              placeholder="Search commissions..."
-              allowClear
-              size="large"
-              className="md:!w-72"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-            />
-          </div>
-        </div>
-      }
-    >
-      <Tabs
-        defaultActiveKey="today"
-        size="large"
-        items={[
-          {
-            key: "today",
-            label: <span className="font-semibold">Today's Commissions</span>,
-            children: (
-              <Table
-                size="middle"
-                rowKey="transactionId"
-                dataSource={filterData(todayCommissions)}
-                columns={columns}
-                pagination={{ pageSize: 6, showSizeChanger: false, showTotal: (total) => `Total ${total} records` }}
-                scroll={{ x: "max-content" }}
-              />
-            ),
-          },
-          {
-            key: "all",
-            label: <span className="font-semibold">All Commissions</span>,
-            children: (
-              <Table
-                size="middle"
-                rowKey="transactionId"
-                dataSource={filterData(comissions)}
-                columns={columns}
-                pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Total ${total} records` }}
-                scroll={{ x: "max-content" }}
-              />
-            ),
-          },
-        ]}
-      />
-    </Card>
-  </div>
-
-  {/* Commission statement modal */}
-  <Modal
-    open={open}
-    onCancel={() => setOpen(false)}
-    footer={null}
-    title={<div className="py-1"><h3 className="text-lg font-bold text-slate-800">Commission Statement</h3><p className="mt-1 text-xs font-normal text-slate-500">Choose the account, currency, and date range</p></div>}
-    width={560}
-    styles={{ content: { borderRadius: 16, padding: 24 }, header: { marginBottom: 20 } }}
-  >
-    <Form form={statementForm} layout="vertical" onFinish={printStatement}>
-      <Form.Item name="currency" label="Currency" rules={[{ required: true, message: "Please select a currency" }]}>
-        <Select size="large" placeholder="Select currency" allowClear options={currencies.map((cur) => ({ label: cur.currency, value: cur.currency }))} />
-      </Form.Item>
-      <Form.Item name="accountNo" label="Account Number">
-        <Select size="large" showSearch placeholder="Select account number" options={accountOptions} className="!rounded-lg" />
-      </Form.Item>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Form.Item name="fromDate" label="From Date">
-          <DatePicker size="large" className="!w-full !rounded-lg" />
-        </Form.Item>
-        <Form.Item name="toDate" label="To Date">
-          <DatePicker size="large" className="!w-full !rounded-lg" />
-        </Form.Item>
-      </div>
-      <Form.Item className="!mb-0">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Button type="primary" htmlType="submit" icon={<PrinterOutlined />} size="large" className="!h-11 !rounded-lg !font-semibold">
-            Print Statement
-          </Button>
-          <Button type="default" icon={<FileExcelOutlined />} onClick={exportStatementToExcel} size="large" className="!h-11 !rounded-lg !border-emerald-200 !font-semibold !text-emerald-700 hover:!border-emerald-400 hover:!text-emerald-800">
-            Export to Excel
-          </Button>
-        </div>
-      </Form.Item>
-    </Form>
-  </Modal>
-</HomeLayout>
-
+              <Button
+                type="default"
+                icon={<FileExcelOutlined />}
+                onClick={exportStatementToExcel}
+                size="large"
+                className="!h-11 !rounded-lg !border-emerald-200 !font-semibold !text-emerald-700 hover:!border-emerald-400 hover:!text-emerald-800"
+              >
+                Export to Excel
+              </Button>
+            </div>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </HomeLayout>
   );
 };
 

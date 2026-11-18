@@ -37,6 +37,7 @@ import { ArrowLeftRight } from "lucide-react";
 import {
 
   DeleteOutlined,
+  PlusOutlined,
   EditOutlined,
   PrinterOutlined,
   WalletOutlined,
@@ -50,7 +51,8 @@ import {
 
 const Vault = () => {
   const [edit, setEdit] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // statement modal
+  const [vaultFormOpen, setVaultFormOpen] = useState(false);
 
   //account statement states
   const [stAcc, setStAcc] = useState(null);
@@ -100,6 +102,8 @@ const Vault = () => {
       toast.success("data has been saved successfully");
       mutate("/api/vault/read");
       form.resetFields();
+      setVaultFormOpen(false);
+      setEdit(false);
     } catch (error) {
       console.log(error.message);
     }
@@ -108,6 +112,7 @@ const Vault = () => {
   //   Edit Vault
   const handleEdit = (record) => {
     setEdit(true);
+    setVaultFormOpen(true);
     console.log(record);
 
     form.setFieldsValue({
@@ -120,6 +125,7 @@ const Vault = () => {
       transactionType: record.transactionType,
       details: record.details,
       currency: record.currency,
+      exchangeRate: record.exchangeRate,
     });
   };
 
@@ -142,6 +148,7 @@ const Vault = () => {
 
       setEdit(false);
       form.resetFields();
+      setVaultFormOpen(false);
     } catch (err) {
       console.error("Update Failed:", err);
       toast.error(err.response?.data?.msg || "Failed to update record");
@@ -377,6 +384,11 @@ const Vault = () => {
             <span class="value">${Vault.transactionNo}</span>
           </div>
 
+          <div class="row">
+            <span class="label">Exchange Rate:</span>
+            <span class="value">${Vault.exchangeRate != null && Vault.exchangeRate !== "" ? Number(Vault.exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 6 }) : "-"}</span>
+          </div>
+
         </div>
 
         <div class="amount">
@@ -495,6 +507,7 @@ const Vault = () => {
         accountNo: transaction.accountNo || "-",
         description: transaction.details || "-",
         currency,
+        exchangeRate: Number(transaction.exchangeRate) || 0,
         credit,
         debit,
         balance: runningBalances[currency],
@@ -604,6 +617,10 @@ const Vault = () => {
 
           <td class="account-cell nowrap">
             ${escapeHtml(row.accountNo)}
+          </td>
+
+          <td class="number nowrap">
+            ${row.exchangeRate ? Number(row.exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 6 }) : "-"}
           </td>
 
           <td class="description-cell">
@@ -1098,6 +1115,10 @@ const Vault = () => {
                     Account No
                   </th>
 
+                  <th style="width:85px;text-align:right;">
+                    Exchange Rate
+                  </th>
+
                   <th>
                     Description
                   </th>
@@ -1249,6 +1270,7 @@ const Vault = () => {
       "Account No": row.accountNo,
       Description: row.description,
       Currency: row.currency,
+      "Exchange Rate": row.exchangeRate || "-",
       Credit: row.credit,
       Debit: row.debit,
       Balance: row.balance,
@@ -1264,6 +1286,7 @@ const Vault = () => {
       { wch: 15 }, // Account No
       { wch: 55 }, // Description
       { wch: 12 }, // Currency
+      { wch: 16 }, // Exchange Rate
       { wch: 16 }, // Credit
       { wch: 16 }, // Debit
       { wch: 16 }, // Balance
@@ -1275,17 +1298,17 @@ const Vault = () => {
     for (let row = 1; row <= range.e.r; row++) {
       const creditCell = XLSX.utils.encode_cell({
         r: row,
-        c: 5,
+        c: 6,
       });
 
       const debitCell = XLSX.utils.encode_cell({
         r: row,
-        c: 6,
+        c: 7,
       });
 
       const balanceCell = XLSX.utils.encode_cell({
         r: row,
-        c: 7,
+        c: 8,
       });
 
       if (worksheet[creditCell]) {
@@ -1352,6 +1375,14 @@ const Vault = () => {
     {
       title: "Currency",
       dataIndex: "currency",
+    },
+    {
+      title: "Exchange Rate",
+      dataIndex: "exchangeRate",
+      render: (value) =>
+        value !== undefined && value !== null && value !== ""
+          ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 })
+          : "-",
     },
 
     {
@@ -1446,31 +1477,46 @@ const Vault = () => {
     <HomeLayout>
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
         {/* Header */}
-        <div className="mb-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-5 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 p-6 text-white md:flex-row md:items-center md:justify-between md:p-8">
+        <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 px-5 py-4 text-white md:flex-row md:items-center md:justify-between md:px-6 md:py-4">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-200">
+              <div className="mb-1 flex items-center gap-2 text-xs font-medium tracking-wide text-blue-200">
                 <WalletOutlined /> FINANCIAL OPERATIONS
               </div>
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
                 Vault Management
               </h1>
-              <p className="mt-2 text-sm text-blue-100 md:text-base">
+              <p className="mt-1 text-xs text-blue-100 md:text-sm">
                 Manage vault transactions, monitor daily balances, and review
                 account activity.
               </p>
             </div>
 
-            <div className="flex items-center gap-3 self-start rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm md:self-auto">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 text-xl">
-                <WalletOutlined />
-              </div>
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wider text-blue-200">
-                  Overview
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <div className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/15 text-lg">
+                  <WalletOutlined />
                 </div>
-                <div className="font-semibold">Today's Summary</div>
+                <div>
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-blue-200">
+                    Overview
+                  </div>
+                  <div className="text-sm font-semibold">Today's Summary</div>
+                </div>
               </div>
+              <Button
+                type="primary"
+                size="middle"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEdit(false);
+                  form.resetFields();
+                  setVaultFormOpen(true);
+                }}
+                className="!h-9 !rounded-lg !border-0 !bg-white !px-4 !text-sm !font-semibold !text-blue-800 shadow-sm hover:!bg-blue-50"
+              >
+                New Vault Entry
+              </Button>
             </div>
           </div>
         </div>
@@ -1567,24 +1613,37 @@ const Vault = () => {
         {/* Vault Form */}
       
 
-<div className="flex w-full justify-center px-2 py-4">
+<Modal
+          open={vaultFormOpen}
+          onCancel={() => {
+            setVaultFormOpen(false);
+            setEdit(false);
+            form.resetFields();
+          }}
+          footer={null}
+          centered
+          width={900}
+          title={
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg text-blue-700">
+                <BankOutlined />
+              </div>
+              <div>
+                <div className="text-base font-bold text-slate-800">
+                  {edit ? "Update Vault Entry" : "Create Vault Entry"}
+                </div>
+                <div className="text-xs font-normal text-slate-400">
+                  Enter the customer and transaction details below
+                </div>
+              </div>
+            </div>
+          }
+          styles={{ content: { borderRadius: 18 }, body: { paddingTop: 12 } }}
+        >
+<div className="flex w-full justify-center px-1 py-2">
   <Card
-    className="!w-full xl:!w-10/12 !rounded-xl !border !border-slate-200 !shadow-sm"
-    title={
-      <div className="flex items-center gap-3 py-1">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-lg text-blue-700">
-          <BankOutlined />
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-slate-800">
-            {edit ? "Update Vault" : "New Vault"}
-          </h2>
-          <p className="text-xs font-normal text-slate-400">
-            Customer vault management
-          </p>
-        </div>
-      </div>
-    }
+    className="!w-full !rounded-xl !border !border-slate-200 !shadow-sm"
+    bordered={false}
   >
     <Form
       form={form}
@@ -1747,6 +1806,40 @@ const Vault = () => {
         </Col>
       </Row>
 
+      {/* DAILY EXCHANGE RATE */}
+      <div className="mb-3 mt-4 flex items-center gap-2">
+        <ArrowLeftRight className="text-blue-600" size={16} />
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+          Daily Exchange Rate
+        </span>
+      </div>
+
+      <Row gutter={[16, 4]}>
+        <Col xs={24} md={12}>
+          <Form.Item
+            label="Exchange Rate"
+            name="exchangeRate"
+            tooltip="Enter the exchange rate applicable for this day's vault entry."
+            rules={[
+              {
+                type: "number",
+                min: 0,
+                message: "Exchange rate cannot be negative",
+              },
+            ]}
+          >
+            <InputNumber
+              size="middle"
+              className="!w-full !rounded-lg"
+              min={0}
+              step={0.0001}
+              precision={6}
+              placeholder="Enter today's exchange rate"
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+
       {/* REFERENCES */}
       <div className="mb-3 mt-4 flex items-center gap-2">
         <FileTextOutlined className="text-blue-600" />
@@ -1809,6 +1902,7 @@ const Vault = () => {
     </Form>
   </Card>
 </div>
+        </Modal>
 
 
         {/* Vault History */}
@@ -1856,7 +1950,13 @@ const Vault = () => {
                     rowKey="_id"
                     dataSource={filterData(todayVault)}
                     columns={columns}
-                    pagination={{ pageSize: 6 }}
+                    pagination={{
+                      pageSize: 6,
+                      showSizeChanger: true,
+                      pageSizeOptions: ["6", "10", "20", "50"],
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} records`,
+                    }}
+                    sticky
                     scroll={{ x: "max-content" }}
                   />
                 ),
@@ -1872,7 +1972,13 @@ const Vault = () => {
                     rowKey="_id"
                     dataSource={filterData(Vaults)}
                     columns={columns}
-                    pagination={{ pageSize: 10 }}
+                    pagination={{
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      pageSizeOptions: ["10", "20", "50", "100"],
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} records`,
+                    }}
+                    sticky
                     scroll={{ x: "max-content" }}
                   />
                 ),

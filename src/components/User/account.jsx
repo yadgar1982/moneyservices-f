@@ -9,6 +9,7 @@ import {
   Table,
   Popconfirm,
   Avatar,
+  Modal,
 } from "antd";
 import HomeLayout from "../Shared/Layouts/HomeLayout";
 import {
@@ -18,6 +19,7 @@ import {
   PrinterOutlined,
   SearchOutlined,
   UploadOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 
 import { toast } from "react-toastify";
@@ -37,6 +39,13 @@ shutterSound.volume = 0.2;
 
 const { Option } = Select;
 
+// ISO 3166-1 alpha-2 country codes, displayed using the browser's locale data.
+const countryRegionNames = new Intl.DisplayNames(["en"], { type: "region" });
+const countryCodes = `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW`.split(" ");
+const countryOptions = countryCodes
+  .map((code) => ({ value: countryRegionNames.of(code), label: countryRegionNames.of(code) }))
+  .sort((a, b) => a.label.localeCompare(b.label));
+
 //getting user from localStorage
 const myBrand = JSON.parse(
   localStorage.getItem("branding") || "{}"
@@ -49,6 +58,7 @@ const myLogo = "/assets/logo.png";
 const Accounts = () => {
   const [form] = Form.useForm();
   const [edit, setEdit] = useState(false);
+  const [formVisible, setFormVisible] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const httpReq = http();
@@ -94,6 +104,9 @@ const Accounts = () => {
       String(user.accountNo || "")
         .toLowerCase()
         .includes(search) ||
+      String(user.reference || "")
+        .toLowerCase()
+        .includes(search) ||
       String(user.email || "")
         .toLowerCase()
         .includes(search) ||
@@ -118,8 +131,9 @@ const Accounts = () => {
       const formData = new FormData();
 
       Object.keys(values).forEach((key) => {
-        if (key !== "profile") {
-          formData.append(key, values[key]);
+        if (key !== "profile" && values[key] !== undefined && values[key] !== null) {
+          const value = key === "reference" ? String(values[key]).trim().toLowerCase() : values[key];
+          formData.append(key, value);
         }
       });
 
@@ -151,6 +165,8 @@ const Accounts = () => {
       mutate("/api/user/read");
       toast.success("User created successfully!");
       form.resetFields();
+      setEdit(false);
+      setFormVisible(false);
     } catch (err) {
       console.error("Create user error:", err);
       toast.error("Failed to create user!");
@@ -160,6 +176,7 @@ const Accounts = () => {
   //update Account
   const handleEdit = (record) => {
     setEdit(true);
+    setFormVisible(true);
     form.setFieldsValue({
       _id: record._id,
       fullname: record.fullname,
@@ -170,6 +187,7 @@ const Accounts = () => {
       role: record.role,
       branch: record.branch,
       accountNo: record.accountNo,
+      reference: record.reference,
       password: "123456",
       isPass: record.isPass,
     });
@@ -181,8 +199,9 @@ const Accounts = () => {
 
       Object.keys(values).forEach((key) => {
         if (key === "password") return;
-        if (key !== "profile") {
-          formData.append(key, values[key]);
+        if (key !== "profile" && values[key] !== undefined && values[key] !== null) {
+          const value = key === "reference" ? String(values[key]).trim().toLowerCase() : values[key];
+          formData.append(key, value);
         }
       });
 
@@ -206,6 +225,7 @@ const Accounts = () => {
       mutate("/api/user/read");
       toast.success("User Updated Successfully !");
       setEdit(false);
+      setFormVisible(false);
     } catch (err) {
       console.error(err);
     }
@@ -224,7 +244,7 @@ const Accounts = () => {
 
   // Print Account
 
-  const printAccount = (record) => {
+   const printAccount = (record) => {
     const getBalancesByAccount = (transactions = [], accountNo) => {
       const balances = {};
 
@@ -507,18 +527,211 @@ const Accounts = () => {
 
           /* ================= PRINT ================= */
 
+          /* Let the browser print dialog control Portrait or Landscape. */
+          @page {
+            size: auto;
+            margin: 7mm;
+          }
+
           @media print {
+            html,
             body {
-              padding: 0;
-              background: #ffffff;
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #1f2937 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
 
             .container {
-              max-width: none;
-              border: none;
-              box-shadow: none;
+              display: flex !important;
+              flex-direction: column !important;
+              width: 100% !important;
+              max-width: none !important;
+              min-height: 0 !important;
+              margin: 0 !important;
+              border: 0 !important;
+              box-shadow: none !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+
+            .header,
+            .account-header,
+            .section,
+            .footer {
+              flex-shrink: 0 !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+
+            .header {
+              padding: 8px 22px 8px !important;
+            }
+
+            .logo {
+              width: 56px !important;
+              height: 56px !important;
+              margin: 0 auto 5px !important;
+            }
+
+            .header h2 {
+              margin: 3px 0 !important;
+              color: #173b70 !important;
+              font-size: 17px !important;
+              line-height: 1.2 !important;
+            }
+
+            .company-contact,
+            .company-address {
+              margin: 2px 0 !important;
+              font-size: 10px !important;
+              line-height: 1.25 !important;
+            }
+
+            .statement-title {
+              margin-top: 8px !important;
+              font-size: 11px !important;
+              letter-spacing: 1.1px !important;
+            }
+
+            .account-header {
+              padding: 8px 22px !important;
+            }
+
+            .account-label {
+              font-size: 9px !important;
+            }
+
+            .account-value {
+              font-size: 12px !important;
+            }
+
+            .section {
+              padding: 9px 22px !important;
+            }
+
+            .section-title {
+              margin-bottom: 7px !important;
+              padding-bottom: 5px !important;
+              font-size: 10px !important;
+            }
+
+            .customer-area {
+              gap: 14px !important;
+            }
+
+            .profile-img {
+              width: 60px !important;
+              height: 60px !important;
+            }
+
+            .info-grid {
+              column-gap: 24px !important;
+              row-gap: 6px !important;
+            }
+
+            .info-item span {
+              margin-bottom: 2px !important;
+              font-size: 9px !important;
+            }
+
+            .info-item strong {
+              font-size: 11px !important;
+              line-height: 1.2 !important;
+              overflow-wrap: anywhere !important;
+            }
+
+            .balances {
+              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+              gap: 8px !important;
+            }
+
+            .balance-card {
+              padding: 8px 10px !important;
+            }
+
+            .currency {
+              margin-bottom: 3px !important;
+              font-size: 9px !important;
+            }
+
+            .balance {
+              font-size: 15px !important;
+            }
+
+            .no-balance {
+              font-size: 11px !important;
+            }
+
+            .footer {
+              margin-top: 0 !important;
+              padding: 8px 22px !important;
+              font-size: 9px !important;
+              line-height: 1.3 !important;
+              border-top: 1px solid #e5e7eb !important;
             }
           }
+
+          /* Landscape has less page height, so tighten vertical spacing only.
+             Keep the complete statement together; never allow the footer to split. */
+          @media print and (orientation: landscape) {
+            .header {
+              padding-top: 4px !important;
+              padding-bottom: 5px !important;
+            }
+
+            .logo {
+              width: 44px !important;
+              height: 44px !important;
+              margin-bottom: 3px !important;
+            }
+
+            .header h2 {
+              font-size: 16px !important;
+            }
+
+            .statement-title {
+              margin-top: 5px !important;
+            }
+
+            .account-header {
+              padding-top: 6px !important;
+              padding-bottom: 6px !important;
+            }
+
+            .section {
+              padding-top: 6px !important;
+              padding-bottom: 6px !important;
+            }
+
+            .section-title {
+              margin-bottom: 5px !important;
+              padding-bottom: 3px !important;
+            }
+
+            .profile-img {
+              width: 54px !important;
+              height: 54px !important;
+            }
+
+            .info-grid {
+              row-gap: 4px !important;
+            }
+
+            .balance-card {
+              padding-top: 6px !important;
+              padding-bottom: 6px !important;
+            }
+
+            .footer {
+              padding-top: 6px !important;
+              padding-bottom: 6px !important;
+            }
+          }
+
         </style>
       </head>
 
@@ -623,6 +836,13 @@ const Accounts = () => {
                   <span>Account Number</span>
                   <strong>
                     ${record.accountNo || "-"}
+                  </strong>
+                </div>
+
+                <div class="info-item">
+                  <span>Reference</span>
+                  <strong>
+                    ${record.reference || "-"}
                   </strong>
                 </div>
 
@@ -825,6 +1045,10 @@ const printallAccounts = () => {
             <span class="account-number">
               ${accountNo || "-"}
             </span>
+          </td>
+
+          <td>
+            ${user.reference || "-"}
           </td>
 
           <td>
@@ -1223,6 +1447,7 @@ const printallAccounts = () => {
                   <th>#</th>
                   <th>Customer Name</th>
                   <th>Account Number</th>
+                  <th>Reference</th>
                   <th>Account Balances</th>
                 </tr>
 
@@ -1363,6 +1588,7 @@ const printallAccounts = () => {
         "#": index + 1,
         "Customer Name": user.fullname || "",
         "Account Number": user.accountNo || "",
+        Reference: user.reference || "",
         Email: user.email || "",
         Mobile: user.mobile || "",
         Country: user.country || "",
@@ -1434,6 +1660,12 @@ const printallAccounts = () => {
       title: "Account",
       dataIndex: "accountNo",
       width: 150,
+    },
+    {
+      title: "Reference",
+      dataIndex: "reference",
+      width: 160,
+      render: (value) => value || "—",
     },
     {
       title: "Name",
@@ -1536,17 +1768,58 @@ const printallAccounts = () => {
     <HomeLayout>
       <div className="min-h-screen bg-slate-50 p-2 md:p-5">
         {/* Page Header */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between md:px-6">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-700">
-              Accounts Registration
+            <h1 className="text-xl font-bold tracking-tight text-slate-800 md:text-2xl">
+              Customer Accounts
             </h1>
-            <p className="mt-1 text-xs text-slate-400">
-              Create and manage customer accounts
+            <p className="mt-1 text-sm text-slate-500">
+              Manage customer profiles, account details, statements and records.
             </p>
           </div>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              form.resetFields();
+              setEdit(false);
+              setFormVisible(true);
+            }}
+            className="!h-10 !rounded-lg !bg-blue-600 !px-5 !font-semibold shadow-sm hover:!bg-blue-700"
+          >
+            Add Customer
+          </Button>
         </div>
 
+        {/* Create / Edit Customer Modal */}
+        <Modal
+          open={formVisible}
+          onCancel={() => {
+            setFormVisible(false);
+            setEdit(false);
+            form.resetFields();
+          }}
+          title={
+            <div className="pr-6">
+              <div className="text-base font-bold text-slate-800">
+                {edit ? "Update Customer Account" : "Create Customer Account"}
+              </div>
+              <div className="mt-1 text-xs font-normal text-slate-500">
+                {edit
+                  ? "Update the customer's account information."
+                  : "Enter the details below to register a new customer."}
+              </div>
+            </div>
+          }
+          footer={null}
+          centered
+          width={900}
+          destroyOnClose={false}
+          styles={{
+            body: { padding: "8px 0 0" },
+            header: { borderBottom: "1px solid #f1f5f9", paddingBottom: 16 },
+          }}
+        >
         {/* Registration Card */}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           {/* Card Header */}
@@ -1621,6 +1894,22 @@ const printallAccounts = () => {
                   />
                 </Form.Item>
 
+                {/* Reference */}
+                <Form.Item
+                  name="reference"
+                  label={
+                    <span className="text-xs font-medium text-slate-600">
+                      Reference
+                    </span>
+                  }
+                  className="!mb-2"
+                >
+                  <Input
+                    placeholder="Enter reference"
+                    className="!h-9 !rounded-md !border-slate-200 !text-sm hover:!border-blue-400 focus:!border-blue-500"
+                  />
+                </Form.Item>
+
                 {/* Email */}
                 <Form.Item
                   name="email"
@@ -1677,9 +1966,14 @@ const printallAccounts = () => {
                   ]}
                   className="!mb-2"
                 >
-                  <Input
-                    placeholder="Enter country"
-                    className="!h-9 !rounded-md !border-slate-200 !text-sm hover:!border-blue-400 focus:!border-blue-500"
+                  <Select
+                    showSearch
+                    allowClear
+                    optionFilterProp="label"
+                    options={countryOptions}
+                    placeholder="Select a country"
+                    className="w-full !text-sm"
+                    size="large"
                   />
                 </Form.Item>
 
@@ -1742,11 +2036,12 @@ const printallAccounts = () => {
             </Form>
           </div>
         </div>
+        </Modal>
 
         {/* Accounts History */}
-        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ">
           {/* Header */}
-          <div className="border-b border-slate-100 px-4 py-3">
+          <div className="border-b border-slate-100 px-4 py-3 ">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               {/* Title */}
               <div>
@@ -1831,22 +2126,29 @@ const printallAccounts = () => {
             </span>
           </div>
 
-          {/* YOUR EXISTING TABLE */}
-          <div className="overflow-x-auto">
-            <Table
-              rowKey="_id"
-              columns={columns}
-              dataSource={searchedUsers}
-              bordered={false}
-              scroll={{ x: "max-content" }}
-              sticky
-              size="small"
-              pagination={{
-                pageSize: 10,
-              }}
-              className="accounts-table !text-xs"
-            />
-          </div>
+          {/* Table handles its own horizontal and vertical scrolling */}
+        <Table
+  rowKey="_id"
+  columns={columns}
+  dataSource={searchedUsers}
+  bordered={false}
+  scroll={{ x: "max-content", y: 560 }}
+  sticky
+  size="small"
+  pagination={{
+    defaultPageSize: 10,
+    pageSize: 10,
+    showSizeChanger: true,
+    pageSizeOptions: ["10", "20", "50", "100"],
+    showTotal: (total, range) =>
+      `${range[0]}-${range[1]} of ${total} accounts`,
+    showQuickJumper: true,
+  }}
+  className="accounts-table compact-accounts-table !text-xs m-2"
+/>
+
+
+
         </div>
       </div>
     </HomeLayout>

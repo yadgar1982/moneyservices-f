@@ -157,31 +157,49 @@ const Currency = () => {
 
   ];
 
-  const curdata = [
-    { code: "USD", country: "us" },
-    { code: "AFN", country: "af" },
-    { code: "IRR", country: "ir" },
-    { code: "PKR", country: "pk" },
-    { code: "UZS", country: "uz" },
-    { code: "CNY", country: "cn" },
-    { code: "AED", country: "ae" },
-    { code: "SAR", country: "sa" },
-    { code: "RUB", country: "ru" }
-  ];
-  const currencies = curdata.map((item) => ({
-    value: item.code,
-    country:item.country,
-    label: (
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <img
-          src={`https://flagcdn.com/w20/${item.country}.png`}
-          width="20"
-          style={{ borderRadius: "2px" }}
-        />
-        {item.code} {item.name}
-      </div>
-    )
-  }));
+const curdata = [
+  { code: "USD", country: "us" },
+  { code: "EUR", country: "eu" },
+  { code: "GBP", country: "gb" },
+  { code: "CHF", country: "ch" },
+  { code: "CAD", country: "ca" },
+  { code: "AUD", country: "au" },
+  { code: "NZD", country: "nz" },
+  { code: "JPY", country: "jp" },
+  { code: "CNY", country: "cn" },
+  { code: "HKD", country: "hk" },
+  { code: "SGD", country: "sg" },
+  { code: "INR", country: "in" },
+  { code: "PKR", country: "pk" },
+  { code: "AFN", country: "af" },
+  { code: "IRR", country: "ir" },
+  { code: "AED", country: "ae" },
+  { code: "SAR", country: "sa" },
+  { code: "QAR", country: "qa" },
+  { code: "KWD", country: "kw" },
+  { code: "BHD", country: "bh" },
+  { code: "OMR", country: "om" },
+  { code: "TRY", country: "tr" },
+  { code: "RUB", country: "ru" },
+  { code: "UZS", country: "uz" },
+  { code: "KZT", country: "kz" },
+  { code: "BDT", country: "bd" },
+  { code: "LKR", country: "lk" },
+  { code: "THB", country: "th" },
+  { code: "MYR", country: "my" },
+  { code: "IDR", country: "id" },
+  { code: "KRW", country: "kr" },
+  { code: "BRL", country: "br" },
+  { code: "MXN", country: "mx" },
+  { code: "ZAR", country: "za" },
+  { code: "EGP", country: "eg" },
+  { code: "NGN", country: "ng" },
+];
+const currencies = curdata.map((item) => ({
+  value: item.code,
+  label: item.code,
+  country: item.country,
+}));
   return (
    <AdminLayout>
   <div className="w-full bg-white p-2 md:p-4">
@@ -231,7 +249,7 @@ const Currency = () => {
           <Col xs={24} md={12}>
             <Form.Item
               name="currency"
-              label="Currency Name"
+             
               rules={[
                 {
                   required: true,
@@ -239,24 +257,46 @@ const Currency = () => {
                 },
               ]}
             >
-              <Select
-                options={currencies}
-                optionLabelProp="label"
-                showSearch
-                placeholder="Select currency"
-                className="!rounded-lg"
-                filterOption={(input, option) =>
-                  (option?.label ?? "")
-                    .toLowerCase()
-                    .includes(input.toLowerCase())
-                }
-                onChange={(value, option) => {
-                  form.setFieldsValue({
-                    currency: value,
-                    country: option.country,
-                  });
-                }}
-              />
+            <Form.Item
+  name="currency"
+  label="Currency Name"
+  rules={[
+    {
+      required: true,
+      message: "Enter Currency Name",
+    },
+  ]}
+>
+  <Select
+    showSearch
+    allowClear
+    placeholder="Select currency"
+    className="!rounded-lg"
+    optionFilterProp="label"
+    filterOption={(input, option) =>
+      option?.label?.toLowerCase().includes(input.toLowerCase())
+    }
+    optionRender={(option) => (
+      <div className="flex items-center gap-2">
+        <img
+          src={`https://flagcdn.com/w20/${option.data.country}.png`}
+          width="20"
+          height="15"
+          style={{ borderRadius: 2, objectFit: "cover" }}
+          alt=""
+        />
+        <span>{option.data.label}</span>
+      </div>
+    )}
+    options={currencies}
+    onChange={(value, option) => {
+      form.setFieldsValue({
+        currency: value,
+        country: option?.country || null,
+      });
+    }}
+  />
+</Form.Item>
             </Form.Item>
           </Col>
 
