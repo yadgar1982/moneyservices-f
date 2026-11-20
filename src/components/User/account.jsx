@@ -123,55 +123,80 @@ const Accounts = () => {
   });
 
   // create Account
+const onFinish = async (values) => {
+  try {
+    delete values._id;
 
-  const onFinish = async (values) => {
-    try {
-      delete values._id;
+    // Check account number
+    const accountNo = String(values.accountNo || "").trim();
 
-      const formData = new FormData();
-
-      Object.keys(values).forEach((key) => {
-        if (key !== "profile" && values[key] !== undefined && values[key] !== null) {
-          const value = key === "reference" ? String(values[key]).trim().toLowerCase() : values[key];
-          formData.append(key, value);
-        }
-      });
-
-      formData.append("role", "customer");
-
-      // handle profile image with compression
-      if (values.profile && values.profile.length > 0) {
-        const file = values.profile[0].originFileObj;
-
-        let finalFile = file;
-
-        if (file.size > 500 * 1024) {
-          finalFile = await imageCompression(file, {
-            maxSizeMB: 0.5,
-            maxWidthOrHeight: 800,
-            useWebWorker: true,
-          });
-        }
-
-        formData.append("profile", finalFile);
-      }
-
-      for (let pair of formData.entries()) {
-        console.log(pair[0], pair[1]);
-      }
-
-      const res = await http().post("/api/user/create", formData);
-
-      mutate("/api/user/read");
-      toast.success("User created successfully!");
-      form.resetFields();
-      setEdit(false);
-      setFormVisible(false);
-    } catch (err) {
-      console.error("Create user error:", err);
-      toast.error("Failed to create user!");
+    if (!accountNo) {
+      toast.error("Please enter an account number.");
+      return;
     }
-  };
+
+    const formData = new FormData();
+
+    Object.keys(values).forEach((key) => {
+      if (
+        key !== "profile" &&
+        values[key] !== undefined &&
+        values[key] !== null
+      ) {
+        const value =
+          key === "reference"
+            ? String(values[key]).trim().toLowerCase()
+            : key === "accountNo"
+              ? accountNo
+              : values[key];
+
+        formData.append(key, value);
+      }
+    });
+
+    formData.append("role", "customer");
+
+    // Handle profile image with compression
+    if (values.profile && values.profile.length > 0) {
+      const file = values.profile[0].originFileObj;
+
+      let finalFile = file;
+
+      if (file.size > 500 * 1024) {
+        finalFile = await imageCompression(file, {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 800,
+          useWebWorker: true,
+        });
+      }
+
+      formData.append("profile", finalFile);
+    }
+
+    const res = await http().post("/api/user/create", formData);
+
+    mutate("/api/user/read");
+
+    toast.success("User created successfully!");
+
+    form.resetFields();
+    setEdit(false);
+    setFormVisible(false);
+
+  } catch (err) {
+    console.error("Create user error:", err);
+    console.error("Backend error:", err?.response?.data);
+
+    const status = err?.response?.status;
+    const message = err?.response?.data?.msg;
+
+    if (status === 409 || status === 400) {
+      toast.error(message || "Account number or email already exists.");
+    } else {
+      toast.error(message || "Failed to create user!");
+    }
+  }
+};
 
   //update Account
   const handleEdit = (record) => {
