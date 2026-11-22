@@ -35,7 +35,6 @@ import { fetcher, http } from "../Modules/http";
 import useSWR, { mutate } from "swr";
 import { ArrowLeftRight } from "lucide-react";
 import {
-
   DeleteOutlined,
   PlusOutlined,
   EditOutlined,
@@ -81,7 +80,7 @@ const Vault = () => {
   const myBrand = JSON.parse(localStorage.getItem("branding"));
   const { users, uLoading, uError } = useSelector((state) => state.users);
   const { branches, bLoading, bError } = useSelector((state) => state.branches);
-
+  const [balanceView, setBalanceView] = useState("today");
   const { data, error } = useSWR("/api/vault/read", fetcher);
   const Vaults = data?.data || [];
 
@@ -169,13 +168,22 @@ const Vault = () => {
     }
   };
 
-  // Vaults details
-  const today = new Date().toDateString();
-  const todayVault = Vaults?.filter(
-    (items) => new Date(items.createdAt).toDateString() === today,
-  );
+  // Vault Balance Summary
 
-  const todayTotals = todayVault.reduce((acc, item) => {
+  const todayVault = (Vaults || []).filter((item) => {
+    if (!item.createdAt) return false;
+
+    return (
+      dayjs(item.createdAt).isValid() &&
+      dayjs(item.createdAt).isSame(dayjs(), "day")
+    );
+  });
+
+  // Choose Today or All Balance
+  const summaryVault = balanceView === "today" ? todayVault : Vaults;
+
+  // Calculate totals by currency
+  const summaryTotals = summaryVault.reduce((acc, item) => {
     const currency = item.currency || "Unknown";
 
     if (!acc[currency]) {
@@ -1381,7 +1389,9 @@ const Vault = () => {
       dataIndex: "exchangeRate",
       render: (value) =>
         value !== undefined && value !== null && value !== ""
-          ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 })
+          ? Number(value).toLocaleString(undefined, {
+              maximumFractionDigits: 6,
+            })
           : "-",
     },
 
@@ -1473,7 +1483,6 @@ const Vault = () => {
     },
   ];
   return (
- 
     <HomeLayout>
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
         {/* Header */}
@@ -1493,17 +1502,7 @@ const Vault = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-              <div className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 backdrop-blur-sm">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/15 text-lg">
-                  <WalletOutlined />
-                </div>
-                <div>
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-blue-200">
-                    Overview
-                  </div>
-                  <div className="text-sm font-semibold">Today's Summary</div>
-                </div>
-              </div>
+             
               <Button
                 type="primary"
                 size="middle"
@@ -1521,99 +1520,149 @@ const Vault = () => {
           </div>
         </div>
 
-        {/* Daily Summary */}
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Daily Overview</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Credit, debit, and net totals by currency
-            </p>
+        {/* GLOBAL OUTSTANDING DEBIT ALERT */}
+        {(() => {
+          const lastMovement = [...(Vaults || [])]
+            .filter(
+              (item) =>
+                dayjs(item.createdAt).isValid() &&
+                (Number(item.debit || 0) > 0 || Number(item.credit || 0) > 0),
+            )
+            .sort(
+              (a, b) =>
+                dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf(),
+            )[0];
+
+          if (!lastMovement || Number(lastMovement.debit || 0) <= 0) {
+            return null;
+          }
+
+          return (
+            <div className="mx-4 mb-5 rounded-xl border border-red-300 bg-red-50 p-4 shadow-sm md:mx-6">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-red-500" />
+                <p className="font-bold text-red-700">
+                  Outstanding Vault Debit Alert
+                </p>
+              </div>
+
+              <p className="mt-2 text-sm text-red-700">
+                The latest Vault movement was a Debit of{" "}
+                <strong>
+                  {Number(lastMovement.debit).toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  {lastMovement.currency}
+                </strong>
+                . A Credit has not been recorded after this Debit.
+              </p>
+
+              <p className="mt-1 text-xs text-red-500">
+                Account: {lastMovement.accountNo} | Customer:{" "}
+                {lastMovement.fullname} | Date:{" "}
+                {dayjs(lastMovement.createdAt).format("DD-MM-YYYY")}
+              </p>
+            </div>
+          );
+        })()}
+
+        {/* Balance Report */}
+        <div className="mb-8">
+          <div className="mb-4 flex flex-col gap-3 px-4 md:flex-row md:items-center md:justify-between md:px-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">
+                {balanceView === "today"
+                  ? "Today's Balance"
+                  : "All Balance"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Credit, debit, and net totals by currency
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-1">
+              <Button
+                type={balanceView === "today" ? "primary" : "text"}
+                onClick={() => setBalanceView("today")}
+                className="!rounded-md"
+              >
+                Today
+              </Button>
+
+              <Button
+                type={balanceView === "all" ? "primary" : "text"}
+                onClick={() => setBalanceView("all")}
+                className="!rounded-md"
+              >
+                All Balance
+              </Button>
+            </div>
           </div>
-          <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            TODAY
-          </span>
+
+          <Row gutter={[16, 16]} className="!flex !justify-center !w-full">
+            {Object.entries(summaryTotals).map(([currency, total]) => {
+              const net = total.credit - total.debit;
+
+              return (
+                <Col xs={24} sm={12} md={8} lg={6} key={currency}>
+                  <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="text-base font-bold text-slate-800">
+                        {currency}
+                      </h3>
+                      <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                        Balance
+                      </span>
+                    </div>
+
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-slate-500">
+                        Credit
+                      </span>
+                      <span className="text-base font-bold tabular-nums text-emerald-700">
+                        {Number(total.credit || 0).toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-slate-500">
+                        Debit
+                      </span>
+                      <span className="text-base font-bold tabular-nums text-red-700">
+                        {Number(total.debit || 0).toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
+                      <span className="text-sm font-semibold text-slate-600">
+                        Net Balance
+                      </span>
+                      <span
+                        className={`text-lg font-extrabold tabular-nums ${
+                          net >= 0 ? "text-blue-700" : "text-red-700"
+                        }`}
+                      >
+                        {net.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </Col>
+              );
+            })}
+          </Row>
         </div>
 
-        <Row gutter={[16, 16]} className="mb-8 flex justify-center w-full">
-          {Object.entries(todayTotals).map(([currency, total]) => {
-            const net = total.credit - total.debit;
-
-            return (
-              <Col xs={24} sm={12} md={8} lg={6} key={currency}>
-  <div className="h-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-
-    {/* Currency Header */}
-    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-        {currency}
-      </h3>
-      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
-        Balance
-      </span>
-    </div>
-
-    {/* Credit */}
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-emerald-500" />
-        <span className="text-sm font-medium text-slate-500">
-          Credit
-        </span>
-      </div>
-
-      <span className="text-base font-semibold tabular-nums text-emerald-700">
-        {Number(total.credit || 0).toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
-      </span>
-    </div>
-
-    {/* Debit */}
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-red-500" />
-        <span className="text-sm font-medium text-slate-500">
-          Debit
-        </span>
-      </div>
-
-      <span className="text-base font-semibold tabular-nums text-red-700">
-        {Number(total.debit || 0).toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
-      </span>
-    </div>
-
-    {/* Net Balance */}
-    <div className="mt-4 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-3">
-      <span className="text-sm font-bold text-slate-700">
-        Net Balance
-      </span>
-
-      <span
-        className={`text-lg font-bold tabular-nums ${
-          net >= 0 ? "text-blue-700" : "text-red-600"
-        }`}
-      >
-        {Number(net || 0).toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
-      </span>
-    </div>
-
-  </div>
-</Col>
-            );
-          })}
-        </Row>
-
-        {/* Vault Form */}
-      
-
-<Modal
+        <Modal
           open={vaultFormOpen}
           onCancel={() => {
             setVaultFormOpen(false);
@@ -1640,270 +1689,300 @@ const Vault = () => {
           }
           styles={{ content: { borderRadius: 18 }, body: { paddingTop: 12 } }}
         >
-<div className="flex w-full justify-center px-1 py-2">
-  <Card
-    className="!w-full !rounded-xl !border !border-slate-200 !shadow-sm"
-    bordered={false}
-  >
-    <Form
-      form={form}
-      layout="vertical"
-      onFinish={edit ? onUpdat : onFinish}
-      autoComplete="off"
-      size="middle"
-    >
-      {/* CUSTOMER INFORMATION */}
-      <div className="mb-3 flex items-center gap-2">
-        <UserOutlined className="text-blue-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-          Customer Information
-        </span>
-      </div>
-
-      <Row gutter={[16, 4]}>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Customer Name"
-            name="fullname"
-            rules={[
-              {
-                required: true,
-                message: "Please enter customer name",
-              },
-            ]}
-          >
-            <Input
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Customer Name"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item name="accountNo" label="Account No">
-            <Select
-              mode="tags"
-              size="middle"
-              showSearch
-              placeholder="Select Account"
-              options={accountOptions}
-              className="!rounded-lg"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Currency"
-            name="currency"
-            rules={[
-              {
-                required: true,
-                message: "Select currency",
-              },
-            ]}
-          >
-            <Select
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Select Currency"
-              options={currencies?.map((item) => ({
-                label: item.currency,
-                value: item.currency,
-              }))}
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Transaction Type"
-            name="transactionType"
-          >
-            <Select
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Transaction Type"
-              options={[
-                {
-                  value: "Vault Credit",
-                  label: "Vault Credit",
-                },
-                {
-                  value: "Vault Debit",
-                  label: "Vault Debit",
-                },
-              ]}
-            />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      {/* AMOUNTS */}
-      <div className="mb-3 mt-2 flex items-center gap-2">
-        <DollarCircleOutlined className="text-blue-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-          Transaction Amount
-        </span>
-      </div>
-
-      <Row gutter={[16, 8]}>
-        <Col xs={24} md={12}>
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 pt-3">
-            <Form.Item
-              label={
-                <span className="font-semibold text-emerald-700">
-                  Credit Amount
-                </span>
-              }
-              name="credit"
-              initialValue={0}
+          <div className="flex w-full justify-center px-1 py-2">
+            <Card
+              className="!w-full !rounded-xl !border !border-slate-200 !shadow-sm"
+              bordered={false}
             >
-              <InputNumber
+              <Form
+                form={form}
+                layout="vertical"
+                onFinish={edit ? onUpdat : onFinish}
+                autoComplete="off"
                 size="middle"
-                className="!w-full !rounded-lg"
-                min={0}
-                placeholder="0.00"
-                formatter={(value) =>
-                  `${value ?? ""}`.replace(
-                    /\B(?=(\d{3})+(?!\d))/g,
-                    ","
-                  )
-                }
-                parser={(value) => (value || "").replace(/,/g, "")}
-              />
-            </Form.Item>
+              >
+                {/* CUSTOMER INFORMATION */}
+                <div className="mb-3 flex items-center gap-2">
+                  <UserOutlined className="text-blue-600" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Customer Information
+                  </span>
+                </div>
+
+                <Row gutter={[16, 4]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item name="accountNo" label="Account No">
+                      <Select
+                        size="middle"
+                        showSearch
+                        optionFilterProp="label"
+                        placeholder="Select Account"
+                        options={accountOptions}
+                        className="!rounded-lg"
+                        onChange={(value) => {
+                          const selectedAccount = accountOptions.find(
+                            (account) => account.value === value,
+                          );
+
+                          form.setFieldsValue({
+                            fullname: selectedAccount?.fullname || "",
+                          });
+                        }}
+                        classNames={{
+                          popup: {
+                            root: `
+        [&_.ant-select-item-option-active]:!bg-blue-300
+        [&_.ant-select-item-option-selected]:!text-slate-900
+      `,
+                          },
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      label="Customer Name"
+                      name="fullname"
+                      rules={[
+                        {
+                          required: true,
+                          message: "Please enter customer name",
+                        },
+                      ]}
+                    >
+                      <Input
+                        size="middle"
+                        className="!rounded-lg"
+                        placeholder="Customer Name"
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      label="Currency"
+                      name="currency"
+                      rules={[
+                        {
+                          required: true,
+                          message: "Select currency",
+                        },
+                      ]}
+                    >
+                      <Select
+                        size="middle"
+                        className="!rounded-lg"
+                        placeholder="Select Currency"
+                        options={currencies?.map((item) => ({
+                          label: item.currency,
+                          value: item.currency,
+                        }))}
+                        classNames={{
+                          popup: {
+                            root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                          },
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  <Col xs={24} md={12}>
+                    <Form.Item label="Transaction Type" name="transactionType">
+                      <Select
+                        size="middle"
+                        className="!rounded-lg"
+                        placeholder="Transaction Type"
+                        options={[
+                          {
+                            value: "Vault Credit",
+                            label: "Vault Credit",
+                          },
+                          {
+                            value: "Vault Debit",
+                            label: "Vault Debit",
+                          },
+                        ]}
+                        classNames={{
+                          popup: {
+                            root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                          },
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                {/* AMOUNTS */}
+                <div className="mb-3 mt-2 flex items-center gap-2">
+                  <DollarCircleOutlined className="text-blue-600" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Transaction Amount
+                  </span>
+                </div>
+
+                <Row gutter={[16, 8]}>
+                  <Col xs={24} md={12}>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 pt-3">
+                      <Form.Item
+                        label={
+                          <span className="font-semibold text-emerald-700">
+                            Credit Amount
+                          </span>
+                        }
+                        name="credit"
+                        initialValue={0}
+                      >
+                        <InputNumber
+                          size="middle"
+                          className="!w-full !rounded-lg"
+                          min={0}
+                          placeholder="0.00"
+                          formatter={(value) =>
+                            `${value ?? ""}`.replace(
+                              /\B(?=(\d{3})+(?!\d))/g,
+                              ",",
+                            )
+                          }
+                          parser={(value) => (value || "").replace(/,/g, "")}
+                        />
+                      </Form.Item>
+                    </div>
+                  </Col>
+
+                  <Col xs={24} md={12}>
+                    <div className="rounded-lg border border-red-200 bg-red-50/40 px-3 pt-3">
+                      <Form.Item
+                        label={
+                          <span className="font-semibold text-red-700">
+                            Debit Amount
+                          </span>
+                        }
+                        name="debit"
+                        initialValue={0}
+                      >
+                        <InputNumber
+                          size="middle"
+                          className="!w-full !rounded-lg"
+                          min={0}
+                          placeholder="0.00"
+                          formatter={(value) =>
+                            `${value ?? ""}`.replace(
+                              /\B(?=(\d{3})+(?!\d))/g,
+                              ",",
+                            )
+                          }
+                          parser={(value) => (value || "").replace(/,/g, "")}
+                        />
+                      </Form.Item>
+                    </div>
+                  </Col>
+                </Row>
+
+                {/* DAILY EXCHANGE RATE */}
+                <div className="mb-3 mt-4 flex items-center gap-2">
+                  <ArrowLeftRight className="text-blue-600" size={16} />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Daily Exchange Rate
+                  </span>
+                </div>
+
+                <Row gutter={[16, 4]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      label="Exchange Rate"
+                      name="exchangeRate"
+                      tooltip="Enter the exchange rate applicable for this day's vault entry."
+                      rules={[
+                        {
+                          type: "number",
+                          min: 0,
+                          message: "Exchange rate cannot be negative",
+                        },
+                      ]}
+                    >
+                      <InputNumber
+                        size="middle"
+                        className="!w-full !rounded-lg"
+                        min={0}
+                        step={0.0001}
+                        precision={6}
+                        placeholder="Enter today's exchange rate"
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                {/* REFERENCES */}
+                <div className="mb-3 mt-4 flex items-center gap-2">
+                  <FileTextOutlined className="text-blue-600" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Transaction References
+                  </span>
+                </div>
+
+                <Row gutter={[16, 4]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="Transaction ID" name="transactionId">
+                      <Input
+                        size="middle"
+                        className="!rounded-lg"
+                        readOnly={edit}
+                        placeholder="Transaction ID"
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  <Col xs={24} md={12}>
+                    <Form.Item label="Transaction No" name="transactionNo">
+                      <Input
+                        size="middle"
+                        className="!rounded-lg"
+                        placeholder="Transaction Number"
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  <Col span={24}>
+                    <Form.Item label="Details" name="details">
+                      <Input.TextArea
+                        rows={2}
+                        className="!rounded-lg"
+                        placeholder="Additional details..."
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  {/* ACTION */}
+                  <Col span={24}>
+                    <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                      <span className="text-xs text-slate-400">
+                        Review details before saving.
+                      </span>
+
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        size="middle"
+                        icon={<SaveOutlined />}
+                        className="!h-10 !rounded-lg !border-0 !bg-blue-700 !px-7 !font-semibold hover:!bg-blue-800"
+                      >
+                        {edit ? "Update Vault" : "Save Vault"}
+                      </Button>
+                    </div>
+                  </Col>
+                </Row>
+              </Form>
+            </Card>
           </div>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <div className="rounded-lg border border-red-200 bg-red-50/40 px-3 pt-3">
-            <Form.Item
-              label={
-                <span className="font-semibold text-red-700">
-                  Debit Amount
-                </span>
-              }
-              name="debit"
-              initialValue={0}
-            >
-              <InputNumber
-                size="middle"
-                className="!w-full !rounded-lg"
-                min={0}
-                placeholder="0.00"
-                formatter={(value) =>
-                  `${value ?? ""}`.replace(
-                    /\B(?=(\d{3})+(?!\d))/g,
-                    ","
-                  )
-                }
-                parser={(value) => (value || "").replace(/,/g, "")}
-              />
-            </Form.Item>
-          </div>
-        </Col>
-      </Row>
-
-      {/* DAILY EXCHANGE RATE */}
-      <div className="mb-3 mt-4 flex items-center gap-2">
-        <ArrowLeftRight className="text-blue-600" size={16} />
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-          Daily Exchange Rate
-        </span>
-      </div>
-
-      <Row gutter={[16, 4]}>
-        <Col xs={24} md={12}>
-          <Form.Item
-            label="Exchange Rate"
-            name="exchangeRate"
-            tooltip="Enter the exchange rate applicable for this day's vault entry."
-            rules={[
-              {
-                type: "number",
-                min: 0,
-                message: "Exchange rate cannot be negative",
-              },
-            ]}
-          >
-            <InputNumber
-              size="middle"
-              className="!w-full !rounded-lg"
-              min={0}
-              step={0.0001}
-              precision={6}
-              placeholder="Enter today's exchange rate"
-            />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      {/* REFERENCES */}
-      <div className="mb-3 mt-4 flex items-center gap-2">
-        <FileTextOutlined className="text-blue-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-          Transaction References
-        </span>
-      </div>
-
-      <Row gutter={[16, 4]}>
-        <Col xs={24} md={12}>
-          <Form.Item label="Transaction ID" name="transactionId">
-            <Input
-              size="middle"
-              className="!rounded-lg"
-              readOnly={edit}
-              placeholder="Transaction ID"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item label="Transaction No" name="transactionNo">
-            <Input
-              size="middle"
-              className="!rounded-lg"
-              placeholder="Transaction Number"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col span={24}>
-          <Form.Item label="Details" name="details">
-            <Input.TextArea
-              rows={2}
-              className="!rounded-lg"
-              placeholder="Additional details..."
-            />
-          </Form.Item>
-        </Col>
-
-        {/* ACTION */}
-        <Col span={24}>
-          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-            <span className="text-xs text-slate-400">
-              Review details before saving.
-            </span>
-
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="middle"
-              icon={<SaveOutlined />}
-              className="!h-10 !rounded-lg !border-0 !bg-blue-700 !px-7 !font-semibold hover:!bg-blue-800"
-            >
-              {edit ? "Update Vault" : "Save Vault"}
-            </Button>
-          </div>
-        </Col>
-      </Row>
-    </Form>
-  </Card>
-</div>
         </Modal>
-
 
         {/* Vault History */}
         <Card
@@ -1954,7 +2033,8 @@ const Vault = () => {
                       pageSize: 6,
                       showSizeChanger: true,
                       pageSizeOptions: ["6", "10", "20", "50"],
-                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} records`,
+                      showTotal: (total, range) =>
+                        `${range[0]}-${range[1]} of ${total} records`,
                     }}
                     sticky
                     scroll={{ x: "max-content" }}
@@ -1976,7 +2056,8 @@ const Vault = () => {
                       pageSize: 10,
                       showSizeChanger: true,
                       pageSizeOptions: ["10", "20", "50", "100"],
-                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} records`,
+                      showTotal: (total, range) =>
+                        `${range[0]}-${range[1]} of ${total} records`,
                     }}
                     sticky
                     scroll={{ x: "max-content" }}
@@ -2026,6 +2107,15 @@ const Vault = () => {
               placeholder="Select Account No"
               options={accountOptions}
               className="!rounded-xl !border-slate-300 hover:!border-blue-500"
+              classNames={{
+                popup: {
+                  root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                },
+              }}
             />
           </Form.Item>
 

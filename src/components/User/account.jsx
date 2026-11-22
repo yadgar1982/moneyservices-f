@@ -1999,6 +1999,15 @@ const printallAccounts = () => {
                     placeholder="Select a country"
                     className="w-full !text-sm"
                     size="large"
+                    classNames={{
+                        popup: {
+                          root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                        },
+                      }}
                   />
                 </Form.Item>
 

@@ -60,6 +60,7 @@ const Commissions = () => {
   const [selectedCurrency, setSelectedCurrency] = useState("");
   const [resultText, setResultText] = useState("");
   const [searchText, setSearchText] = useState("");
+const [balanceView, setBalanceView] = useState("today");
 
   const dispatch = useDispatch();
   const [form] = Form.useForm();
@@ -170,21 +171,24 @@ const Commissions = () => {
     );
   });
 
-  const todayTotals = todayCommissions.reduce((acc, item) => {
-    const currency = item.currency || "Unknown";
+ const summaryCommissions =
+  balanceView === "today" ? todayCommissions : comissions;
 
-    if (!acc[currency]) {
-      acc[currency] = {
-        credit: 0,
-        debit: 0,
-      };
-    }
+const summaryTotals = summaryCommissions.reduce((acc, item) => {
+  const currency = item.currency || "Unknown";
 
-    acc[currency].credit += Number(item.credit || 0);
-    acc[currency].debit += Number(item.debit || 0);
+  if (!acc[currency]) {
+    acc[currency] = {
+      credit: 0,
+      debit: 0,
+    };
+  }
 
-    return acc;
-  }, {});
+  acc[currency].credit += Number(item.credit || 0);
+  acc[currency].debit += Number(item.debit || 0);
+
+  return acc;
+}, {});
 
   // Filter by account
   const accountFiltered = (comissions || []).filter(
@@ -1581,17 +1585,7 @@ body {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
-              <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 text-xl">
-                  <WalletOutlined />
-                </div>
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wider text-blue-200">
-                    Overview
-                  </div>
-                  <div className="font-semibold">Today's Summary</div>
-                </div>
-              </div>
+             
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -1608,78 +1602,153 @@ body {
           </div>
         </div>
 
-        {/* Daily totals */}
-        <div className="mb-8">
-          <div className="mb-4 flex items-center justify-between px-4 md:px-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-800">
-                Daily Overview
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Credit, debit, and net totals by currency
-              </p>
+
+{/* GLOBAL OUTSTANDING DEBIT ALERT */}
+{(() => {
+  const lastTransaction = [...(comissions || [])]
+    .filter(
+      (item) =>
+        dayjs(item.createdAt).isValid() &&
+        (Number(item.debit || 0) > 0 ||
+          Number(item.credit || 0) > 0)
+    )
+    .sort(
+      (a, b) =>
+        dayjs(b.createdAt).valueOf() -
+        dayjs(a.createdAt).valueOf()
+    )[0];
+
+  if (!lastTransaction || Number(lastTransaction.debit || 0) <= 0) {
+    return null;
+  }
+
+  return (
+    <div className="mx-4 mb-5 rounded-xl border border-red-300 bg-red-50 p-4 shadow-sm md:mx-6">
+      <div className="flex items-center gap-2">
+        <span className="h-3 w-3 rounded-full bg-red-500" />
+        <p className="font-bold text-red-700">
+          Outstanding Debit Alert
+        </p>
+      </div>
+
+      <p className="mt-2 text-sm text-red-700">
+        The latest commission movement was a Debit of{" "}
+        <strong>
+          {Number(lastTransaction.debit).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}{" "}
+          {lastTransaction.currency}
+        </strong>.
+        A Credit has not been recorded after this Debit.
+      </p>
+
+      <p className="mt-1 text-xs text-red-500">
+        Account: {lastTransaction.accountNo} | 
+        Date: {dayjs(lastTransaction.createdAt).format("DD-MM-YYYY")}
+      </p>
+    </div>
+  );
+})()}
+
+
+
+    
+{/* Balance Report */}
+<div className="mb-8">
+  <div className="mb-4 flex flex-col gap-3 px-4 md:flex-row md:items-center md:justify-between md:px-6">
+    <div>
+      <h2 className="text-lg font-bold text-slate-800">
+        {balanceView === "today" ? "Today's Balance" : "All-Balance"}
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Credit, debit, and net totals by currency
+      </p>
+    </div>
+
+    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-1">
+      <Button
+        type={balanceView === "today" ? "primary" : "text"}
+        onClick={() => setBalanceView("today")}
+        className="!rounded-md"
+      >
+        Today
+      </Button>
+
+      <Button
+        type={balanceView === "all" ? "primary" : "text"}
+        onClick={() => setBalanceView("all")}
+        className="!rounded-md"
+      >
+        All Balance
+      </Button>
+    </div>
+  </div>
+
+  <Row gutter={[16, 16]} className="!flex !justify-center !w-full">
+    {Object.entries(summaryTotals).map(([currency, total]) => {
+      const net = total.credit - total.debit;
+
+      return (
+        <Col xs={24} sm={12} md={8} lg={6} key={currency}>
+          <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-800">
+                {currency}
+              </h3>
+              <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                Balance
+              </span>
             </div>
-            <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              TODAY
-            </span>
+
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Credit
+              </span>
+              <span className="text-base font-bold tabular-nums text-emerald-700">
+                {Number(total.credit || 0).toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                Debit
+              </span>
+              <span className="text-base font-bold tabular-nums text-red-700">
+                {Number(total.debit || 0).toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
+              <span className="text-sm font-semibold text-slate-600">
+                Net Balance
+              </span>
+              <span
+                className={`text-lg font-extrabold tabular-nums ${
+                  net >= 0 ? "text-blue-700" : "text-red-700"
+                }`}
+              >
+                {net.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
           </div>
-          <Row gutter={[16, 16]} className="!flex !justify-center !w-full">
-            {Object.entries(todayTotals).map(([currency, total]) => {
-              const net = total.credit - total.debit;
-              return (
-                <Col xs={24} sm={12} md={8} lg={6} key={currency}>
-                  <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                      <h3 className="text-base font-bold text-slate-800">
-                        {currency}
-                      </h3>
-                      <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                        {currency}
-                      </span>
-                    </div>
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />{" "}
-                        Credit
-                      </span>
-                      <span className="text-base font-bold tabular-nums text-emerald-700">
-                        {Number(total.credit || 0).toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-                    </div>
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                        <span className="h-2 w-2 rounded-full bg-red-500" />{" "}
-                        Debit
-                      </span>
-                      <span className="text-base font-bold tabular-nums text-red-700">
-                        {Number(total.debit || 0).toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
-                      <span className="text-sm font-semibold text-slate-600">
-                        Net balance
-                      </span>
-                      <span
-                        className={`text-lg font-extrabold tabular-nums ${net >= 0 ? "text-blue-700" : "text-red-700"}`}
-                      >
-                        {net.toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                </Col>
-              );
-            })}
-          </Row>
-        </div>
+        </Col>
+      );
+    })}
+  </Row>
+</div>
+
 
         {/* Create / Edit Commission Modal */}
         <Modal
@@ -1719,6 +1788,10 @@ body {
             onFinish={edit ? onUpdat : onFinish}
             autoComplete="off"
             size="middle"
+             initialValues={{
+    credit: 0,
+    debit: 0,
+             }}
           >
             <div className="mb-3 flex items-center gap-2">
               <FileTextOutlined className="text-blue-600" />
@@ -1746,6 +1819,15 @@ body {
                         fullname: selectedAccount?.fullname || "",
                       });
                     }}
+                    classNames={{
+                        popup: {
+                          root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                        },
+                      }}
                   />
                 </Form.Item>
               </Col>
@@ -1779,6 +1861,15 @@ body {
                       label: item.currency,
                       value: item.currency,
                     }))}
+                    classNames={{
+                        popup: {
+                          root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                        },
+                      }}
                   />
                 </Form.Item>
               </Col>
@@ -1795,6 +1886,15 @@ body {
                       { value: "expense", label: "Expense" },
                       { value: "withdrawal", label: "Withdrawal" },
                     ]}
+                    classNames={{
+                        popup: {
+                          root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                        },
+                      }}
                   />
                 </Form.Item>
               </Col>
@@ -1802,7 +1902,11 @@ body {
 
             <div className="mb-3 mt-2 flex items-center gap-2">
               <DollarCircleOutlined className="text-blue-600" />
+              
               <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+
+
+
                 Commission Amounts
               </span>
             </div>
@@ -2063,6 +2167,15 @@ body {
                 label: cur.currency,
                 value: cur.currency,
               }))}
+              classNames={{
+                        popup: {
+                          root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                        },
+                      }}
             />
           </Form.Item>
           <Form.Item name="accountNo" label="Account Number">
@@ -2072,6 +2185,15 @@ body {
               placeholder="Select account number"
               options={accountOptions}
               className="!rounded-lg"
+              classNames={{
+                        popup: {
+                          root: `
+      
+                          [&_.ant-select-item-option-active]:!bg-blue-300
+                          [&_.ant-select-item-option-selected]:!text-slate-900
+                        `,
+                        },
+                      }}
             />
           </Form.Item>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
