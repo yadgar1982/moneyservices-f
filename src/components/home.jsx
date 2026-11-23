@@ -100,11 +100,24 @@ const Login = () => {
           setLoader(false);
         }
       }, 100);
-    } catch (err) {
-      console.log(err);
-      swal("Login Failed", "Invalid credentials, Please try again!", "error");
-      setLoader(false);
-    }
+   } catch (err) {
+  console.error("LOGIN FLOW ERROR:", {
+    status: err.response?.status,
+    data: err.response?.data,
+    message: err.message,
+  });
+
+  swal(
+    "Login Error",
+    err.response?.data?.msg ||
+      err.response?.data?.message ||
+      err.message ||
+      "Unable to complete login.",
+    "error"
+  );
+
+  setLoader(false);
+}
   };
 
   const sendOTP = async (values) => {
