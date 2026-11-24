@@ -35,6 +35,57 @@ const shutterSound = new Audio("./camera.mp3");
 shutterSound.volume = 0.2;
 
 const { Option } = Select;
+
+
+
+const countries = [
+  "Afghanistan",
+  "Pakistan",
+  "Iran",
+  "Uzbekistan",
+  "China",
+  "United States",
+  "United Kingdom",
+  "Germany",
+  "Kazakhstan",
+  "Tajikistan",
+  "United Arab Emirates",
+  "Saudi Arabia",
+  "Qatar",
+  "Turkey",
+  "India",
+  "Canada",
+  "Australia",
+  "France",
+  "Italy",
+  "Russia",
+  "Japan",
+  "Malaysia",
+  "Indonesia",
+  "Bangladesh",
+  "Egypt",
+  "Iraq",
+  "Kuwait",
+  "Oman",
+  "Bahrain",
+  "Netherlands",
+  "Sweden",
+  "Norway",
+  "Switzerland",
+  "Spain",
+  "Belgium",
+  "South Korea",
+  "Singapore",
+  "New Zealand",
+  "Brazil",
+  "South Africa",
+  "Sri Lanka",
+  "Nepal",
+  "Ukraine",
+  "Poland",
+  "Denmark",
+  "Finland",
+];
 const Register = () => {
   const [selectedCurrency, setSelectedCurrency] = useState("");
   const [form] = Form.useForm();
@@ -389,20 +440,44 @@ const Register = () => {
           </Col>
 
           {/* COUNTRY */}
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Form.Item
-              name="country"
-              label="Country"
-              rules={[
-                { required: true, message: "Enter your Country" },
-              ]}
-            >
-              <Input
-                placeholder="Country"
-                className="!rounded-lg"
-              />
-            </Form.Item>
-          </Col>
+         
+{/* COUNTRY */}
+<Col xs={24} sm={12} md={8} lg={6}>
+  <Form.Item
+    name="country"
+    label="Country"
+    rules={[
+      { required: true, message: "Please select a country" },
+    ]}
+  >
+    <Select
+      showSearch
+      allowClear
+      placeholder="Select Country"
+      optionFilterProp="label"
+      options={countries.map((country) => ({
+        value: country,
+        label: country,
+      }))}
+      filterOption={(input, option) =>
+        (option?.label ?? "")
+          .toLowerCase()
+          .includes(input.toLowerCase())
+      }
+    classNames={{
+  popup: {
+    root: `
+      [&_.ant-select-item-option-active:not(.ant-select-item-option-disabled)]:!bg-blue-900
+      [&_.ant-select-item-option-active:not(.ant-select-item-option-disabled)]:!text-white
+      [&_.ant-select-item-option-selected:not(.ant-select-item-option-disabled)]:!bg-blue-950
+      [&_.ant-select-item-option-selected:not(.ant-select-item-option-disabled)]:!text-white
+    `,
+  },
+}}
+    />
+  </Form.Item>
+</Col>
+
 
           {/* ADDRESS */}
           <Col xs={24} sm={12} md={8} lg={6}>
@@ -443,7 +518,16 @@ const Register = () => {
                   { value: "customer", label: "Customer" },
                   { value: "power", label: "Power" },
                 ]}
-                className="!rounded-lg"
+                classNames={{
+    popup: {
+      root: `
+        [&_.ant-select-item-option-active:not(.ant-select-item-option-disabled)]:!bg-blue-900
+        [&_.ant-select-item-option-active:not(.ant-select-item-option-disabled)]:!text-white
+        [&_.ant-select-item-option-selected:not(.ant-select-item-option-disabled)]:!bg-blue-950
+        [&_.ant-select-item-option-selected:not(.ant-select-item-option-disabled)]:!text-white
+      `,
+    },
+  }}
               />
             </Form.Item>
           </Col>
@@ -457,20 +541,29 @@ const Register = () => {
                 { required: true, message: "Enter Branch" },
               ]}
             >
-              <Select
-                showSearch
-                placeholder="Select a branch"
-                options={branches?.map((b) => ({
-                  value: b.branch,
-                  label: b.branch,
-                }))}
-                filterOption={(input, option) =>
-                  (option?.label ?? "")
-                    .toLowerCase()
-                    .includes(input.toLowerCase())
-                }
-                className="!rounded-lg"
-              />
+             <Select
+  placeholder="Select a branch"
+  showSearch={{
+    filterOption: (input, option) =>
+      (option?.label ?? "")
+        .toLowerCase()
+        .includes(input.toLowerCase()),
+  }}
+  options={branches?.map((b) => ({
+    value: b.branch,
+    label: b.branch,
+  }))}
+  classNames={{
+    popup: {
+      root: `
+        [&_.ant-select-item-option-active:not(.ant-select-item-option-disabled)]:!bg-blue-900
+        [&_.ant-select-item-option-active:not(.ant-select-item-option-disabled)]:!text-white
+        [&_.ant-select-item-option-selected:not(.ant-select-item-option-disabled)]:!bg-blue-950
+        [&_.ant-select-item-option-selected:not(.ant-select-item-option-disabled)]:!text-white
+      `,
+    },
+  }}
+/>
             </Form.Item>
           </Col>
 
